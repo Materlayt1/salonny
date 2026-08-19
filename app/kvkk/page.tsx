@@ -1,0 +1,3 @@
+import { LegalPage } from "@/components/legal-page";
+import { BRAND } from "@/config/brand";
+export default function KvkkPage() { return <LegalPage title="KVKK Aydınlatma Metni"><section><h2>Veri sorumlusu</h2><p>6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında veri sorumlusu {BRAND.legalName}&apos;dir. Bu metin üretim öncesinde hukuk danışmanı tarafından doğrulanmalıdır.</p></section><section><h2>İşleme hukuki sebepleri</h2><p>Veriler; sözleşmenin kurulması ve ifası, hukuki yükümlülük, meşru menfaat ve gerekli durumlarda açık rıza hukuki sebeplerine dayanılarak işlenir.</p></section><section><h2>Başvuru</h2><p>KVKK’nın 11. maddesindeki haklarınıza ilişkin başvurularınızı kimlik doğrulamasıyla destek kanalımıza iletebilirsiniz.</p></section></LegalPage>; }

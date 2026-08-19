@@ -1,0 +1,2 @@
+import { LegalPage } from "@/components/legal-page";
+export default function CookiesPage() { return <LegalPage title="Çerez Politikası"><section><h2>Zorunlu çerezler</h2><p>Oturum, güvenlik ve tercihlerin korunması için gerekli çerezler platformun çalışması amacıyla kullanılır.</p></section><section><h2>Analitik ve pazarlama</h2><p>Zorunlu olmayan analitik ve pazarlama çerezleri yalnızca tercihiniz doğrultusunda etkinleştirilir. Tercihlerinizi dilediğiniz zaman değiştirebilirsiniz.</p></section></LegalPage>; }

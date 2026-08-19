@@ -1,0 +1,3 @@
+import { LegalPage } from "@/components/legal-page";
+import { BRAND } from "@/config/brand";
+export default function TermsPage() { return <LegalPage title="Kullanım Koşulları"><section><h2>Platformun rolü</h2><p>{BRAND.name}, müşteriler ile bağımsız hizmet işletmelerini buluşturan rezervasyon ve yönetim platformudur. Hizmetin ifasından ilgili işletme sorumludur.</p></section><section><h2>Rezervasyon ve iptal</h2><p>İşletmeye özel fiyat, depozito ve iptal koşulları ödeme/onay adımında gösterilir. Kullanıcı, onaylamadan önce bu koşulları incelemekle yükümlüdür.</p></section><section><h2>Hesap güvenliği</h2><p>Kullanıcılar hesap bilgilerinin gizliliğinden ve hesapları üzerinden gerçekleşen işlemlerden sorumludur.</p></section></LegalPage>; }
