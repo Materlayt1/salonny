@@ -10,7 +10,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Uygulama operasyonel veriler için Supabase gerektirir. Anahtarlar eksikse güvenli boş durumlar gösterilir. Yalnızca GitHub Pages görsel demosunda `NEXT_PUBLIC_DEMO_MODE=true` ile 35 adet açıkça kurgusal, salt-okunur işletme kaydı kullanılır; randevu, ciro veya kullanıcı verisi üretilmez. Rezervasyonlar `/api/bookings` üzerinden atomik PostgreSQL RPC'si ile oluşturulur.
+Uygulama operasyonel veriler için Supabase gerektirir. Anahtarlar eksikse güvenli boş durumlar gösterilir. Marketplace, kimlik doğrulama, randevu ve işletme yönetimi verileri doğrudan yapılandırılmış Supabase projesinden alınır. Rezervasyonlar `/api/bookings` üzerinden atomik PostgreSQL RPC'si ile oluşturulur.
 
 ## Doğrulama
 
@@ -39,7 +39,7 @@ pnpm test:e2e
 
 1. Supabase projesini oluşturun ve `.env.example` içindeki değişkenleri tanımlayın.
 2. `supabase/migrations` altındaki migrasyonları dosya sırasıyla çalıştırın.
-3. `supabase/seed.sql` yalnızca geliştirme/preview ortamında çalıştırılmalıdır.
+3. `supabase/seed.sql` kategori taksonomisini geliştirme/preview ortamına eklemek için kullanılabilir.
 4. Gerçek ödeme ve iletişim sağlayıcılarını `lib/providers` altındaki arayüzlere uyarlayın.
 5. Vercel ortam değişkenlerini ekleyip build doğrulamasından sonra deploy edin.
 
