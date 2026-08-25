@@ -44,7 +44,7 @@ function popularItems(businesses: Business[], categories: Awaited<ReturnType<typ
 }
 
 function BusinessRail({ businesses }: { businesses: Business[] }) {
-  return <div className="grid grid-flow-col auto-cols-[min(82vw,320px)] gap-4 overflow-x-auto pb-3 hide-scrollbar lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-3 lg:overflow-visible xl:grid-cols-4">{businesses.map((business) => <BusinessCard key={business.id} business={business} />)}</div>;
+  return <div className="grid grid-flow-col auto-cols-[min(91vw,390px)] gap-3 overflow-x-auto pb-3 hide-scrollbar lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-2 lg:overflow-visible xl:grid-cols-3">{businesses.map((business) => <BusinessCard key={business.id} business={business} horizontal homeRail />)}</div>;
 }
 
 export default async function HomePage() {
