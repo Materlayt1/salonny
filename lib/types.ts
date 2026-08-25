@@ -63,6 +63,7 @@ export type Business = {
   phone: string;
   website?: string;
   description: string;
+  createdAt?: string;
   timezone?: string;
   todayHours?: PublicBusinessHour;
   hours?: PublicBusinessHour[];

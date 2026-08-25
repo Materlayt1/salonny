@@ -42,6 +42,15 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
       if (!active) return;
       setQuery(params.get("q") ?? "");
       setSelectedCategory(params.get("category") ?? "");
+      const requestedSort = params.get("sort");
+      if (["recommended", "distance", "rating", "price"].includes(requestedSort ?? "")) setSort(requestedSort!);
+      setOpenNow(params.get("open") === "1");
+      if (params.get("nearby") === "1") {
+        if (!navigator.geolocation) setLocationError("Tarayıcın konum paylaşımını desteklemiyor.");
+        else navigator.geolocation.getCurrentPosition((position) => {
+          if (active) { setLocation({ lat: position.coords.latitude, lng: position.coords.longitude }); setSort("distance"); }
+        }, () => { if (active) setLocationError("Konum alınamadı. Tarayıcı iznini kontrol et."); }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 });
+      }
     });
     if (initialBusinesses) {
       return () => { active = false; };
