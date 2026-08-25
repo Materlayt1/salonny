@@ -86,10 +86,10 @@ export default async function HomePage() {
         </section>
 
         <section className="container-shell py-10 md:py-16">
-          <div className="overflow-hidden rounded-[28px] bg-[#17151F] px-6 py-9 text-white md:px-12 md:py-12">
+          <div className="overflow-hidden rounded-[28px] bg-[#6C4BF4] px-6 py-9 text-white shadow-[0_18px_50px_rgba(77,45,196,.22)] md:px-12 md:py-12">
             <div className="grid items-center gap-8 md:grid-cols-[1fr_auto]">
-              <div><Badge className="bg-white/10 text-[#D8CCFF]">İşletmeler için {BRAND.name}</Badge><h2 className="mt-4 max-w-2xl text-3xl font-bold tracking-[-.035em] md:text-4xl">Takvimini düzenle, müşteri kazan, işletmeni büyüt.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-white/65">Randevu, CRM, raporlar, ekip ve kampanyalar tek platformda. Başlamak ücretsiz.</p></div>
-              <ButtonLink href="/business" className="w-full bg-white text-[#3F25B9] shadow-none hover:bg-[#F1EDFF] md:w-auto">İşletmeni ücretsiz ekle <ArrowRight className="h-4 w-4" /></ButtonLink>
+              <div><Badge className="border border-white/20 bg-white/15 text-white">İşletmeler için {BRAND.name}</Badge><h2 className="mt-4 max-w-2xl text-3xl font-bold tracking-[-.035em] text-white md:text-4xl">Takvimini düzenle, müşteri kazan, işletmeni büyüt.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-white/80">Randevu, CRM, raporlar, ekip ve kampanyalar tek platformda. Başlamak ücretsiz.</p></div>
+              <ButtonLink href="/business" variant="inverted" className="w-full md:w-auto">İşletmeni ücretsiz ekle <ArrowRight className="h-4 w-4" /></ButtonLink>
             </div>
           </div>
         </section>

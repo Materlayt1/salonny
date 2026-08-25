@@ -119,7 +119,7 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
               </section>
               <section className="bg-[#F7F7FA] px-3 py-3">
                 <div className="mb-2 flex items-center justify-between px-0.5"><h1 className="text-[13px] font-bold">Yakınındaki işletmeler</h1><span className="text-[10px] text-[#777781]">{filtered.length} sonuç</span></div>
-                {activeBusiness ? <BusinessCard business={activeBusiness} horizontal mobileCompact /> : results}
+                {results}
               </section>
             </div>
           ) : (

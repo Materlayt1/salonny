@@ -1,24 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
+import { useCallback, useEffect, useRef } from "react";
+import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { isValidCoordinate } from "@/lib/geo";
-import { createSalonnyMapStyle, MAP_PRIMARY, MAP_PRIMARY_DARK, MAP_WHITE } from "@/lib/map-theme";
+import { createSalonnyMapStyle } from "@/lib/map-theme";
 import type { Business } from "@/lib/types";
 
 const TURKEY_CENTER: [number, number] = [35.24, 38.96];
-const sourceId = "marketplace-businesses";
-
-function collection(items: Business[]) {
-  return {
-    type: "FeatureCollection",
-    features: items.filter((item) => isValidCoordinate(item.lat, item.lng)).map((business) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [business.lng, business.lat] },
-      properties: { id: business.id, name: business.name },
-    })),
-  } as unknown as Parameters<GeoJSONSource["setData"]>[0];
-}
+type MapLibreModule = typeof import("maplibre-gl");
+type BusinessMarker = { marker: Marker; element: HTMLButtonElement };
 
 function fitItems(map: MapLibreMap, items: Business[]) {
   const validItems = items.filter((item) => isValidCoordinate(item.lat, item.lng));
@@ -33,18 +23,60 @@ function fitItems(map: MapLibreMap, items: Business[]) {
 export function DiscoverMap({ items, selected, onSelect, testId = "discover-map" }: { items: Business[]; selected?: Business; onSelect: (business: Business) => void; testId?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const selectedMarkerRef = useRef<Marker | null>(null);
+  const maplibreRef = useRef<MapLibreModule | null>(null);
+  const markersRef = useRef<Map<string, BusinessMarker>>(new Map());
   const itemsRef = useRef(items);
   const selectedRef = useRef(selected);
   const onSelectRef = useRef(onSelect);
 
-  useEffect(() => { itemsRef.current = items; }, [items]);
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+
+  const syncMarkers = useCallback(() => {
+    const map = mapRef.current;
+    const maplibregl = maplibreRef.current;
+    if (!map || !maplibregl) return;
+
+    const validItems = itemsRef.current.filter((item) => isValidCoordinate(item.lat, item.lng));
+    const validIds = new Set(validItems.map((item) => item.id));
+
+    for (const [id, entry] of markersRef.current) {
+      if (validIds.has(id)) continue;
+      entry.marker.remove();
+      markersRef.current.delete(id);
+    }
+
+    for (const business of validItems) {
+      let entry = markersRef.current.get(business.id);
+      if (!entry) {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "salonny-selected-marker";
+        element.innerHTML = '<span class="salonny-selected-marker-label"></span><span class="salonny-selected-marker-pin"><span></span></span>';
+        element.addEventListener("click", () => {
+          const current = itemsRef.current.find((item) => item.id === business.id);
+          if (current) onSelectRef.current(current);
+        });
+        const marker = new maplibregl.Marker({ element, anchor: "bottom" })
+          .setLngLat([business.lng, business.lat])
+          .addTo(map);
+        entry = { marker, element };
+        markersRef.current.set(business.id, entry);
+      }
+
+      const active = business.id === selectedRef.current?.id;
+      entry.marker.setLngLat([business.lng, business.lat]);
+      entry.element.classList.toggle("is-active", active);
+      entry.element.style.zIndex = active ? "2" : "1";
+      entry.element.setAttribute("aria-label", `${business.name} harita işareti`);
+      const label = entry.element.querySelector<HTMLElement>(".salonny-selected-marker-label");
+      if (label) label.textContent = business.name;
+    }
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
     let disposed = false;
+    const markers = markersRef.current;
     void import("maplibre-gl").then((maplibregl) => {
       if (disposed || !containerRef.current) return;
       const map = new maplibregl.Map({
@@ -58,66 +90,38 @@ export function DiscoverMap({ items, selected, onSelect, testId = "discover-map"
         maxPitch: 0,
       });
       mapRef.current = map;
+      maplibreRef.current = maplibregl;
       map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
       map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), "bottom-right");
       map.on("load", () => {
         if (disposed) return;
-        map.addSource(sourceId, { type: "geojson", data: collection(itemsRef.current), cluster: true, clusterMaxZoom: 14, clusterRadius: 46 });
-        map.addLayer({ id: "business-cluster-glow", type: "circle", source: sourceId, filter: ["has", "point_count"], paint: { "circle-color": MAP_PRIMARY, "circle-radius": ["step", ["get", "point_count"], 27, 25, 32, 100, 38], "circle-opacity": .16, "circle-blur": .35 } });
-        map.addLayer({ id: "business-clusters", type: "circle", source: sourceId, filter: ["has", "point_count"], paint: { "circle-color": MAP_PRIMARY, "circle-radius": ["step", ["get", "point_count"], 18, 25, 22, 100, 27], "circle-stroke-color": MAP_WHITE, "circle-stroke-width": 4 } });
-        map.addLayer({ id: "business-cluster-count", type: "symbol", source: sourceId, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12, "text-font": ["Open Sans Bold"] }, paint: { "text-color": MAP_WHITE } });
-        map.addLayer({ id: "business-point-glow", type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": MAP_PRIMARY, "circle-radius": 19, "circle-opacity": .15, "circle-blur": .4 } });
-        map.addLayer({ id: "business-points", type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": MAP_PRIMARY, "circle-radius": 11, "circle-stroke-color": MAP_WHITE, "circle-stroke-width": 4 } });
-        map.addLayer({ id: "business-point-core", type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": MAP_WHITE, "circle-radius": 3 } });
-        map.on("click", "business-clusters", async (event) => {
-          const feature = event.features?.[0]; const clusterId = Number(feature?.properties?.point_count ? feature.properties.cluster_id : NaN);
-          if (!Number.isFinite(clusterId) || feature?.geometry.type !== "Point") return;
-          const zoom = await (map.getSource(sourceId) as GeoJSONSource).getClusterExpansionZoom(clusterId);
-          map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom });
-        });
-        map.on("click", "business-points", (event) => { const id = String(event.features?.[0]?.properties?.id ?? ""); const business = itemsRef.current.find((item) => item.id === id); if (business) onSelectRef.current(business); });
-        for (const layer of ["business-clusters", "business-points", "business-point-core"]) { map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; }); map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; }); }
-
-        const markerElement = document.createElement("button");
-        markerElement.type = "button";
-        markerElement.className = "salonny-selected-marker";
-        markerElement.innerHTML = '<span class="salonny-selected-marker-label"></span><span class="salonny-selected-marker-pin"><span></span></span>';
-        markerElement.addEventListener("click", () => { const active = selectedRef.current; if (active) onSelectRef.current(active); });
-        const active = selectedRef.current ?? itemsRef.current[0];
-        if (active && isValidCoordinate(active.lat, active.lng)) {
-          markerElement.setAttribute("aria-label", `${active.name} harita işareti`);
-          const label = markerElement.querySelector<HTMLElement>(".salonny-selected-marker-label");
-          if (label) label.textContent = active.name;
-          selectedMarkerRef.current = new maplibregl.Marker({ element: markerElement, anchor: "bottom" }).setLngLat([active.lng, active.lat]).addTo(map);
-        }
+        syncMarkers();
         fitItems(map, itemsRef.current);
       });
     });
-    return () => { disposed = true; selectedMarkerRef.current?.remove(); selectedMarkerRef.current = null; mapRef.current?.remove(); mapRef.current = null; };
-  }, []);
+    return () => {
+      disposed = true;
+      for (const entry of markers.values()) entry.marker.remove();
+      markers.clear();
+      mapRef.current?.remove();
+      mapRef.current = null;
+      maplibreRef.current = null;
+    };
+  }, [syncMarkers]);
 
   useEffect(() => {
-    const map = mapRef.current; const source = map?.getSource(sourceId) as GeoJSONSource | undefined;
-    if (!map || !source) return;
-    source.setData(collection(items)); fitItems(map, items);
-  }, [items]);
-
-  useEffect(() => {
+    itemsRef.current = items;
     const map = mapRef.current;
-    if (map?.getLayer("business-points")) {
-      map.setPaintProperty("business-points", "circle-color", ["case", ["==", ["get", "id"], selected?.id ?? ""], MAP_PRIMARY_DARK, MAP_PRIMARY]);
-      map.setPaintProperty("business-points", "circle-radius", ["case", ["==", ["get", "id"], selected?.id ?? ""], 14, 11]);
-    }
-    if (selected && isValidCoordinate(selected.lat, selected.lng)) {
-      const marker = selectedMarkerRef.current;
-      marker?.setLngLat([selected.lng, selected.lat]);
-      const element = marker?.getElement();
-      element?.setAttribute("aria-label", `${selected.name} harita işareti`);
-      const label = element?.querySelector<HTMLElement>(".salonny-selected-marker-label");
-      if (label) label.textContent = selected.name;
-    }
-  }, [selected]);
+    if (!map) return;
+    syncMarkers();
+    fitItems(map, items);
+  }, [items, syncMarkers]);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+    syncMarkers();
+  }, [selected, syncMarkers]);
 
   const mappedCount = items.filter((item) => isValidCoordinate(item.lat, item.lng)).length;
   return <div data-testid={testId} className="salonny-map relative h-full w-full overflow-hidden bg-[#F3F0FF]">
