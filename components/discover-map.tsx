@@ -142,28 +142,29 @@ export function DiscoverMap({ items, selected, onSelect, onClearSelection, showS
     </div>
     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#6C4BF4]/[.05] to-transparent" />
     {showSelectedCard && selectedOnMap && (
-      <article data-testid="map-business-card" className="animate-pop absolute inset-x-3 bottom-3 z-20 overflow-hidden rounded-2xl border border-white/90 bg-white/95 p-2.5 shadow-[0_18px_50px_rgba(37,22,104,.24)] backdrop-blur-xl sm:left-4 sm:right-auto sm:bottom-4 sm:w-[360px] sm:p-3">
-        <div className="flex items-center gap-3">
-          <Link href={canonicalBusinessPath(selectedOnMap)} className="relative h-[72px] w-[78px] shrink-0 overflow-hidden rounded-xl bg-[#EEEAFB] sm:h-[82px] sm:w-[92px]">
-            <Image src={selectedOnMap.image} alt={`${selectedOnMap.name} işletme görünümü`} fill className="object-cover" sizes="92px" />
+      <article data-testid="map-business-card" className="animate-pop absolute inset-x-2.5 bottom-2.5 z-20 overflow-hidden rounded-[20px] border border-white/90 bg-white/95 p-2 shadow-[0_14px_38px_rgba(37,22,104,.22)] backdrop-blur-xl sm:left-4 sm:right-auto sm:bottom-4 sm:w-[320px]">
+        <div className="flex items-center gap-2.5">
+          <Link href={canonicalBusinessPath(selectedOnMap)} className="relative h-[66px] w-[74px] shrink-0 overflow-hidden rounded-[15px] bg-[#EEEAFB]">
+            <Image src={selectedOnMap.image} alt={`${selectedOnMap.name} işletme görünümü`} fill className="object-cover" sizes="74px" />
           </Link>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 pr-9">
+            <div className="flex items-start">
               <Link href={canonicalBusinessPath(selectedOnMap)} className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-bold text-[#1E1933] sm:text-[15px]">{selectedOnMap.name}</h3>
-                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#756F85] sm:text-[11px]">
+                <h3 className="truncate text-[13px] font-bold text-[#1E1933]">{selectedOnMap.name}</h3>
+                <div className="mt-0.5 flex items-center gap-1 text-[9px] text-[#756F85] sm:text-[10px]">
                   {selectedOnMap.reviews > 0 ? <><Star className="h-3.5 w-3.5 fill-[#F5B942] text-[#F5B942]" /><strong className="text-[#292333]">{selectedOnMap.rating.toFixed(1)}</strong><span>({selectedOnMap.reviews})</span><span>·</span></> : <><strong className="text-[#6C4BF4]">Yeni</strong><span>·</span></>}
                   <span className="truncate">{selectedOnMap.category}</span>
                 </div>
               </Link>
-              {onClearSelection && <button type="button" onClick={onClearSelection} aria-label="İşletme kartını kapat" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#F3F0FB] text-[#655D78] transition hover:bg-[#EAE4FF] hover:text-[#5635E6]"><X className="h-3.5 w-3.5" /></button>}
             </div>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-1 truncate text-[10px] text-[#756F85] sm:text-[11px]"><MapPin className="h-3.5 w-3.5 shrink-0 text-[#6C4BF4]" /> {selectedOnMap.district}, {selectedOnMap.city}</span>
-              <strong className="shrink-0 text-xs text-[#292333]">{selectedOnMap.startingPrice > 0 ? `₺${selectedOnMap.startingPrice.toLocaleString("tr-TR")}+` : "Fiyatı gör"}</strong>
+            <div className="mt-2 flex items-center gap-1 text-[9px] text-[#756F85] sm:text-[10px]">
+              <MapPin className="h-3 w-3 shrink-0 text-[#6C4BF4]" />
+              <span className="min-w-0 flex-1 truncate">{selectedOnMap.district}, {selectedOnMap.city}</span>
+              <strong className="shrink-0 text-[10px] text-[#292333]">{selectedOnMap.startingPrice > 0 ? `₺${selectedOnMap.startingPrice.toLocaleString("tr-TR")}+` : "Fiyatı gör"}</strong>
             </div>
-            <Link href={canonicalBusinessPath(selectedOnMap)} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[#6C4BF4] text-[11px] font-semibold text-white transition hover:bg-[#5635E6]">İşletmeyi incele <ArrowRight className="h-3.5 w-3.5" /></Link>
           </div>
+          {onClearSelection && <button type="button" onClick={onClearSelection} aria-label="İşletme kartını kapat" className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-[#F3F0FB] text-[#655D78] transition hover:bg-[#EAE4FF] hover:text-[#5635E6]"><X className="h-3 w-3" /></button>}
+          <Link href={canonicalBusinessPath(selectedOnMap)} aria-label={`${selectedOnMap.name} işletmesini incele`} className="absolute bottom-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-[#6C4BF4] text-white shadow-[0_6px_16px_rgba(74,44,196,.28)] transition hover:bg-[#5635E6]"><ArrowRight className="h-3.5 w-3.5" /></Link>
         </div>
       </article>
     )}
