@@ -14,6 +14,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { BRAND } from "@/config/brand";
 import { listPublicCategories } from "@/lib/categories";
 import { listMarketplaceBusinesses } from "@/lib/marketplace";
+import { canonicalBusinessPath } from "@/lib/seo";
 import type { Business } from "@/lib/types";
 
 type PopularItem = { name: string; href: string; detail: string; price?: number };
@@ -29,16 +30,21 @@ function popularItems(businesses: Business[], categories: Awaited<ReturnType<typ
       services.set(key, current);
     }
   }
-  const items = [...services.values()]
+  const items: PopularItem[] = [...services.values()]
     .sort((a, b) => b.businesses.size - a.businesses.size || a.minimumPrice - b.minimumPrice)
     .slice(0, 6)
     .map((item) => ({ name: item.name, href: `/kesfet?q=${encodeURIComponent(item.name)}`, detail: `${item.businesses.size} işletmede`, price: item.minimumPrice }));
-  if (items.length) return items;
-  return categories.slice(0, 6).map((category) => ({ name: category.name, href: `/kesfet?category=${category.id}`, detail: "Kategoriyi keşfet" }));
+  const usedNames = new Set(items.map((item) => item.name.toLocaleLowerCase("tr-TR")));
+  for (const category of categories) {
+    if (items.length >= 6) break;
+    if (usedNames.has(category.name.toLocaleLowerCase("tr-TR"))) continue;
+    items.push({ name: category.name, href: `/kesfet?category=${category.id}`, detail: "Kategorideki işletmeleri gör" });
+  }
+  return items;
 }
 
 function BusinessRail({ businesses }: { businesses: Business[] }) {
-  return <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar lg:grid lg:grid-cols-3 xl:grid-cols-4">{businesses.map((business) => <div key={business.id} className="w-[86vw] max-w-[380px] shrink-0 lg:w-auto lg:max-w-none"><BusinessCard business={business} horizontal mobileCompact /></div>)}</div>;
+  return <div className="grid grid-flow-col auto-cols-[min(82vw,320px)] gap-4 overflow-x-auto pb-3 hide-scrollbar lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-3 lg:overflow-visible xl:grid-cols-4">{businesses.map((business) => <BusinessCard key={business.id} business={business} />)}</div>;
 }
 
 export default async function HomePage() {
@@ -49,7 +55,7 @@ export default async function HomePage() {
   const topics = popularItems(businesses, categories);
   const cityCount = new Set(businesses.map((business) => business.city).filter(Boolean)).size;
   const openCount = businesses.filter((business) => business.open).length;
-  const reviews = businesses.flatMap((business) => (business.reviewItems ?? []).map((review) => ({ ...review, businessName: business.name }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3);
+  const reviews = businesses.flatMap((business) => (business.reviewItems ?? []).map((review) => ({ ...review, businessName: business.name, businessHref: canonicalBusinessPath(business) }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3);
   const topicStyles = ["bg-[#F0ECFF] text-[#5B3BE7]", "bg-[#FFE8F1] text-[#D63B7C]", "bg-[#E5F7F1] text-[#14866D]", "bg-[#FFF0E5] text-[#C56820]", "bg-[#E9EEFF] text-[#4565C9]", "bg-[#F2E9FF] text-[#8347CC]"];
 
   return (
@@ -90,13 +96,13 @@ export default async function HomePage() {
 
         {businesses.length > 0 && <section className="container-shell py-10 md:py-16"><div className="grid items-center gap-7 lg:grid-cols-[.68fr_1.32fr] lg:gap-12"><div><Badge><MapPinned className="mr-1 h-3.5 w-3.5" /> Canlı keşif haritası</Badge><h2 className="mt-4 text-3xl font-bold tracking-[-.04em] md:text-4xl">Çevrendeki seçenekleri tek bakışta gör.</h2><p className="mt-4 text-sm leading-7 text-[#666672]">Yayındaki işletmeler mor pinlerle haritada. Bir pine dokun, işletmeyi seç ve ayrıntılara geç.</p><div className="mt-6 grid grid-cols-3 gap-2"><div className="rounded-2xl bg-[#F5F2FF] p-3"><strong className="block text-xl text-[#5B3BE7]">{businesses.length}</strong><span className="mt-1 block text-[10px] text-[#777781]">İşletme</span></div><div className="rounded-2xl bg-[#F5F2FF] p-3"><strong className="block text-xl text-[#5B3BE7]">{categories.length}</strong><span className="mt-1 block text-[10px] text-[#777781]">Kategori</span></div><div className="rounded-2xl bg-[#F5F2FF] p-3"><strong className="block text-xl text-[#5B3BE7]">{cityCount}</strong><span className="mt-1 block text-[10px] text-[#777781]">Şehir</span></div></div></div><HomeMapPreview businesses={businesses} /></div></section>}
 
-        <section className="bg-[#17151F] py-10 text-white md:py-16"><div className="container-shell"><div className="[&_a]:!text-[#D8CCFF] [&_p]:!text-white/65"><SectionHeading title="Popüler hizmet ve kategoriler" description="Aradığın hizmete doğrudan ulaş" href="/kesfet" /></div><div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">{topics.map((item, index) => <Link key={`${item.name}-${index}`} href={item.href} className="group rounded-[20px] bg-white p-3.5 text-[#17151F] transition hover:-translate-y-1 md:p-4"><span className={`grid h-10 w-10 place-items-center rounded-xl ${topicStyles[index % topicStyles.length]}`}><Sparkles className="h-4.5 w-4.5" /></span><strong className="mt-4 block truncate text-sm">{item.name}</strong><span className="mt-1 block text-[10px] text-[#777781]">{item.detail}</span>{item.price !== undefined && <span className="mt-3 block text-xs font-semibold text-[#5B3BE7]">{item.price.toLocaleString("tr-TR")} TL&apos;den</span>}</Link>)}</div></div></section>
+        <section className="border-y border-[#E8E3F8] bg-[linear-gradient(135deg,#F8F6FF_0%,#F0ECFF_100%)] py-10 md:py-14"><div className="container-shell"><SectionHeading title="Popüler hizmet ve kategoriler" description="Aradığın hizmete doğrudan ulaş" href="/kesfet" /><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{topics.map((item, index) => <Link key={`${item.name}-${index}`} href={item.href} className="group flex min-h-[112px] items-center gap-4 rounded-[20px] border border-white/80 bg-white/90 p-4 text-[#17151F] shadow-[0_10px_28px_rgba(69,45,160,.07)] transition hover:-translate-y-0.5 hover:border-[#D7CEF9] hover:shadow-[0_14px_34px_rgba(69,45,160,.12)]"><span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${topicStyles[index % topicStyles.length]}`}><Sparkles className="h-5 w-5" /></span><span className="min-w-0 flex-1"><strong className="block truncate text-[15px]">{item.name}</strong><span className="mt-1 block text-[11px] text-[#777781]">{item.detail}</span>{item.price !== undefined && <span className="mt-2 block text-xs font-semibold text-[#5B3BE7]">{item.price.toLocaleString("tr-TR")} TL&apos;den başlayan</span>}</span><ArrowRight className="h-4 w-4 shrink-0 text-[#8D75F5] transition group-hover:translate-x-1" /></Link>)}</div></div></section>
 
-        {newest.length > 0 && <section className="container-shell py-10 md:py-16"><SectionHeading title="Yeni eklenen işletmeler" description="Salonny ailesine en son katılan yerler" href="/kesfet" /><BusinessRail businesses={newest} /></section>}
+        {newest.length > 0 && <section className="container-shell py-10 md:py-14"><SectionHeading title="Yeni eklenen işletmeler" description="Salonny ailesine en son katılan yerler" href="/kesfet" /><BusinessRail businesses={newest} /></section>}
 
-        {rated.length > 0 && <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-10 md:py-16"><div className="container-shell"><SectionHeading title="En yüksek puanlılar" description="Doğrulanmış değerlendirmelerde öne çıkan işletmeler" href="/kesfet?sort=rating" /><BusinessRail businesses={rated} /></div></section>}
+        {rated.length > 0 && <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-10 md:py-14"><div className="container-shell"><SectionHeading title="En yüksek puanlılar" description="Doğrulanmış değerlendirmelerde öne çıkan işletmeler" href="/kesfet?sort=rating" /><BusinessRail businesses={rated} /></div></section>}
 
-        {reviews.length > 0 && <section className="container-shell py-10 md:py-16"><SectionHeading title="Müşteriler ne diyor?" description="Tamamlanan randevulardan gelen gerçek değerlendirmeler" /><div className="grid gap-3 md:grid-cols-3">{reviews.map((review) => <article key={review.id} className="rounded-[22px] border border-[#E8E8EE] bg-white p-5"><div className="flex gap-1">{Array.from({ length: 5 }).map((_, index) => <Star key={index} className={`h-4 w-4 ${index < review.rating ? "fill-[#F5B942] text-[#F5B942]" : "text-[#D6D6DC]"}`} />)}</div><p className="mt-4 line-clamp-4 text-sm leading-6 text-[#555560]">{review.comment || "Bu işletme için puan bırakıldı."}</p><strong className="mt-5 block text-xs">{review.businessName}</strong></article>)}</div></section>}
+        {reviews.length > 0 && <section className="container-shell py-10 md:py-14"><SectionHeading title="Müşteriler ne diyor?" description="Tamamlanan randevulardan gelen gerçek değerlendirmeler" /><div className="grid gap-4 md:grid-cols-3">{reviews.map((review) => <article key={review.id} className="flex min-h-[220px] flex-col rounded-[22px] border border-[#E8E8EE] bg-white p-5 shadow-[0_10px_28px_rgba(37,27,77,.05)]"><div className="flex items-center justify-between"><div className="flex gap-1">{Array.from({ length: 5 }).map((_, index) => <Star key={index} className={`h-4 w-4 ${index < review.rating ? "fill-[#F5B942] text-[#F5B942]" : "text-[#D6D6DC]"}`} />)}</div><Badge tone="green">Doğrulanmış</Badge></div><p className="mt-5 line-clamp-4 text-sm leading-6 text-[#555560]">{review.comment || "Bu işletme için puan bırakıldı."}</p><Link href={review.businessHref} className="mt-auto flex items-center justify-between border-t border-[#EEEAF3] pt-4 text-sm font-semibold text-[#5B3BE7]"><span className="truncate">{review.businessName}</span><span className="flex shrink-0 items-center gap-1 text-[11px]">İşletmeye git <ArrowRight className="h-3.5 w-3.5" /></span></Link></article>)}</div></section>}
 
         <section className="container-shell py-10 md:py-16"><div className="grid gap-3 md:grid-cols-3">{[{ icon: CalendarCheck2, title: "Kolay randevu", text: "Uygun hizmeti ve saati seç, randevunu birkaç adımda oluştur." }, { icon: BadgeCheck, title: "Gerçek işletmeler", text: "Yayınlanan profiller, konumlar ve hizmetler güncel verilerden gelir." }, { icon: ShieldCheck, title: "Güvenli hesap", text: "Hesabın, tercihlerin ve randevu hareketlerin güvenle yönetilir." }].map(({ icon: Icon, title, text }) => <article key={title} className="rounded-[22px] border border-[#E9E6F2] bg-white p-5"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#F0ECFF] text-[#5B3BE7]"><Icon className="h-5 w-5" /></span><h2 className="mt-4 font-semibold">{title}</h2><p className="mt-2 text-sm leading-6 text-[#777781]">{text}</p></article>)}</div></section>
 
