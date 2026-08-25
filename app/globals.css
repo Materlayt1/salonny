@@ -91,7 +91,8 @@ button { cursor: pointer; }
 }
 .salonny-selected-marker.is-active .salonny-selected-marker-pin {
   background: linear-gradient(145deg, #6846f5, #4526bd);
-  transform: rotate(-45deg) scale(1.18);
+  box-shadow: 0 0 0 7px rgba(108, 75, 244, .18), 0 10px 24px rgba(63, 36, 177, .42);
+  transform: rotate(-45deg) scale(1.24);
 }
 .salonny-selected-marker-label {
   position: absolute;
