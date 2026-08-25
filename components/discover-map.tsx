@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, MapPin, Star, X } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { isValidCoordinate } from "@/lib/geo";
-import { createSalonnyMapStyle, MAP_PRIMARY, MAP_PRIMARY_DARK, MAP_WHITE } from "@/lib/map-theme";
+import { createSalonnyMapStyle } from "@/lib/map-theme";
+import { canonicalBusinessPath } from "@/lib/seo";
 import type { Business } from "@/lib/types";
 
 const TURKEY_CENTER: [number, number] = [35.24, 38.96];
-const sourceId = "marketplace-businesses";
-
-function collection(items: Business[]) {
-  return {
-    type: "FeatureCollection",
-    features: items.filter((item) => isValidCoordinate(item.lat, item.lng)).map((business) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [business.lng, business.lat] },
-      properties: { id: business.id, name: business.name },
-    })),
-  } as unknown as Parameters<GeoJSONSource["setData"]>[0];
-}
+type MapLibreModule = typeof import("maplibre-gl");
+type BusinessMarker = { marker: Marker; element: HTMLButtonElement };
 
 function fitItems(map: MapLibreMap, items: Business[]) {
   const validItems = items.filter((item) => isValidCoordinate(item.lat, item.lng));
@@ -30,21 +24,64 @@ function fitItems(map: MapLibreMap, items: Business[]) {
   map.fitBounds([[west, south], [east, north]], { padding: 68, maxZoom: 13.2, duration: 0 });
 }
 
-export function DiscoverMap({ items, selected, onSelect, testId = "discover-map" }: { items: Business[]; selected?: Business; onSelect: (business: Business) => void; testId?: string }) {
+export function DiscoverMap({ items, selected, onSelect, onClearSelection, showSelectedCard = false, testId = "discover-map" }: { items: Business[]; selected?: Business; onSelect: (business: Business) => void; onClearSelection?: () => void; showSelectedCard?: boolean; testId?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const selectedMarkerRef = useRef<Marker | null>(null);
+  const maplibreRef = useRef<MapLibreModule | null>(null);
+  const markersRef = useRef<Map<string, BusinessMarker>>(new Map());
   const itemsRef = useRef(items);
   const selectedRef = useRef(selected);
   const onSelectRef = useRef(onSelect);
 
-  useEffect(() => { itemsRef.current = items; }, [items]);
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+
+  const syncMarkers = useCallback(() => {
+    const map = mapRef.current;
+    const maplibregl = maplibreRef.current;
+    if (!map || !maplibregl) return;
+
+    const validItems = itemsRef.current.filter((item) => isValidCoordinate(item.lat, item.lng));
+    const validIds = new Set(validItems.map((item) => item.id));
+
+    for (const [id, entry] of markersRef.current) {
+      if (validIds.has(id)) continue;
+      entry.marker.remove();
+      markersRef.current.delete(id);
+    }
+
+    for (const business of validItems) {
+      let entry = markersRef.current.get(business.id);
+      if (!entry) {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "salonny-selected-marker";
+        element.innerHTML = '<span class="salonny-selected-marker-label"></span><span class="salonny-selected-marker-pin"><span></span></span>';
+        element.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const current = itemsRef.current.find((item) => item.id === business.id);
+          if (current) onSelectRef.current(current);
+        });
+        const marker = new maplibregl.Marker({ element, anchor: "bottom" })
+          .setLngLat([business.lng, business.lat])
+          .addTo(map);
+        entry = { marker, element };
+        markersRef.current.set(business.id, entry);
+      }
+
+      const active = business.id === selectedRef.current?.id;
+      entry.marker.setLngLat([business.lng, business.lat]);
+      entry.element.classList.toggle("is-active", active);
+      entry.element.style.zIndex = active ? "2" : "1";
+      entry.element.setAttribute("aria-label", `${business.name} harita işareti`);
+      const label = entry.element.querySelector<HTMLElement>(".salonny-selected-marker-label");
+      if (label) label.textContent = business.name;
+    }
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
     let disposed = false;
+    const markers = markersRef.current;
     void import("maplibre-gl").then((maplibregl) => {
       if (disposed || !containerRef.current) return;
       const map = new maplibregl.Map({
@@ -58,68 +95,45 @@ export function DiscoverMap({ items, selected, onSelect, testId = "discover-map"
         maxPitch: 0,
       });
       mapRef.current = map;
+      maplibreRef.current = maplibregl;
       map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
       map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), "bottom-right");
       map.on("load", () => {
         if (disposed) return;
-        map.addSource(sourceId, { type: "geojson", data: collection(itemsRef.current), cluster: true, clusterMaxZoom: 14, clusterRadius: 46 });
-        map.addLayer({ id: "business-cluster-glow", type: "circle", source: sourceId, filter: ["has", "point_count"], paint: { "circle-color": MAP_PRIMARY, "circle-radius": ["step", ["get", "point_count"], 27, 25, 32, 100, 38], "circle-opacity": .16, "circle-blur": .35 } });
-        map.addLayer({ id: "business-clusters", type: "circle", source: sourceId, filter: ["has", "point_count"], paint: { "circle-color": MAP_PRIMARY, "circle-radius": ["step", ["get", "point_count"], 18, 25, 22, 100, 27], "circle-stroke-color": MAP_WHITE, "circle-stroke-width": 4 } });
-        map.addLayer({ id: "business-cluster-count", type: "symbol", source: sourceId, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12, "text-font": ["Open Sans Bold"] }, paint: { "text-color": MAP_WHITE } });
-        map.addLayer({ id: "business-point-glow", type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": MAP_PRIMARY, "circle-radius": 19, "circle-opacity": .15, "circle-blur": .4 } });
-        map.addLayer({ id: "business-points", type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": MAP_PRIMARY, "circle-radius": 11, "circle-stroke-color": MAP_WHITE, "circle-stroke-width": 4 } });
-        map.addLayer({ id: "business-point-core", type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": MAP_WHITE, "circle-radius": 3 } });
-        map.on("click", "business-clusters", async (event) => {
-          const feature = event.features?.[0]; const clusterId = Number(feature?.properties?.point_count ? feature.properties.cluster_id : NaN);
-          if (!Number.isFinite(clusterId) || feature?.geometry.type !== "Point") return;
-          const zoom = await (map.getSource(sourceId) as GeoJSONSource).getClusterExpansionZoom(clusterId);
-          map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom });
-        });
-        map.on("click", "business-points", (event) => { const id = String(event.features?.[0]?.properties?.id ?? ""); const business = itemsRef.current.find((item) => item.id === id); if (business) onSelectRef.current(business); });
-        for (const layer of ["business-clusters", "business-points", "business-point-core"]) { map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; }); map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; }); }
-
-        const markerElement = document.createElement("button");
-        markerElement.type = "button";
-        markerElement.className = "salonny-selected-marker";
-        markerElement.innerHTML = '<span class="salonny-selected-marker-label"></span><span class="salonny-selected-marker-pin"><span></span></span>';
-        markerElement.addEventListener("click", () => { const active = selectedRef.current; if (active) onSelectRef.current(active); });
-        const active = selectedRef.current ?? itemsRef.current[0];
-        if (active && isValidCoordinate(active.lat, active.lng)) {
-          markerElement.setAttribute("aria-label", `${active.name} harita işareti`);
-          const label = markerElement.querySelector<HTMLElement>(".salonny-selected-marker-label");
-          if (label) label.textContent = active.name;
-          selectedMarkerRef.current = new maplibregl.Marker({ element: markerElement, anchor: "bottom" }).setLngLat([active.lng, active.lat]).addTo(map);
-        }
+        syncMarkers();
         fitItems(map, itemsRef.current);
       });
     });
-    return () => { disposed = true; selectedMarkerRef.current?.remove(); selectedMarkerRef.current = null; mapRef.current?.remove(); mapRef.current = null; };
-  }, []);
+    return () => {
+      disposed = true;
+      for (const entry of markers.values()) entry.marker.remove();
+      markers.clear();
+      mapRef.current?.remove();
+      mapRef.current = null;
+      maplibreRef.current = null;
+    };
+  }, [syncMarkers]);
 
   useEffect(() => {
-    const map = mapRef.current; const source = map?.getSource(sourceId) as GeoJSONSource | undefined;
-    if (!map || !source) return;
-    source.setData(collection(items)); fitItems(map, items);
-  }, [items]);
-
-  useEffect(() => {
+    itemsRef.current = items;
     const map = mapRef.current;
-    if (map?.getLayer("business-points")) {
-      map.setPaintProperty("business-points", "circle-color", ["case", ["==", ["get", "id"], selected?.id ?? ""], MAP_PRIMARY_DARK, MAP_PRIMARY]);
-      map.setPaintProperty("business-points", "circle-radius", ["case", ["==", ["get", "id"], selected?.id ?? ""], 14, 11]);
+    if (!map) return;
+    syncMarkers();
+    fitItems(map, items);
+  }, [items, syncMarkers]);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+    syncMarkers();
+    const map = mapRef.current;
+    if (map && selected && isValidCoordinate(selected.lat, selected.lng)) {
+      map.easeTo({ center: [selected.lng, selected.lat], zoom: Math.max(map.getZoom(), 12.5), offset: [0, -46], duration: 450 });
     }
-    if (selected && isValidCoordinate(selected.lat, selected.lng)) {
-      const marker = selectedMarkerRef.current;
-      marker?.setLngLat([selected.lng, selected.lat]);
-      const element = marker?.getElement();
-      element?.setAttribute("aria-label", `${selected.name} harita işareti`);
-      const label = element?.querySelector<HTMLElement>(".salonny-selected-marker-label");
-      if (label) label.textContent = selected.name;
-    }
-  }, [selected]);
+  }, [selected, syncMarkers]);
 
   const mappedCount = items.filter((item) => isValidCoordinate(item.lat, item.lng)).length;
+  const selectedOnMap = selected && items.some((item) => item.id === selected.id) && isValidCoordinate(selected.lat, selected.lng) ? selected : undefined;
   return <div data-testid={testId} className="salonny-map relative h-full w-full overflow-hidden bg-[#F3F0FF]">
     <div ref={containerRef} aria-label="İşletme haritası" className="h-full w-full" />
     <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-[10px] font-semibold text-[#4B3B89] shadow-[0_8px_24px_rgba(46,31,105,.12)] backdrop-blur-md sm:left-4 sm:top-4 sm:text-xs">
@@ -127,5 +141,32 @@ export function DiscoverMap({ items, selected, onSelect, testId = "discover-map"
       {mappedCount ? `${mappedCount} işletme haritada` : "Harita konumu bekleniyor"}
     </div>
     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#6C4BF4]/[.05] to-transparent" />
+    {showSelectedCard && selectedOnMap && (
+      <article data-testid="map-business-card" className="animate-pop absolute inset-x-2.5 bottom-2.5 z-20 overflow-hidden rounded-[20px] border border-white/90 bg-white/95 p-2 shadow-[0_14px_38px_rgba(37,22,104,.22)] backdrop-blur-xl sm:left-4 sm:right-auto sm:bottom-4 sm:w-[320px]">
+        <div className="flex items-center gap-2.5">
+          <Link href={canonicalBusinessPath(selectedOnMap)} className="relative h-[66px] w-[74px] shrink-0 overflow-hidden rounded-[15px] bg-[#EEEAFB]">
+            <Image src={selectedOnMap.image} alt={`${selectedOnMap.name} işletme görünümü`} fill className="object-cover" sizes="74px" />
+          </Link>
+          <div className="min-w-0 flex-1 pr-9">
+            <div className="flex items-start">
+              <Link href={canonicalBusinessPath(selectedOnMap)} className="min-w-0 flex-1">
+                <h3 className="truncate text-[13px] font-bold text-[#1E1933]">{selectedOnMap.name}</h3>
+                <div className="mt-0.5 flex items-center gap-1 text-[9px] text-[#756F85] sm:text-[10px]">
+                  {selectedOnMap.reviews > 0 ? <><Star className="h-3.5 w-3.5 fill-[#F5B942] text-[#F5B942]" /><strong className="text-[#292333]">{selectedOnMap.rating.toFixed(1)}</strong><span>({selectedOnMap.reviews})</span><span>·</span></> : <><strong className="text-[#6C4BF4]">Yeni</strong><span>·</span></>}
+                  <span className="truncate">{selectedOnMap.category}</span>
+                </div>
+              </Link>
+            </div>
+            <div className="mt-2 flex items-center gap-1 text-[9px] text-[#756F85] sm:text-[10px]">
+              <MapPin className="h-3 w-3 shrink-0 text-[#6C4BF4]" />
+              <span className="min-w-0 flex-1 truncate">{selectedOnMap.district}, {selectedOnMap.city}</span>
+              <strong className="shrink-0 text-[10px] text-[#292333]">{selectedOnMap.startingPrice > 0 ? `₺${selectedOnMap.startingPrice.toLocaleString("tr-TR")}+` : "Fiyatı gör"}</strong>
+            </div>
+          </div>
+          {onClearSelection && <button type="button" onClick={onClearSelection} aria-label="İşletme kartını kapat" className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-[#F3F0FB] text-[#655D78] transition hover:bg-[#EAE4FF] hover:text-[#5635E6]"><X className="h-3 w-3" /></button>}
+          <Link href={canonicalBusinessPath(selectedOnMap)} aria-label={`${selectedOnMap.name} işletmesini incele`} className="absolute bottom-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-[#6C4BF4] text-white shadow-[0_6px_16px_rgba(74,44,196,.28)] transition hover:bg-[#5635E6]"><ArrowRight className="h-3.5 w-3.5" /></Link>
+        </div>
+      </article>
+    )}
   </div>;
 }

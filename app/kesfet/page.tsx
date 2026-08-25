@@ -27,7 +27,7 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const [filterOpen, setFilterOpen] = useState(false);
   const [openNow, setOpenNow] = useState(false);
-  const [selected, setSelected] = useState<Business | undefined>(initialBusinesses?.[0]);
+  const [selected, setSelected] = useState<Business>();
   const [sort, setSort] = useState("recommended");
   const [maxDistance, setMaxDistance] = useState(25);
   const [maxPrice, setMaxPrice] = useState(5000);
@@ -42,6 +42,15 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
       if (!active) return;
       setQuery(params.get("q") ?? "");
       setSelectedCategory(params.get("category") ?? "");
+      const requestedSort = params.get("sort");
+      if (["recommended", "distance", "rating", "price"].includes(requestedSort ?? "")) setSort(requestedSort!);
+      setOpenNow(params.get("open") === "1");
+      if (params.get("nearby") === "1") {
+        if (!navigator.geolocation) setLocationError("Tarayıcın konum paylaşımını desteklemiyor.");
+        else navigator.geolocation.getCurrentPosition((position) => {
+          if (active) { setLocation({ lat: position.coords.latitude, lng: position.coords.longitude }); setSort("distance"); }
+        }, () => { if (active) setLocationError("Konum alınamadı. Tarayıcı iznini kontrol et."); }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 });
+      }
     });
     if (initialBusinesses) {
       return () => { active = false; };
@@ -52,7 +61,6 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
         if (!active || !businessResponse.ok) return;
         const items = businessesResult.businesses ?? [];
         setBusinesses(items);
-        setSelected(items[0]);
         if (categoryResponse.ok) setCategories(categoriesResult.categories ?? []);
       })
       .finally(() => { if (active) setLoading(false); });
@@ -71,7 +79,7 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
     return result;
   }, [businesses, query, selectedCategory, openNow, sort, location, maxDistance, maxPrice, minRating]);
 
-  const activeBusiness = filtered.find((business) => business.id === selected?.id) ?? filtered[0];
+  const activeBusiness = filtered.find((business) => business.id === selected?.id);
   const pageTitle = categories.find((item) => item.id === selectedCategory)?.name ?? "Keşfet";
 
   function locate() { if (!navigator.geolocation) { setLocationError("Tarayıcın konum paylaşımını desteklemiyor."); return; } setLocationError(""); navigator.geolocation.getCurrentPosition((position) => setLocation({ lat: position.coords.latitude, lng: position.coords.longitude }), () => setLocationError("Konum alınamadı. Tarayıcı iznini kontrol et."), { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 }); }
@@ -114,12 +122,12 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
           {mobileView === "map" ? (
             <div>
               <section className="relative h-[330px] overflow-hidden border-b border-[#E5E5EA]">
-                <DiscoverMap items={filtered} selected={activeBusiness} onSelect={setSelected} testId="mobile-discover-map" />
+                <DiscoverMap items={filtered} selected={activeBusiness} onSelect={setSelected} onClearSelection={() => setSelected(undefined)} showSelectedCard testId="mobile-discover-map" />
                 {loading && <div className="absolute inset-0 z-10 animate-pulse bg-[#E9EAE6]" />}
               </section>
               <section className="bg-[#F7F7FA] px-3 py-3">
                 <div className="mb-2 flex items-center justify-between px-0.5"><h1 className="text-[13px] font-bold">Yakınındaki işletmeler</h1><span className="text-[10px] text-[#777781]">{filtered.length} sonuç</span></div>
-                {activeBusiness ? <BusinessCard business={activeBusiness} horizontal mobileCompact /> : results}
+                {results}
               </section>
             </div>
           ) : (
@@ -145,7 +153,7 @@ export default function DiscoverPage({ initialBusinesses, initialCategories }: D
           </div>
           <div className={cn("grid h-[calc(100vh-178px)] min-h-[620px]", desktopListOnly ? "grid-cols-1" : "grid-cols-[minmax(0,1.55fr)_minmax(380px,.8fr)]")}>
             <section className={cn("overflow-y-auto bg-[#F8F8FA] p-5", !desktopListOnly && "order-2")}><div className="mb-4 flex items-end justify-between"><div><p className="text-[10px] text-[#8A8A94]">{location ? "Konumuna göre sıralanabilir" : "Tüm konumlar"}</p><h1 className="mt-1 text-lg font-bold">Yayınlanmış işletmeler</h1></div><span className="text-[10px] text-[#777781]">{loading ? "Yükleniyor" : `${filtered.length} sonuç`}</span></div>{results}</section>
-            {!desktopListOnly && <section className="relative order-1"><DiscoverMap items={filtered} selected={activeBusiness} onSelect={setSelected} testId="desktop-discover-map" /></section>}
+            {!desktopListOnly && <section className="relative order-1"><DiscoverMap items={filtered} selected={activeBusiness} onSelect={setSelected} onClearSelection={() => setSelected(undefined)} showSelectedCard testId="desktop-discover-map" /></section>}
           </div>
         </div>
       </main>

@@ -16,11 +16,18 @@ function displayName(user: User) {
 
 export function SiteHeader({ search = false }: { search?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [businessAccess, setBusinessAccess] = useState<{ userId: string; hasBusiness: boolean; isAdmin: boolean; city: string | null } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+
+  useEffect(() => {
+    if (!search) return;
+    const query = new URLSearchParams(window.location.search).get("q") ?? "";
+    queueMicrotask(() => setSearchQuery(query));
+  }, [search]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -85,11 +92,12 @@ export function SiteHeader({ search = false }: { search?: boolean }) {
       <div className="container-shell flex h-[72px] items-center gap-6">
         <BrandLogo />
         {search && (
-          <Link href="/kesfet" className="hidden h-11 min-w-0 flex-1 items-center gap-3 rounded-xl border border-[#E8E8EE] bg-[#FAFAFC] px-4 text-sm text-[#73737D] md:flex lg:max-w-[520px]">
-            <Search className="h-4 w-4" />
-            <span className="truncate">Hizmet veya işletme ara...</span>
+          <form action="/kesfet" role="search" className="hidden h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#E8E8EE] bg-[#FAFAFC] pl-3 text-sm text-[#73737D] transition focus-within:border-[#BDB0F5] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#6C4BF4]/10 md:flex lg:max-w-[520px]">
+            <Search className="h-4 w-4 shrink-0 text-[#6C4BF4]" />
+            <input type="search" name="q" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} aria-label="Hizmet veya işletme ara" placeholder="Hizmet veya işletme ara..." className="min-w-0 flex-1 bg-transparent text-sm text-[#27272A] outline-none placeholder:text-[#8B8B95] [&::-webkit-search-cancel-button]:cursor-pointer" />
             <span className="ml-auto flex items-center gap-1 border-l border-[#E4E4EA] pl-3 text-xs text-[#3F3F46]"><MapPin className="h-3.5 w-3.5 text-[#6C4BF4]" /> {businessAccess?.city ?? "Konum seç"} <ChevronDown className="h-3 w-3" /></span>
-          </Link>
+            <button type="submit" aria-label="Aramayı başlat" className="grid h-full w-10 shrink-0 place-items-center rounded-r-xl bg-[#6C4BF4] text-white transition hover:bg-[#5635E6]"><Search className="h-4 w-4" /></button>
+          </form>
         )}
         <nav className="ml-auto hidden items-center gap-7 text-sm font-medium md:flex">
           <Link href="/kesfet" className="hover:text-[#6C4BF4]">Keşfet</Link>

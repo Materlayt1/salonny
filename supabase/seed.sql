@@ -1,5 +1,4 @@
--- Demo taxonomy. Demo auth users should be created with scripts/seed-demo-users.ts
--- only in local or preview environments; never in production.
+-- Base category taxonomy for local and preview environments.
 insert into public.business_categories (slug, name_tr, icon, sort_order) values
   ('kuafor', 'Kuaför', 'scissors', 10), ('berber', 'Berber', 'razor', 20),
   ('guzellik', 'Güzellik', 'sparkles', 30), ('nail', 'Nail', 'hand', 40),
