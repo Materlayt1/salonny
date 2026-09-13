@@ -4,9 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clock3, Heart, MapPin, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { getSessionSummary, invalidateSessionSummary } from "@/lib/session-summary-client";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { canonicalBusinessPath } from "@/lib/seo";
@@ -15,33 +15,29 @@ function formatTRY(value: number) { return new Intl.NumberFormat("tr-TR", { styl
 
 export function BusinessCard({ business, horizontal = false, mobileCompact = false, dense = false, homeRail = false }: { business: Business; horizontal?: boolean; mobileCompact?: boolean; dense?: boolean; homeRail?: boolean }) {
   const [favorite, setFavorite] = useState(false);
-  const [userId, setUserId] = useState<string>();
+  const [authenticated, setAuthenticated] = useState(false);
   const [saving, setSaving] = useState(false);
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
   const detailHref = canonicalBusinessPath(business);
 
   useEffect(() => {
-    if (!supabase) return;
     let active = true;
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (!active || !data.user) return;
-      setUserId(data.user.id);
-      const { count } = await supabase.from("favorites").select("business_id", { count: "exact", head: true }).eq("user_id", data.user.id).eq("business_id", business.id);
-      if (active) setFavorite(Boolean(count));
+    void getSessionSummary().then((summary) => {
+      if (!active) return;
+      setAuthenticated(summary.authenticated);
+      setFavorite(summary.favoriteBusinessIds?.includes(business.id) ?? false);
     });
     return () => { active = false; };
-  }, [business.id, supabase]);
+  }, [business.id]);
 
   async function toggleFavorite() {
-    if (!supabase || !userId) { router.push(`/auth/login?next=${encodeURIComponent(detailHref)}`); return; }
+    if (!authenticated) { router.push(`/auth/login?next=${encodeURIComponent(detailHref)}`); return; }
     const next = !favorite;
     setFavorite(next); setSaving(true);
-    const { error } = next
-      ? await supabase.from("favorites").insert({ user_id: userId, business_id: business.id })
-      : await supabase.from("favorites").delete().eq("user_id", userId).eq("business_id", business.id);
+    const response = await fetch(`/api/favorites/${business.id}`, { method: next ? "POST" : "DELETE" });
     setSaving(false);
-    if (error) setFavorite(!next);
+    if (!response.ok) setFavorite(!next);
+    else invalidateSessionSummary();
   }
   return (
     <article className={cn("group overflow-hidden rounded-[18px] border border-[#E8E8EE] bg-white transition hover:-translate-y-0.5 hover:shadow-[0_14px_35px_rgba(35,24,75,.1)]", horizontal && "flex p-3 hover:translate-y-0", mobileCompact && "max-md:min-h-[106px] max-md:rounded-xl max-md:p-1.5", dense && "md:rounded-xl md:p-2", homeRail && "min-h-[136px] rounded-[20px] border-[#E6E1F2] p-2.5 shadow-[0_8px_28px_rgba(40,27,91,.06)] hover:-translate-y-0.5 hover:border-[#D5CCF6] hover:shadow-[0_14px_34px_rgba(40,27,91,.11)]") }>
@@ -55,10 +51,10 @@ export function BusinessCard({ business, horizontal = false, mobileCompact = fal
         </button>
         <Link href={detailHref} className="block pr-9">
           <h3 className={cn("truncate text-[15px] font-semibold", mobileCompact && "max-md:text-[14px]", dense && "md:text-[13px]", homeRail && "text-[14px]")}>{business.name}</h3>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[#777781]">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[#686872]">
             {business.reviews > 0 ? <><span className="flex items-center gap-1 font-semibold text-[#27272A]"><Star className="h-3.5 w-3.5 fill-[#F5B942] text-[#F5B942]" /> {business.rating.toFixed(1)}</span><span>({business.reviews})</span><span>·</span></> : <><span className="font-semibold text-[#6C4BF4]">Yeni</span><span>·</span></>}<span>{business.category}</span>
           </div>
-          <div className={cn("mt-2 flex items-center justify-between gap-2 text-[11px] text-[#777781]", mobileCompact && "max-md:mt-1", dense && "md:mt-1") }>
+          <div className={cn("mt-2 flex items-center justify-between gap-2 text-[11px] text-[#686872]", mobileCompact && "max-md:mt-1", dense && "md:mt-1") }>
             <span className="flex min-w-0 items-center gap-1 truncate"><MapPin className="h-3 w-3" /> {business.district}</span>
             {business.distance !== null && <span className="shrink-0">{business.distance} km</span>}
           </div>

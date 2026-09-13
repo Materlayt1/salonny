@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeocodingBusyError, searchTurkeyAddress } from "@/lib/geocoding";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { apiRateLimit } from "@/lib/api-security";
 import { createServerClientOptional } from "@/lib/supabase/server";
 
 const querySchema = z.object({ q: z.string().trim().min(3).max(180) });
 
 export async function GET(request: Request) {
-  const clientKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`geocode:${clientKey}`, 20, 10 * 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla adres araması yaptınız. Lütfen biraz sonra tekrar deneyin." }, { status: 429 });
+  const limited = await apiRateLimit(request, "geocode", 20, 10 * 60_000, { message: "Çok fazla adres araması yaptınız. Lütfen biraz sonra tekrar deneyin." });
+  if (limited) return limited;
 
   const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return NextResponse.json({ error: "Aramak için en az 3 karakterlik bir adres girin." }, { status: 422 });

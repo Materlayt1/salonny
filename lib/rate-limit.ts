@@ -2,6 +2,21 @@ type Entry = { count: number; resetAt: number };
 const buckets = new Map<string, Entry>();
 
 type RateLimitResult = { allowed: boolean; remaining: number; resetAt: number };
+type RateLimitOptions = { failClosed?: boolean };
+
+export class RateLimitUnavailableError extends Error {
+  constructor() {
+    super("Oran sınırlama servisi kullanılamıyor.");
+    this.name = "RateLimitUnavailableError";
+  }
+}
+
+export class RateLimitExceededError extends Error {
+  constructor() {
+    super("Çok fazla işlem yaptınız. Lütfen kısa süre sonra tekrar deneyin.");
+    this.name = "RateLimitExceededError";
+  }
+}
 
 async function checkDistributedRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, "");
@@ -38,6 +53,14 @@ function checkMemoryRateLimit(key: string, limit: number, windowMs: number): Rat
   return { allowed: current.count <= limit, remaining: Math.max(0, limit - current.count), resetAt: current.resetAt };
 }
 
-export async function checkRateLimit(key: string, limit = 20, windowMs = 60_000) {
-  return await checkDistributedRateLimit(key, limit, windowMs) ?? checkMemoryRateLimit(key, limit, windowMs);
+export async function checkRateLimit(key: string, limit = 20, windowMs = 60_000, options: RateLimitOptions = {}) {
+  const distributed = await checkDistributedRateLimit(key, limit, windowMs);
+  if (distributed) return distributed;
+  if (options.failClosed && process.env.NODE_ENV === "production") throw new RateLimitUnavailableError();
+  return checkMemoryRateLimit(key, limit, windowMs);
+}
+
+export async function assertRateLimit(key: string, limit: number, windowMs: number, options: RateLimitOptions = {}) {
+  const result = await checkRateLimit(key, limit, windowMs, options);
+  if (!result.allowed) throw new RateLimitExceededError();
 }

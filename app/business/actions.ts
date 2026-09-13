@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireBusinessMutation } from "@/lib/business-context";
+import { RateLimitExceededError, RateLimitUnavailableError } from "@/lib/rate-limit";
 
 export type BusinessActionResult = { ok: true; message: string; id?: string } | { ok: false; message: string };
 
@@ -73,6 +74,8 @@ const campaignSchema = z.object({
 });
 
 function failure(error: unknown, fallback: string): BusinessActionResult {
+  if (error instanceof RateLimitExceededError) return { ok: false, message: error.message };
+  if (error instanceof RateLimitUnavailableError) return { ok: false, message: "İşlem güvenliği servisi geçici olarak kullanılamıyor. Lütfen tekrar deneyin." };
   const message = error instanceof Error ? error.message : fallback;
   if (message.includes("duplicate key") || message.includes("23505")) return { ok: false, message: "Bu kayıt zaten mevcut." };
   return { ok: false, message: fallback };

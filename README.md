@@ -20,6 +20,8 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm test:e2e
+pnpm audit --prod
+pnpm test:load
 ```
 
 ## Ana rotalar
@@ -40,7 +42,8 @@ pnpm test:e2e
 1. Supabase projesini oluşturun ve `.env.example` içindeki değişkenleri tanımlayın.
 2. `supabase/migrations` altındaki migrasyonları dosya sırasıyla çalıştırın.
 3. `supabase/seed.sql` kategori taksonomisini geliştirme/preview ortamına eklemek için kullanılabilir.
-4. Gerçek ödeme ve iletişim sağlayıcılarını `lib/providers` altındaki arayüzlere uyarlayın.
-5. Vercel ortam değişkenlerini ekleyip build doğrulamasından sonra deploy edin.
+4. Bildirim sağlayıcılarını `lib/providers` altındaki arayüzlere uyarlayın.
+5. Upstash Redis'i dağıtık oran sınırlama için yapılandırın; `/api/health/ready` hem Supabase hem Redis için hazır olmadan trafik açmayın.
+6. Ortam değişkenlerini ekleyip build doğrulamasından sonra deploy edin.
 
-Kart bilgileri uygulama veritabanında saklanmaz. Plan fiyatları kod içine gömülü değildir. Ödeme, SMS, e-posta ve WhatsApp sağlayıcıları bağlanmadan ilgili gerçek gönderim/ödeme seçenekleri açılmaz. Seed ve geliştirme hesapları production ortamında çalıştırılmamalıdır.
+Ödeme bu sürümün kapsamı dışındadır ve etkin değildir. SMS, e-posta ve WhatsApp sağlayıcıları bağlanmadan gerçek gönderim seçenekleri açılmaz. Seed ve geliştirme hesapları production ortamında çalıştırılmamalıdır. Ayrıntılı denetim ve canlıya geçiş listesi için `PRODUCTION_READINESS.md` dosyasına bakın.

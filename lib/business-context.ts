@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createServerClientOptional } from "@/lib/supabase/server";
+import { assertRateLimit } from "@/lib/rate-limit";
 
 export type BusinessMemberRole = "OWNER" | "MANAGER" | "EMPLOYEE";
 
@@ -84,5 +85,6 @@ export async function requireBusinessMutation(allowedRoles: BusinessMemberRole[]
   const context = await getBusinessContext();
   if (!context) throw new Error("Oturum doğrulanamadı.");
   if (!allowedRoles.includes(context.role)) throw new Error("Bu işlem için yetkiniz yok.");
+  await assertRateLimit(`business-action:${context.user.id}`, 120, 60_000, { failClosed: true });
   return context;
 }

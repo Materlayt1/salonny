@@ -2,7 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { isValidCoordinate } from "@/lib/geo";
-import { createPublicSupabaseClientOptional } from "@/lib/supabase/public";
+import { awaitPublicRequest, createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import type { Business } from "@/lib/types";
 
 type DbBusiness = {
@@ -13,11 +13,12 @@ type DbBusiness = {
   business_images: { storage_path: string; kind: "logo" | "cover" | "gallery"; sort_order: number }[];
   business_hours: { branch_id: string; weekday: number; opens_at: string | null; closes_at: string | null; is_closed: boolean }[];
   services: { id: string; name: string; description: string | null; duration_minutes: number; price_minor: number; active: boolean }[];
-  employees: { id: string; display_name: string; title: string | null; avatar_path: string | null; active: boolean; employee_services: { service_id: string }[] }[];
-  reviews: { id: string; rating: number; comment: string | null; business_reply: string | null; created_at: string; moderation_status: string }[];
+  employees?: { id: string; display_name: string; title: string | null; avatar_path: string | null; active: boolean; employee_services: { service_id: string }[] }[];
+  reviews?: { id: string; rating: number; comment: string | null; business_reply: string | null; created_at: string; moderation_status: string }[];
 };
 
-const select = "id,name,slug,description,phone,website_url,timezone,verified_at,rating_average,review_count,created_at,business_categories(name_tr),branches(id,name,is_primary,active),business_locations(branch_id,address_line,district,city,latitude,longitude),business_images(storage_path,kind,sort_order),business_hours(branch_id,weekday,opens_at,closes_at,is_closed),services(id,name,description,duration_minutes,price_minor,active),employees(id,display_name,title,avatar_path,active,employee_services(service_id)),reviews(id,rating,comment,business_reply,created_at,moderation_status)";
+const summarySelect = "id,name,slug,description,phone,website_url,timezone,verified_at,rating_average,review_count,created_at,business_categories(name_tr),branches(id,name,is_primary,active),business_locations(branch_id,address_line,district,city,latitude,longitude),business_images(storage_path,kind,sort_order),business_hours(branch_id,weekday,opens_at,closes_at,is_closed),services(id,name,description,duration_minutes,price_minor,active),reviews(id,rating,comment,business_reply,created_at,moderation_status)";
+const detailSelect = `${summarySelect},employees(id,display_name,title,avatar_path,active,employee_services(service_id))`;
 function first<T>(value: T | T[] | null) { return Array.isArray(value) ? value[0] : value; }
 function publicAssetUrl(path: string | null | undefined) { if (!path) return "/brand/salonny-mark.png"; if (/^https?:\/\//.test(path)) return path; const base = process.env.NEXT_PUBLIC_SUPABASE_URL; if (!base) return "/brand/salonny-mark.png"; return `${base}/storage/v1/object/public/business-assets/${path.split("/").map(encodeURIComponent).join("/")}`; }
 
@@ -32,8 +33,64 @@ function toBusiness(row: DbBusiness): Business | null {
   return { id: row.id, branchId: branch.id, slug: row.slug, name: row.name, category, rating: Number(row.rating_average), reviews: row.review_count, distance: null, district: location.district, city: location.city, address: location.address_line, image: images[0] ?? "/brand/salonny-mark.png", gallery: images.length ? images : ["/brand/salonny-mark.png"], open, nextAvailable: "Uygun saatleri gör", startingPrice: services.length ? Math.min(...services.map((item) => item.price)) : 0, verified: Boolean(row.verified_at), lat: latitude, lng: longitude, phone: row.phone ?? "", website: row.website_url ?? undefined, description: row.description ?? "", createdAt: row.created_at, timezone: row.timezone, todayHours, hours, reviewItems, services, employees };
 }
 
-const listCached = unstable_cache(async (limit: number) => { const supabase = createPublicSupabaseClientOptional(); if (!supabase) return []; const { data, error } = await supabase.from("businesses").select(select).eq("status", "published").order("rating_average", { ascending: false }).limit(limit); if (error) throw new Error(`İşletmeler alınamadı: ${error.message}`); return ((data ?? []) as unknown as DbBusiness[]).map(toBusiness).filter((item): item is Business => Boolean(item)); }, ["marketplace-businesses"], { revalidate: 60, tags: ["marketplace"] });
-const getCached = unstable_cache(async (slug: string) => { const supabase = createPublicSupabaseClientOptional(); if (!supabase) return null; const { data, error } = await supabase.from("businesses").select(select).eq("slug", slug).eq("status", "published").maybeSingle(); if (error) throw new Error(`İşletme alınamadı: ${error.message}`); return data ? toBusiness(data as unknown as DbBusiness) : null; }, ["marketplace-business"], { revalidate: 60, tags: ["marketplace"] });
+const listCached = unstable_cache(async (limit: number) => {
+  const supabase = createPublicSupabaseClientOptional();
+  if (!supabase) return [];
+  const result = await awaitPublicRequest(supabase
+    .from("businesses")
+    .select(summarySelect)
+    .eq("status", "published")
+    .order("rating_average", { ascending: false })
+    .order("created_at", { referencedTable: "reviews", ascending: false })
+    .limit(3, { referencedTable: "reviews" })
+    .limit(limit));
+  if (!result) {
+    console.error(JSON.stringify({ event: "marketplace_list_failed", code: "timeout" }));
+    return [];
+  }
+  const { data, error } = result;
+  if (error) {
+    console.error(JSON.stringify({ event: "marketplace_list_failed", code: error.code }));
+    return [];
+  }
+  return ((data ?? []) as unknown as DbBusiness[]).map(toBusiness).filter((item): item is Business => Boolean(item));
+}, ["marketplace-businesses-v3"], { revalidate: 60, tags: ["marketplace"] });
 
-export async function listMarketplaceBusinesses(limit = 50) { return listCached(Math.min(Math.max(limit, 1), 200)); }
+const getCached = unstable_cache(async (slug: string) => {
+  const supabase = createPublicSupabaseClientOptional();
+  if (!supabase) return null;
+  const result = await awaitPublicRequest(supabase
+    .from("businesses")
+    .select(detailSelect)
+    .eq("slug", slug)
+    .eq("status", "published")
+    .order("created_at", { referencedTable: "reviews", ascending: false })
+    .limit(50, { referencedTable: "reviews" })
+    .maybeSingle());
+  if (!result) throw new Error("İşletme sorgusu zaman aşımına uğradı.");
+  const { data, error } = result;
+  if (error) throw new Error(`İşletme alınamadı: ${error.message}`);
+  return data ? toBusiness(data as unknown as DbBusiness) : null;
+}, ["marketplace-business-v3"], { revalidate: 60, tags: ["marketplace"] });
+
+type LocalListEntry = { expiresAt: number; value?: Business[]; pending?: Promise<Business[]> };
+const localLists = new Map<number, LocalListEntry>();
+
+export async function listMarketplaceBusinesses(limit = 50) {
+  const safeLimit = Math.min(Math.max(limit, 1), 200);
+  const now = Date.now();
+  const current = localLists.get(safeLimit);
+  if (current?.value && current.expiresAt > now) return current.value;
+  if (current?.pending) return current.pending;
+
+  const pending = listCached(safeLimit).then((value) => {
+    localLists.set(safeLimit, { value, expiresAt: Date.now() + 60_000 });
+    return value;
+  }).catch((error) => {
+    localLists.delete(safeLimit);
+    throw error;
+  });
+  localLists.set(safeLimit, { pending, expiresAt: now + 60_000 });
+  return pending;
+}
 export async function getMarketplaceBusiness(slug: string) { if (!/^[a-z0-9-]{2,160}$/.test(slug)) return null; return getCached(slug); }

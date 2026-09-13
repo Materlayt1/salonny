@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerClientOptional } from "@/lib/supabase/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { apiRateLimit } from "@/lib/api-security";
 
 const bookingSchema = z.object({
   businessId: z.uuid(),
@@ -21,9 +21,8 @@ export async function POST(request: Request) {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "Yalnızca JSON istekleri desteklenir." }, { status: 415 });
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > 65_536) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
-  const clientKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`booking:${clientKey}`, 12, 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla deneme yaptınız. Lütfen kısa süre sonra tekrar deneyin." }, { status: 429, headers: { "Retry-After": String(Math.ceil((rate.resetAt - Date.now()) / 1000)) } });
+  const limited = await apiRateLimit(request, "booking", 12, 60_000, { critical: true, message: "Çok fazla deneme yaptınız. Lütfen kısa süre sonra tekrar deneyin." });
+  if (limited) return limited;
   const idempotencyKey = request.headers.get("idempotency-key");
   if (!idempotencyKey) return NextResponse.json({ error: "İşlem anahtarı eksik." }, { status: 400 });
   const parsed = bookingSchema.safeParse(await request.json().catch(() => null));

@@ -217,7 +217,7 @@ function ComingSoonButton({ label }: { label: string }) {
     <button
       type="button"
       disabled
-      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E1E1E7] bg-[#FAFAFC] px-3 text-xs font-semibold text-[#777781]"
+      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E1E1E7] bg-[#FAFAFC] px-3 text-xs font-semibold text-[#686872]"
     >
       {label}
       <span className="rounded-md bg-[#EEEAFD] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#6C4BF4]">Yakında</span>
@@ -235,7 +235,7 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
       <section className="flex min-h-screen flex-col px-5 py-6 sm:px-10 lg:px-14 xl:px-20">
         <div className="flex items-center justify-between">
           <BrandLogo />
-          <Link href="/" className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-[#777781] transition hover:bg-[#F7F7FA] hover:text-[#15151A]">
+          <Link href="/" className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-[#686872] transition hover:bg-[#F7F7FA] hover:text-[#15151A]">
             <ArrowLeft className="h-4 w-4" /> Ana sayfa
           </Link>
         </div>
@@ -263,13 +263,13 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
           <h1 className="mt-5 text-3xl font-bold tracking-[-.035em] sm:text-[34px]">
             {signup ? `${BRAND.name}'ye katıl` : "Tekrar hoş geldin"}
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[#777781]">
+          <p className="mt-2 text-sm leading-6 text-[#686872]">
             {signup ? "Ücretsiz hesabını oluştur, iyi hizmete daha hızlı ulaş." : "Randevularına ve favorilerine kaldığın yerden devam et."}
           </p>
 
           <div className="mt-7 grid grid-cols-2 rounded-xl bg-[#F4F4F7] p-1" aria-label="Hesap türü">
-            <button type="button" onClick={() => setRole("customer")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "customer" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#777781]")}>Müşteriyim</button>
-            <button type="button" onClick={() => setRole("business")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "business" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#777781]")}>İşletmeyim</button>
+            <button type="button" onClick={() => setRole("customer")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "customer" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#686872]")}>Müşteriyim</button>
+            <button type="button" onClick={() => setRole("business")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "business" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#686872]")}>İşletmeyim</button>
           </div>
 
           <AuthForm key={`${mode}-${role}`} mode={mode} role={role} next={next} initialError={initialError} />
@@ -280,13 +280,13 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
             <ComingSoonButton label="Apple ile devam et" />
           </div>
 
-          <p className="mt-7 text-center text-sm text-[#777781]">
+          <p className="mt-7 text-center text-sm text-[#686872]">
             {signup ? "Zaten hesabın var mı?" : "Henüz hesabın yok mu?"}{" "}
             <button type="button" onClick={() => setMode(signup ? "signin" : "signup")} className="font-semibold text-[#6C4BF4] hover:text-[#5635E6]">
               {signup ? "Giriş yap" : "Ücretsiz kayıt ol"}
             </button>
           </p>
-          <p className="mt-5 text-center text-[10px] leading-5 text-[#91919A]">
+          <p className="mt-5 text-center text-[10px] leading-5 text-[#6F6F78]">
             Devam ederek <Link href="/terms" className="underline">Kullanım Şartları</Link> ve <Link href="/kvkk" className="underline">KVKK Aydınlatma Metni</Link>&apos;ni kabul edersin.
           </p>
         </div>

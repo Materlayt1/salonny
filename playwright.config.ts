@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 2 : 3,
   use: { baseURL: "http://localhost:3000", trace: "on-first-retry" },
   webServer: { command: "pnpm dev", url: "http://localhost:3000", reuseExistingServer: true },
   projects: [

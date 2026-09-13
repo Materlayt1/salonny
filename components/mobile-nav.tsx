@@ -21,7 +21,7 @@ export function MobileNav() {
         const Icon = item.icon;
         const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
         return (
-          <Link key={item.label} href={item.href} aria-label={item.label} className={cn("flex flex-col items-center justify-center gap-1 text-[10px] font-medium", active ? "text-[#6C4BF4]" : "text-[#777781]", item.action && "relative -top-3 text-[#6C4BF4]") }>
+          <Link key={item.label} href={item.href} aria-label={item.label} className={cn("flex flex-col items-center justify-center gap-1 text-[10px] font-medium", active ? "text-[#6C4BF4]" : "text-[#686872]", item.action && "relative -top-3 text-[#6C4BF4]") }>
             <span className={cn("grid h-7 w-7 place-items-center rounded-full", item.action && "h-12 w-12 bg-[#6C4BF4] text-white shadow-[0_7px_18px_rgba(108,75,244,.35)]")}><Icon className={cn("h-5 w-5", item.action && "h-6 w-6")} /></span>
             <span className={cn(item.action && "sr-only")}>{item.label}</span>
           </Link>

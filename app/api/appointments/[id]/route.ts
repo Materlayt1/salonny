@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { apiRateLimit } from "@/lib/api-security";
 import { createServerClientOptional } from "@/lib/supabase/server";
 
 const idSchema = z.uuid();
@@ -32,9 +32,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!idSchema.safeParse(id).success) return NextResponse.json({ error: "Geçersiz randevu." }, { status: 400 });
   const date = new URL(request.url).searchParams.get("date");
   if (!date || !dateSchema.safeParse(date).success) return NextResponse.json({ error: "Geçerli bir tarih seçin." }, { status: 422 });
-  const rateKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`appointment-slots:${rateKey}`, 60, 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla uygunluk sorgusu yaptınız." }, { status: 429 });
+  const limited = await apiRateLimit(request, "appointment-slots", 60, 60_000, { message: "Çok fazla uygunluk sorgusu yaptınız." });
+  if (limited) return limited;
   const { supabase, authenticated } = await authenticatedClient();
   if (!authenticated) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
@@ -51,9 +50,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
   const { id } = await params;
   if (!idSchema.safeParse(id).success) return NextResponse.json({ error: "Geçersiz randevu." }, { status: 400 });
-  const rateKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`appointment-change:${rateKey}`, 12, 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla işlem yaptınız. Lütfen kısa süre sonra tekrar deneyin." }, { status: 429 });
+  const limited = await apiRateLimit(request, "appointment-change", 12, 60_000, { critical: true, message: "Çok fazla işlem yaptınız. Lütfen kısa süre sonra tekrar deneyin." });
+  if (limited) return limited;
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "İşlem bilgileri geçersiz." }, { status: 422 });
   const { supabase, authenticated } = await authenticatedClient();

@@ -3,18 +3,19 @@
 import { Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { invalidateSessionSummary } from "@/lib/session-summary-client";
 
 export function FavoriteRemoveButton({ businessId }: { businessId: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function remove() {
-    const supabase = createBrowserSupabaseClient();
-    if (!supabase) return;
     setPending(true);
-    await supabase.from("favorites").delete().eq("business_id", businessId);
-    router.refresh();
+    const response = await fetch(`/api/favorites/${businessId}`, { method: "DELETE" });
+    if (response.ok) {
+      invalidateSessionSummary();
+      router.refresh();
+    }
     setPending(false);
   }
 

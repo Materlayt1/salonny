@@ -54,7 +54,9 @@ test("business photos open in a navigable gallery", async ({ page, request }, te
 
 test("mobile navigation matches the five-item booking layout", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile-only navigation assertion");
+  expect(page.viewportSize()?.width).toBeLessThan(768);
   await page.goto("/");
+  expect(await page.evaluate(() => window.innerWidth)).toBeLessThan(768);
   const navigation = page.getByRole("navigation").last();
   await expect(navigation.getByRole("link", { name: "Ana Sayfa" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Keşfet" })).toBeVisible();

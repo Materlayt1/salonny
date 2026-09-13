@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const timeoutSignal = AbortSignal.timeout(2_000);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
+  return fetch(input, { ...init, signal });
+}
+
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -8,6 +14,7 @@ export async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, key, {
+    global: { fetch: fetchWithTimeout },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookies) => {
