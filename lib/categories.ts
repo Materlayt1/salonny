@@ -1,5 +1,6 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
+import { developmentDemoCategories } from "@/lib/demo-marketplace";
 import { awaitPublicRequest, createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import type { Category } from "@/lib/types";
 
@@ -23,6 +24,9 @@ const cached = unstable_cache(async (): Promise<Category[]> => {
 let localCategories: { expiresAt: number; value?: Category[]; pending?: Promise<Category[]> } | undefined;
 
 export async function listPublicCategories() {
+  const demoCategories = developmentDemoCategories();
+  if (demoCategories.length) return demoCategories;
+
   const now = Date.now();
   if (localCategories?.value && localCategories.expiresAt > now) return localCategories.value;
   if (localCategories?.pending) return localCategories.pending;

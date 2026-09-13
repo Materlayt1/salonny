@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import { developmentDemoBusiness, developmentDemoBusinesses } from "@/lib/demo-marketplace";
 import { isValidCoordinate } from "@/lib/geo";
 import { awaitPublicRequest, createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import type { Business } from "@/lib/types";
@@ -78,6 +79,9 @@ const localLists = new Map<number, LocalListEntry>();
 
 export async function listMarketplaceBusinesses(limit = 50) {
   const safeLimit = Math.min(Math.max(limit, 1), 200);
+  const demoBusinesses = developmentDemoBusinesses(safeLimit);
+  if (demoBusinesses.length) return demoBusinesses;
+
   const now = Date.now();
   const current = localLists.get(safeLimit);
   if (current?.value && current.expiresAt > now) return current.value;
@@ -93,4 +97,9 @@ export async function listMarketplaceBusinesses(limit = 50) {
   localLists.set(safeLimit, { pending, expiresAt: now + 60_000 });
   return pending;
 }
-export async function getMarketplaceBusiness(slug: string) { if (!/^[a-z0-9-]{2,160}$/.test(slug)) return null; return getCached(slug); }
+export async function getMarketplaceBusiness(slug: string) {
+  if (!/^[a-z0-9-]{2,160}$/.test(slug)) return null;
+  const demo = developmentDemoBusiness(slug);
+  if (demo) return demo;
+  return getCached(slug);
+}
