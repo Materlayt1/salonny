@@ -10,7 +10,8 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function hasSupabaseConfig() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return process.env.NEXT_PUBLIC_SUPABASE_OFFLINE !== "true"
+    && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 export async function createServerClientOptional() {

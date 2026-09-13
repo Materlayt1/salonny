@@ -69,8 +69,8 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
     const destination = next?.startsWith("/") && !next.startsWith("//") ? next : fallback;
 
     if (!supabase) {
-      router.replace(destination);
-      router.refresh();
+      setErrorMessage("Kimlik servisi şu anda çevrimdışı. Supabase projesi geri yüklendiğinde giriş yeniden açılacak.");
+      setPending(false);
       return;
     }
 

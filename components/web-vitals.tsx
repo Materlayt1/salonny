@@ -6,7 +6,7 @@ const configuredRate = Number(process.env.NEXT_PUBLIC_WEB_VITALS_SAMPLE_RATE ?? 
 const sampleRate = Number.isFinite(configuredRate) ? Math.min(1, Math.max(0, configuredRate)) : 0.05;
 const sampled = Math.random() < sampleRate;
 
-export function WebVitals() {
+function ProductionWebVitals() {
   useReportWebVitals((metric) => {
     if (!sampled) return;
     const body = JSON.stringify({
@@ -25,4 +25,9 @@ export function WebVitals() {
     void fetch("/api/telemetry/vitals", { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true });
   });
   return null;
+}
+
+export function WebVitals() {
+  if (process.env.NODE_ENV !== "production") return null;
+  return <ProductionWebVitals />;
 }

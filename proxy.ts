@@ -8,6 +8,7 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export async function proxy(request: NextRequest) {
+  if (process.env.NEXT_PUBLIC_SUPABASE_OFFLINE === "true") return NextResponse.next();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();

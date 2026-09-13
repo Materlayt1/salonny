@@ -1,8 +1,8 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
-import { developmentDemoBusiness, developmentDemoBusinesses } from "@/lib/demo-marketplace";
 import { isValidCoordinate } from "@/lib/geo";
+import { lastKnownMarketplaceBusiness, lastKnownMarketplaceBusinesses } from "@/lib/last-known-marketplace";
 import { awaitPublicRequest, createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import type { Business } from "@/lib/types";
 
@@ -34,9 +34,12 @@ function toBusiness(row: DbBusiness): Business | null {
   return { id: row.id, branchId: branch.id, slug: row.slug, name: row.name, category, rating: Number(row.rating_average), reviews: row.review_count, distance: null, district: location.district, city: location.city, address: location.address_line, image: images[0] ?? "/brand/salonny-mark.png", gallery: images.length ? images : ["/brand/salonny-mark.png"], open, nextAvailable: "Uygun saatleri gör", startingPrice: services.length ? Math.min(...services.map((item) => item.price)) : 0, verified: Boolean(row.verified_at), lat: latitude, lng: longitude, phone: row.phone ?? "", website: row.website_url ?? undefined, description: row.description ?? "", createdAt: row.created_at, timezone: row.timezone, todayHours, hours, reviewItems, services, employees };
 }
 
-const listCached = unstable_cache(async (limit: number) => {
+type MarketplaceListResult = { available: boolean; businesses: Business[] };
+type MarketplaceDetailResult = { available: boolean; business: Business | null };
+
+const listCached = unstable_cache(async (limit: number): Promise<MarketplaceListResult> => {
   const supabase = createPublicSupabaseClientOptional();
-  if (!supabase) return [];
+  if (!supabase) return { available: false, businesses: [] };
   const result = await awaitPublicRequest(supabase
     .from("businesses")
     .select(summarySelect)
@@ -47,19 +50,19 @@ const listCached = unstable_cache(async (limit: number) => {
     .limit(limit));
   if (!result) {
     console.error(JSON.stringify({ event: "marketplace_list_failed", code: "timeout" }));
-    return [];
+    return { available: false, businesses: [] };
   }
   const { data, error } = result;
   if (error) {
     console.error(JSON.stringify({ event: "marketplace_list_failed", code: error.code }));
-    return [];
+    return { available: false, businesses: [] };
   }
-  return ((data ?? []) as unknown as DbBusiness[]).map(toBusiness).filter((item): item is Business => Boolean(item));
-}, ["marketplace-businesses-v3"], { revalidate: 60, tags: ["marketplace"] });
+  return { available: true, businesses: ((data ?? []) as unknown as DbBusiness[]).map(toBusiness).filter((item): item is Business => Boolean(item)) };
+}, ["marketplace-businesses-v4"], { revalidate: 60, tags: ["marketplace"] });
 
-const getCached = unstable_cache(async (slug: string) => {
+const getCached = unstable_cache(async (slug: string): Promise<MarketplaceDetailResult> => {
   const supabase = createPublicSupabaseClientOptional();
-  if (!supabase) return null;
+  if (!supabase) return { available: false, business: null };
   const result = await awaitPublicRequest(supabase
     .from("businesses")
     .select(detailSelect)
@@ -68,26 +71,30 @@ const getCached = unstable_cache(async (slug: string) => {
     .order("created_at", { referencedTable: "reviews", ascending: false })
     .limit(50, { referencedTable: "reviews" })
     .maybeSingle());
-  if (!result) throw new Error("İşletme sorgusu zaman aşımına uğradı.");
+  if (!result) {
+    console.error(JSON.stringify({ event: "marketplace_detail_failed", code: "timeout", slug }));
+    return { available: false, business: null };
+  }
   const { data, error } = result;
-  if (error) throw new Error(`İşletme alınamadı: ${error.message}`);
-  return data ? toBusiness(data as unknown as DbBusiness) : null;
-}, ["marketplace-business-v3"], { revalidate: 60, tags: ["marketplace"] });
+  if (error) {
+    console.error(JSON.stringify({ event: "marketplace_detail_failed", code: error.code, slug }));
+    return { available: false, business: null };
+  }
+  return { available: true, business: data ? toBusiness(data as unknown as DbBusiness) : null };
+}, ["marketplace-business-v4"], { revalidate: 60, tags: ["marketplace"] });
 
 type LocalListEntry = { expiresAt: number; value?: Business[]; pending?: Promise<Business[]> };
 const localLists = new Map<number, LocalListEntry>();
 
 export async function listMarketplaceBusinesses(limit = 50) {
   const safeLimit = Math.min(Math.max(limit, 1), 200);
-  const demoBusinesses = developmentDemoBusinesses(safeLimit);
-  if (demoBusinesses.length) return demoBusinesses;
-
   const now = Date.now();
   const current = localLists.get(safeLimit);
   if (current?.value && current.expiresAt > now) return current.value;
   if (current?.pending) return current.pending;
 
-  const pending = listCached(safeLimit).then((value) => {
+  const pending = listCached(safeLimit).then((result) => {
+    const value = result.available ? result.businesses : lastKnownMarketplaceBusinesses(safeLimit);
     localLists.set(safeLimit, { value, expiresAt: Date.now() + 60_000 });
     return value;
   }).catch((error) => {
@@ -99,7 +106,6 @@ export async function listMarketplaceBusinesses(limit = 50) {
 }
 export async function getMarketplaceBusiness(slug: string) {
   if (!/^[a-z0-9-]{2,160}$/.test(slug)) return null;
-  const demo = developmentDemoBusiness(slug);
-  if (demo) return demo;
-  return getCached(slug);
+  const result = await getCached(slug);
+  return result.available ? result.business : lastKnownMarketplaceBusiness(slug);
 }

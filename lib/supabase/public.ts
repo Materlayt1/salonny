@@ -13,6 +13,10 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
 
 export function createPublicSupabaseClientOptional() {
   if (publicClient !== undefined) return publicClient;
+  if (process.env.NEXT_PUBLIC_SUPABASE_OFFLINE === "true") {
+    publicClient = null;
+    return publicClient;
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {

@@ -38,7 +38,8 @@ async function checkDistributedRateLimit() {
 
 export async function GET() {
   const startedAt = performance.now();
-  const databaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const databaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_OFFLINE !== "true"
+    && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const rateLimitConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
   const [databaseReachable, rateLimitReachable] = await Promise.all([
     databaseConfigured ? checkDatabase() : Promise.resolve(false),

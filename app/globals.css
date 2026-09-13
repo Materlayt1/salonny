@@ -1,5 +1,6 @@
 @import "maplibre-gl/dist/maplibre-gl.css";
 @import "tailwindcss";
+@source not "../public/recovered";
 
 :root {
   --primary: #6c4bf4;
