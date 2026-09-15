@@ -1,11 +1,20 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
+import { cookies } from "next/headers";
 import { z } from "zod";
-import { requireBusinessMutation } from "@/lib/business-context";
-import { RateLimitExceededError, RateLimitUnavailableError } from "@/lib/rate-limit";
+import {
+  requireBusinessMutation,
+  requireBusinessPermissionMutation,
+} from "@/lib/business-context";
+import {
+  RateLimitExceededError,
+  RateLimitUnavailableError,
+} from "@/lib/rate-limit";
 
-export type BusinessActionResult = { ok: true; message: string; id?: string } | { ok: false; message: string };
+export type BusinessActionResult =
+  | { ok: true; message: string; id?: string }
+  | { ok: false; message: string };
 
 const idSchema = z.string().uuid();
 const serviceSchema = z.object({
@@ -30,25 +39,36 @@ const employeeSchema = z.object({
   active: z.boolean().default(true),
 });
 
-const schedulePeriodSchema = z.object({
-  weekday: z.number().int().min(0).max(6),
-  startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-}).refine((period) => period.startsAt < period.endsAt, { message: "Bitiş saati başlangıçtan sonra olmalıdır." });
+const schedulePeriodSchema = z
+  .object({
+    weekday: z.number().int().min(0).max(6),
+    startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  })
+  .refine((period) => period.startsAt < period.endsAt, {
+    message: "Bitiş saati başlangıçtan sonra olmalıdır.",
+  });
 
-const timeOffSchema = z.object({
-  employeeId: z.string().uuid(),
-  startsAt: z.string().datetime({ offset: true }),
-  endsAt: z.string().datetime({ offset: true }),
-  kind: z.enum(["leave", "vacation", "blocked", "break"]),
-  note: z.string().trim().max(500).optional().default(""),
-}).refine((period) => new Date(period.startsAt) < new Date(period.endsAt), { message: "İzin bitişi başlangıçtan sonra olmalıdır." });
+const timeOffSchema = z
+  .object({
+    employeeId: z.string().uuid(),
+    startsAt: z.string().datetime({ offset: true }),
+    endsAt: z.string().datetime({ offset: true }),
+    kind: z.enum(["leave", "vacation", "blocked", "break"]),
+    note: z.string().trim().max(500).optional().default(""),
+  })
+  .refine((period) => new Date(period.startsAt) < new Date(period.endsAt), {
+    message: "İzin bitişi başlangıçtan sonra olmalıdır.",
+  });
 
 const customerSchema = z.object({
   id: z.string().uuid().optional(),
   fullName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(10).max(24),
-  email: z.union([z.string().trim().email().max(254), z.literal("")]).optional().default(""),
+  email: z
+    .union([z.string().trim().email().max(254), z.literal("")])
+    .optional()
+    .default(""),
   notes: z.string().trim().max(2000).optional().default(""),
   marketingConsent: z.boolean().default(false),
 });
@@ -65,7 +85,11 @@ const inventoryProductSchema = z.object({
 
 const campaignSchema = z.object({
   name: z.string().trim().min(2).max(140),
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,30}$/),
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9_-]{3,30}$/),
   kind: z.enum(["percentage", "fixed"]),
   value: z.number().int().positive().max(1_000_000),
   audience: z.enum(["all", "new", "loyal", "inactive"]).default("all"),
@@ -73,11 +97,86 @@ const campaignSchema = z.object({
   endsAt: z.string().datetime({ offset: true }).optional(),
 });
 
+const waitlistSchema = z
+  .object({
+    customerId: z.string().uuid(),
+    serviceId: z.string().uuid(),
+    employeeId: z.string().uuid().optional(),
+    desiredFrom: z.string().datetime({ offset: true }),
+    desiredTo: z.string().datetime({ offset: true }),
+    partySize: z.number().int().min(1).max(50).default(1),
+    notes: z.string().trim().max(1000).optional().default(""),
+  })
+  .refine((value) => new Date(value.desiredFrom) < new Date(value.desiredTo), {
+    message: "Tarih aralığı geçersiz.",
+  });
+const resourceSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(2).max(120),
+  kind: z.enum(["room", "chair", "device", "other"]),
+  capacity: z.number().int().min(1).max(100),
+  serviceIds: z.array(z.string().uuid()).max(100).default([]),
+  active: z.boolean().default(true),
+});
+const bookingLinkSchema = z.object({
+  label: z.string().trim().min(2).max(120),
+  serviceId: z.string().uuid().optional(),
+  source: z.string().trim().min(2).max(40).default("direct"),
+  campaign: z.string().trim().max(120).optional().default(""),
+});
+const packageSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  serviceId: z.string().uuid().optional(),
+  sessionCount: z.number().int().min(1).max(1000),
+  validityDays: z.number().int().min(1).max(3650),
+});
+const customerPackageSchema = z.object({
+  customerId: z.string().uuid(),
+  packageId: z.string().uuid(),
+});
+const careProfileSchema = z.object({
+  customerId: z.string().uuid(),
+  allergies: z.array(z.string().trim().min(1).max(120)).max(50),
+  anamnesis: z.string().trim().max(5000).optional().default(""),
+  treatmentNotes: z.string().trim().max(5000).optional().default(""),
+  consentStatus: z.enum(["missing", "requested", "signed", "revoked"]),
+  consentVersion: z.string().trim().max(80).optional().default(""),
+});
+const careMediaSchema = z.object({
+  customerId: z.string().uuid(),
+  kind: z.enum(["before", "after", "document"]),
+  storagePath: z.string().trim().min(20).max(600),
+  caption: z.string().trim().max(300).optional().default(""),
+});
+const staffSeriesSchema = z.object({
+  customerId: z.string().uuid(),
+  employeeId: z.string().uuid(),
+  serviceId: z.string().uuid(),
+  startsAt: z.string().datetime({ offset: true }),
+  partySize: z.number().int().min(1).max(50),
+  repeatCount: z.number().int().min(1).max(52),
+  intervalDays: z.number().int().min(1).max(365),
+  source: z.enum(["walk_in", "staff"]),
+});
+const memberPermissionsSchema = z.object({
+  userId: z.string().uuid(),
+  customerVisibility: z.enum(["all", "assigned", "none"]),
+  financialVisibility: z.boolean(),
+  permissions: z.record(z.string().max(60), z.boolean()),
+});
+
 function failure(error: unknown, fallback: string): BusinessActionResult {
-  if (error instanceof RateLimitExceededError) return { ok: false, message: error.message };
-  if (error instanceof RateLimitUnavailableError) return { ok: false, message: "İşlem güvenliği servisi geçici olarak kullanılamıyor. Lütfen tekrar deneyin." };
+  if (error instanceof RateLimitExceededError)
+    return { ok: false, message: error.message };
+  if (error instanceof RateLimitUnavailableError)
+    return {
+      ok: false,
+      message:
+        "İşlem güvenliği servisi geçici olarak kullanılamıyor. Lütfen tekrar deneyin.",
+    };
   const message = error instanceof Error ? error.message : fallback;
-  if (message.includes("duplicate key") || message.includes("23505")) return { ok: false, message: "Bu kayıt zaten mevcut." };
+  if (message.includes("duplicate key") || message.includes("23505"))
+    return { ok: false, message: "Bu kayıt zaten mevcut." };
   return { ok: false, message: fallback };
 }
 
@@ -88,15 +187,31 @@ function refreshBusiness(paths: string[]) {
   revalidatePath("/kesfet");
 }
 
-export async function saveService(input: z.input<typeof serviceSchema>): Promise<BusinessActionResult> {
+export async function saveService(
+  input: z.input<typeof serviceSchema>,
+): Promise<BusinessActionResult> {
   try {
     const values = serviceSchema.parse(input);
     const { supabase, business, branch } = await requireBusinessMutation();
     let categoryId: string | null = null;
-    const { data: existingCategory } = await supabase.from("service_categories").select("id").eq("business_id", business.id).ilike("name", values.category).limit(1).maybeSingle();
+    const { data: existingCategory } = await supabase
+      .from("service_categories")
+      .select("id")
+      .eq("business_id", business.id)
+      .ilike("name", values.category)
+      .limit(1)
+      .maybeSingle();
     if (existingCategory) categoryId = existingCategory.id;
     else {
-      const { data, error } = await supabase.from("service_categories").insert({ business_id: business.id, name: values.category, active: true }).select("id").single();
+      const { data, error } = await supabase
+        .from("service_categories")
+        .insert({
+          business_id: business.id,
+          name: values.category,
+          active: true,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
       categoryId = data.id;
     }
@@ -115,91 +230,209 @@ export async function saveService(input: z.input<typeof serviceSchema>): Promise
     };
     let serviceId = values.id;
     if (serviceId) {
-      const { error } = await supabase.from("services").update(payload).eq("id", serviceId).eq("business_id", business.id);
+      const { error } = await supabase
+        .from("services")
+        .update(payload)
+        .eq("id", serviceId)
+        .eq("business_id", business.id);
       if (error) throw error;
     } else {
-      const { data, error } = await supabase.from("services").insert(payload).select("id").single();
+      const { data, error } = await supabase
+        .from("services")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) throw error;
       serviceId = data.id;
     }
-    const { error: branchError } = await supabase.from("branch_services").upsert({ branch_id: branch.id, service_id: serviceId, active: values.active }, { onConflict: "branch_id,service_id" });
+    const { error: branchError } = await supabase
+      .from("branch_services")
+      .upsert(
+        { branch_id: branch.id, service_id: serviceId, active: values.active },
+        { onConflict: "branch_id,service_id" },
+      );
     if (branchError) throw branchError;
-    await supabase.from("employee_services").delete().eq("service_id", serviceId);
+    await supabase
+      .from("employee_services")
+      .delete()
+      .eq("service_id", serviceId);
     if (values.employeeIds.length) {
-      const { data: validEmployees, error: employeeError } = await supabase.from("employees").select("id").eq("business_id", business.id).in("id", values.employeeIds);
+      const { data: validEmployees, error: employeeError } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("business_id", business.id)
+        .in("id", values.employeeIds);
       if (employeeError) throw employeeError;
-      const { error: linkError } = await supabase.from("employee_services").insert((validEmployees ?? []).map((employee) => ({ employee_id: employee.id, service_id: serviceId! })));
+      const { error: linkError } = await supabase
+        .from("employee_services")
+        .insert(
+          (validEmployees ?? []).map((employee) => ({
+            employee_id: employee.id,
+            service_id: serviceId!,
+          })),
+        );
       if (linkError) throw linkError;
     }
-    refreshBusiness(["/business/services", "/business/dashboard", `/business/${business.slug}`, `/booking/${business.slug}`]);
-    return { ok: true, id: serviceId, message: values.id ? "Hizmet güncellendi." : "Hizmet oluşturuldu." };
+    refreshBusiness([
+      "/business/services",
+      "/business/dashboard",
+      `/business/${business.slug}`,
+      `/booking/${business.slug}`,
+    ]);
+    return {
+      ok: true,
+      id: serviceId,
+      message: values.id ? "Hizmet güncellendi." : "Hizmet oluşturuldu.",
+    };
   } catch (error) {
     return failure(error, "Hizmet kaydedilemedi.");
   }
 }
 
-export async function setServiceActive(id: string, active: boolean): Promise<BusinessActionResult> {
+export async function setServiceActive(
+  id: string,
+  active: boolean,
+): Promise<BusinessActionResult> {
   try {
     const serviceId = idSchema.parse(id);
     const { supabase, business } = await requireBusinessMutation();
-    const { error } = await supabase.from("services").update({ active }).eq("id", serviceId).eq("business_id", business.id);
+    const { error } = await supabase
+      .from("services")
+      .update({ active })
+      .eq("id", serviceId)
+      .eq("business_id", business.id);
     if (error) throw error;
-    refreshBusiness(["/business/services", "/business/dashboard", `/business/${business.slug}`, `/booking/${business.slug}`]);
-    return { ok: true, message: active ? "Hizmet aktifleştirildi." : "Hizmet pasifleştirildi." };
+    refreshBusiness([
+      "/business/services",
+      "/business/dashboard",
+      `/business/${business.slug}`,
+      `/booking/${business.slug}`,
+    ]);
+    return {
+      ok: true,
+      message: active ? "Hizmet aktifleştirildi." : "Hizmet pasifleştirildi.",
+    };
   } catch (error) {
     return failure(error, "Hizmet durumu değiştirilemedi.");
   }
 }
 
-export async function saveEmployee(input: z.input<typeof employeeSchema>): Promise<BusinessActionResult> {
+export async function saveEmployee(
+  input: z.input<typeof employeeSchema>,
+): Promise<BusinessActionResult> {
   try {
     const values = employeeSchema.parse(input);
     const { supabase, business, branch } = await requireBusinessMutation();
-    const payload = { business_id: business.id, display_name: values.displayName, title: values.title || null, bio: values.bio || null, active: values.active };
+    const payload = {
+      business_id: business.id,
+      display_name: values.displayName,
+      title: values.title || null,
+      bio: values.bio || null,
+      active: values.active,
+    };
     let employeeId = values.id;
     if (employeeId) {
-      const { error } = await supabase.from("employees").update(payload).eq("id", employeeId).eq("business_id", business.id);
+      const { error } = await supabase
+        .from("employees")
+        .update(payload)
+        .eq("id", employeeId)
+        .eq("business_id", business.id);
       if (error) throw error;
     } else {
-      const { data, error } = await supabase.from("employees").insert(payload).select("id").single();
+      const { data, error } = await supabase
+        .from("employees")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) throw error;
       employeeId = data.id;
     }
-    const { error: branchError } = await supabase.from("employee_branches").upsert({ employee_id: employeeId, branch_id: branch.id }, { onConflict: "employee_id,branch_id" });
+    const { error: branchError } = await supabase
+      .from("employee_branches")
+      .upsert(
+        { employee_id: employeeId, branch_id: branch.id },
+        { onConflict: "employee_id,branch_id" },
+      );
     if (branchError) throw branchError;
-    await supabase.from("employee_services").delete().eq("employee_id", employeeId);
+    await supabase
+      .from("employee_services")
+      .delete()
+      .eq("employee_id", employeeId);
     if (values.serviceIds.length) {
-      const { data: validServices, error: serviceError } = await supabase.from("services").select("id").eq("business_id", business.id).in("id", values.serviceIds);
+      const { data: validServices, error: serviceError } = await supabase
+        .from("services")
+        .select("id")
+        .eq("business_id", business.id)
+        .in("id", values.serviceIds);
       if (serviceError) throw serviceError;
-      const { error: linkError } = await supabase.from("employee_services").insert((validServices ?? []).map((service) => ({ employee_id: employeeId!, service_id: service.id })));
+      const { error: linkError } = await supabase
+        .from("employee_services")
+        .insert(
+          (validServices ?? []).map((service) => ({
+            employee_id: employeeId!,
+            service_id: service.id,
+          })),
+        );
       if (linkError) throw linkError;
     }
-    refreshBusiness(["/business/employees", "/business/calendar", "/business/dashboard", `/business/${business.slug}`]);
-    return { ok: true, id: employeeId, message: values.id ? "Çalışan güncellendi." : "Çalışan eklendi." };
+    refreshBusiness([
+      "/business/employees",
+      "/business/calendar",
+      "/business/dashboard",
+      `/business/${business.slug}`,
+    ]);
+    return {
+      ok: true,
+      id: employeeId,
+      message: values.id ? "Çalışan güncellendi." : "Çalışan eklendi.",
+    };
   } catch (error) {
     return failure(error, "Çalışan kaydedilemedi.");
   }
 }
 
-export async function setEmployeeActive(id: string, active: boolean): Promise<BusinessActionResult> {
+export async function setEmployeeActive(
+  id: string,
+  active: boolean,
+): Promise<BusinessActionResult> {
   try {
     const employeeId = idSchema.parse(id);
     const { supabase, business } = await requireBusinessMutation();
-    const { error } = await supabase.from("employees").update({ active }).eq("id", employeeId).eq("business_id", business.id);
+    const { error } = await supabase
+      .from("employees")
+      .update({ active })
+      .eq("id", employeeId)
+      .eq("business_id", business.id);
     if (error) throw error;
-    refreshBusiness(["/business/employees", "/business/calendar", "/business/dashboard", `/business/${business.slug}`]);
-    return { ok: true, message: active ? "Çalışan aktifleştirildi." : "Çalışan pasifleştirildi." };
+    refreshBusiness([
+      "/business/employees",
+      "/business/calendar",
+      "/business/dashboard",
+      `/business/${business.slug}`,
+    ]);
+    return {
+      ok: true,
+      message: active ? "Çalışan aktifleştirildi." : "Çalışan pasifleştirildi.",
+    };
   } catch (error) {
     return failure(error, "Çalışan durumu değiştirilemedi.");
   }
 }
 
-export async function saveEmployeeSchedule(employeeId: string, schedule: z.input<typeof schedulePeriodSchema>[]): Promise<BusinessActionResult> {
+export async function saveEmployeeSchedule(
+  employeeId: string,
+  schedule: z.input<typeof schedulePeriodSchema>[],
+): Promise<BusinessActionResult> {
   try {
     const id = idSchema.parse(employeeId);
     const periods = z.array(schedulePeriodSchema).max(14).parse(schedule);
-    if (new Set(periods.map((period) => period.weekday)).size !== periods.length) {
-      return { ok: false, message: "Aynı gün için birden fazla vardiya kaydedilemez." };
+    if (
+      new Set(periods.map((period) => period.weekday)).size !== periods.length
+    ) {
+      return {
+        ok: false,
+        message: "Aynı gün için birden fazla vardiya kaydedilemez.",
+      };
     }
     const { supabase, business, branch } = await requireBusinessMutation();
     const { error } = await supabase.rpc("save_employee_weekly_schedule", {
@@ -208,14 +441,21 @@ export async function saveEmployeeSchedule(employeeId: string, schedule: z.input
       p_schedule: periods,
     });
     if (error) throw error;
-    refreshBusiness(["/business/employees", "/business/calendar", "/business/dashboard", `/booking/${business.slug}`]);
+    refreshBusiness([
+      "/business/employees",
+      "/business/calendar",
+      "/business/dashboard",
+      `/booking/${business.slug}`,
+    ]);
     return { ok: true, message: "Haftalık çalışma planı kaydedildi." };
   } catch (error) {
     return failure(error, "Çalışma planı kaydedilemedi.");
   }
 }
 
-export async function addEmployeeTimeOff(input: z.input<typeof timeOffSchema>): Promise<BusinessActionResult> {
+export async function addEmployeeTimeOff(
+  input: z.input<typeof timeOffSchema>,
+): Promise<BusinessActionResult> {
   try {
     const values = timeOffSchema.parse(input);
     const { supabase, business } = await requireBusinessMutation();
@@ -227,75 +467,155 @@ export async function addEmployeeTimeOff(input: z.input<typeof timeOffSchema>): 
       p_note: values.note || null,
     });
     if (error) throw error;
-    refreshBusiness(["/business/employees", "/business/calendar", `/booking/${business.slug}`]);
-    return { ok: true, id: typeof data === "string" ? data : undefined, message: "İzin veya blok kaydedildi." };
+    refreshBusiness([
+      "/business/employees",
+      "/business/calendar",
+      `/booking/${business.slug}`,
+    ]);
+    return {
+      ok: true,
+      id: typeof data === "string" ? data : undefined,
+      message: "İzin veya blok kaydedildi.",
+    };
   } catch (error) {
     return failure(error, "İzin kaydedilemedi.");
   }
 }
 
-export async function removeEmployeeTimeOff(timeOffId: string): Promise<BusinessActionResult> {
+export async function removeEmployeeTimeOff(
+  timeOffId: string,
+): Promise<BusinessActionResult> {
   try {
     const id = idSchema.parse(timeOffId);
     const { supabase, business } = await requireBusinessMutation();
-    const { error } = await supabase.rpc("delete_employee_time_off", { p_time_off_id: id });
+    const { error } = await supabase.rpc("delete_employee_time_off", {
+      p_time_off_id: id,
+    });
     if (error) throw error;
-    refreshBusiness(["/business/employees", "/business/calendar", `/booking/${business.slug}`]);
+    refreshBusiness([
+      "/business/employees",
+      "/business/calendar",
+      `/booking/${business.slug}`,
+    ]);
     return { ok: true, message: "İzin kaydı kaldırıldı." };
   } catch (error) {
     return failure(error, "İzin kaydı kaldırılamadı.");
   }
 }
 
-export async function saveCustomer(input: z.input<typeof customerSchema>): Promise<BusinessActionResult> {
+export async function saveCustomer(
+  input: z.input<typeof customerSchema>,
+): Promise<BusinessActionResult> {
   try {
     const values = customerSchema.parse(input);
-    const { supabase, business } = await requireBusinessMutation(["OWNER", "MANAGER", "EMPLOYEE"]);
-    const payload = { business_id: business.id, full_name: values.fullName, phone: values.phone, email: values.email || null, notes: values.notes || null, marketing_consent: values.marketingConsent };
+    const { supabase, business } = await requireBusinessMutation([
+      "OWNER",
+      "MANAGER",
+      "EMPLOYEE",
+    ]);
+    const payload = {
+      business_id: business.id,
+      full_name: values.fullName,
+      phone: values.phone,
+      email: values.email || null,
+      notes: values.notes || null,
+      marketing_consent: values.marketingConsent,
+    };
     let customerId = values.id;
     if (customerId) {
-      const { error } = await supabase.from("customers").update(payload).eq("id", customerId).eq("business_id", business.id);
+      const { error } = await supabase
+        .from("customers")
+        .update(payload)
+        .eq("id", customerId)
+        .eq("business_id", business.id);
       if (error) throw error;
     } else {
-      const { data, error } = await supabase.from("customers").insert(payload).select("id").single();
+      const { data, error } = await supabase
+        .from("customers")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) throw error;
       customerId = data.id;
     }
     refreshBusiness(["/business/customers", "/business/dashboard"]);
-    return { ok: true, id: customerId, message: values.id ? "Müşteri güncellendi." : "Müşteri eklendi." };
+    return {
+      ok: true,
+      id: customerId,
+      message: values.id ? "Müşteri güncellendi." : "Müşteri eklendi.",
+    };
   } catch (error) {
-    return failure(error, "Müşteri kaydedilemedi. Telefon numarası başka bir müşteriyle eşleşiyor olabilir.");
+    return failure(
+      error,
+      "Müşteri kaydedilemedi. Telefon numarası başka bir müşteriyle eşleşiyor olabilir.",
+    );
   }
 }
 
-export async function saveInventoryProduct(input: z.input<typeof inventoryProductSchema>): Promise<BusinessActionResult> {
+export async function saveInventoryProduct(
+  input: z.input<typeof inventoryProductSchema>,
+): Promise<BusinessActionResult> {
   try {
     const values = inventoryProductSchema.parse(input);
     const { supabase, business } = await requireBusinessMutation();
-    const payload = { business_id: business.id, name: values.name, sku: values.sku, minimum_stock: values.minimumStock, purchase_price_minor: Math.round(values.purchasePrice * 100), sale_price_minor: Math.round(values.salePrice * 100), active: values.active };
+    const payload = {
+      business_id: business.id,
+      name: values.name,
+      sku: values.sku,
+      minimum_stock: values.minimumStock,
+      purchase_price_minor: Math.round(values.purchasePrice * 100),
+      sale_price_minor: Math.round(values.salePrice * 100),
+      active: values.active,
+    };
     let productId = values.id;
     if (productId) {
-      const { error } = await supabase.from("inventory_products").update(payload).eq("id", productId).eq("business_id", business.id);
+      const { error } = await supabase
+        .from("inventory_products")
+        .update(payload)
+        .eq("id", productId)
+        .eq("business_id", business.id);
       if (error) throw error;
     } else {
-      const { data, error } = await supabase.from("inventory_products").insert({ ...payload, stock_quantity: 0 }).select("id").single();
+      const { data, error } = await supabase
+        .from("inventory_products")
+        .insert({ ...payload, stock_quantity: 0 })
+        .select("id")
+        .single();
       if (error) throw error;
       productId = data.id;
     }
     revalidatePath("/business/inventory");
-    return { ok: true, id: productId, message: values.id ? "Ürün güncellendi." : "Ürün oluşturuldu." };
+    return {
+      ok: true,
+      id: productId,
+      message: values.id ? "Ürün güncellendi." : "Ürün oluşturuldu.",
+    };
   } catch (error) {
     return failure(error, "Ürün kaydedilemedi. SKU benzersiz olmalıdır.");
   }
 }
 
-export async function adjustInventory(productId: string, quantity: number, reason?: string): Promise<BusinessActionResult> {
+export async function adjustInventory(
+  productId: string,
+  quantity: number,
+  reason?: string,
+): Promise<BusinessActionResult> {
   try {
     const id = idSchema.parse(productId);
-    const amount = z.number().int().min(-1_000_000).max(1_000_000).refine((value) => value !== 0).parse(quantity);
+    const amount = z
+      .number()
+      .int()
+      .min(-1_000_000)
+      .max(1_000_000)
+      .refine((value) => value !== 0)
+      .parse(quantity);
     const note = z.string().trim().max(500).optional().parse(reason);
     const { supabase } = await requireBusinessMutation();
-    const { error } = await supabase.rpc("adjust_inventory_stock", { p_product_id: id, p_quantity_delta: amount, p_note: note || null });
+    const { error } = await supabase.rpc("adjust_inventory_stock", {
+      p_product_id: id,
+      p_quantity_delta: amount,
+      p_note: note || null,
+    });
     if (error) throw error;
     revalidatePath("/business/inventory");
     return { ok: true, message: "Stok hareketi kaydedildi." };
@@ -304,35 +624,60 @@ export async function adjustInventory(productId: string, quantity: number, reaso
   }
 }
 
-export async function createCampaign(input: z.input<typeof campaignSchema>): Promise<BusinessActionResult> {
+export async function createCampaign(
+  input: z.input<typeof campaignSchema>,
+): Promise<BusinessActionResult> {
   try {
     const values = campaignSchema.parse(input);
-    if (values.kind === "percentage" && values.value > 100) return { ok: false, message: "Yüzde indirimi 100'den büyük olamaz." };
-    if (values.startsAt && values.endsAt && new Date(values.endsAt) <= new Date(values.startsAt)) return { ok: false, message: "Bitiş tarihi başlangıçtan sonra olmalıdır." };
+    if (values.kind === "percentage" && values.value > 100)
+      return { ok: false, message: "Yüzde indirimi 100'den büyük olamaz." };
+    if (
+      values.startsAt &&
+      values.endsAt &&
+      new Date(values.endsAt) <= new Date(values.startsAt)
+    )
+      return {
+        ok: false,
+        message: "Bitiş tarihi başlangıçtan sonra olmalıdır.",
+      };
     const { supabase } = await requireBusinessMutation();
     const { data, error } = await supabase.rpc("create_business_campaign", {
       p_name: values.name,
       p_code: values.code,
       p_kind: values.kind,
-      p_value: values.kind === "fixed" ? Math.round(values.value * 100) : values.value,
+      p_value:
+        values.kind === "fixed" ? Math.round(values.value * 100) : values.value,
       p_audience: values.audience,
       p_starts_at: values.startsAt ?? null,
       p_ends_at: values.endsAt ?? null,
     });
     if (error) throw error;
     revalidatePath("/business/campaigns");
-    return { ok: true, id: typeof data === "string" ? data : undefined, message: "Kampanya oluşturuldu." };
+    return {
+      ok: true,
+      id: typeof data === "string" ? data : undefined,
+      message: "Kampanya oluşturuldu.",
+    };
   } catch (error) {
-    return failure(error, "Kampanya oluşturulamadı. Kampanya kodu benzersiz olmalıdır.");
+    return failure(
+      error,
+      "Kampanya oluşturulamadı. Kampanya kodu benzersiz olmalıdır.",
+    );
   }
 }
 
-export async function setCampaignStatus(id: string, status: "draft" | "active" | "cancelled"): Promise<BusinessActionResult> {
+export async function setCampaignStatus(
+  id: string,
+  status: "draft" | "active" | "cancelled",
+): Promise<BusinessActionResult> {
   try {
     const campaignId = idSchema.parse(id);
     const nextStatus = z.enum(["draft", "active", "cancelled"]).parse(status);
     const { supabase } = await requireBusinessMutation();
-    const { error } = await supabase.rpc("set_business_campaign_status", { p_campaign_id: campaignId, p_status: nextStatus });
+    const { error } = await supabase.rpc("set_business_campaign_status", {
+      p_campaign_id: campaignId,
+      p_status: nextStatus,
+    });
     if (error) throw error;
     revalidatePath("/business/campaigns");
     return { ok: true, message: "Kampanya durumu güncellendi." };
@@ -341,42 +686,96 @@ export async function setCampaignStatus(id: string, status: "draft" | "active" |
   }
 }
 
-export async function saveBusinessSettings(input: unknown): Promise<BusinessActionResult> {
-  const schema = z.object({ bookingWindowDays: z.number().int().min(1).max(365), minimumNoticeMinutes: z.number().int().min(0).max(43_200), cancellationNoticeMinutes: z.number().int().min(0).max(43_200), autoConfirm: z.boolean(), requireDeposit: z.boolean(), allowWaitlist: z.boolean() });
+export async function saveBusinessSettings(
+  input: unknown,
+): Promise<BusinessActionResult> {
+  const schema = z.object({
+    bookingWindowDays: z.number().int().min(1).max(365),
+    minimumNoticeMinutes: z.number().int().min(0).max(43_200),
+    cancellationNoticeMinutes: z.number().int().min(0).max(43_200),
+    autoConfirm: z.boolean(),
+    requireDeposit: z.boolean(),
+    allowWaitlist: z.boolean(),
+  });
   try {
     const values = schema.parse(input);
     const { supabase, business } = await requireBusinessMutation();
-    const { error } = await supabase.from("business_settings").upsert({ business_id: business.id, booking_window_days: values.bookingWindowDays, minimum_notice_minutes: values.minimumNoticeMinutes, cancellation_notice_minutes: values.cancellationNoticeMinutes, auto_confirm: values.autoConfirm, require_deposit: values.requireDeposit, allow_waitlist: values.allowWaitlist }, { onConflict: "business_id" });
+    const { error } = await supabase.from("business_settings").upsert(
+      {
+        business_id: business.id,
+        booking_window_days: values.bookingWindowDays,
+        minimum_notice_minutes: values.minimumNoticeMinutes,
+        cancellation_notice_minutes: values.cancellationNoticeMinutes,
+        auto_confirm: values.autoConfirm,
+        require_deposit: values.requireDeposit,
+        allow_waitlist: values.allowWaitlist,
+      },
+      { onConflict: "business_id" },
+    );
     if (error) throw error;
-    refreshBusiness(["/business/settings", "/business/dashboard", `/booking/${business.slug}`]);
+    refreshBusiness([
+      "/business/settings",
+      "/business/dashboard",
+      `/booking/${business.slug}`,
+    ]);
     return { ok: true, message: "Randevu ayarları kaydedildi." };
   } catch (error) {
     return failure(error, "Ayarlar kaydedilemedi.");
   }
 }
 
-export async function updateBusinessAppointmentStatus(appointmentId: string, status: AppointmentStatusInput): Promise<BusinessActionResult> {
+export async function updateBusinessAppointmentStatus(
+  appointmentId: string,
+  status: AppointmentStatusInput,
+): Promise<BusinessActionResult> {
   try {
     const id = idSchema.parse(appointmentId);
-    const nextStatus = z.enum(["pending", "confirmed", "completed", "cancelled", "no_show"]).parse(status);
-    const { supabase } = await requireBusinessMutation(["OWNER", "MANAGER", "EMPLOYEE"]);
-    const { error } = await supabase.rpc("business_update_appointment_status", { p_appointment_id: id, p_status: nextStatus });
+    const nextStatus = z
+      .enum(["pending", "confirmed", "completed", "cancelled", "no_show"])
+      .parse(status);
+    const { supabase } = await requireBusinessMutation([
+      "OWNER",
+      "MANAGER",
+      "EMPLOYEE",
+    ]);
+    const { error } = await supabase.rpc("business_update_appointment_status", {
+      p_appointment_id: id,
+      p_status: nextStatus,
+    });
     if (error) throw error;
-    refreshBusiness(["/business/appointments", "/business/calendar", "/business/dashboard", "/business/reports", "/business/customers"]);
+    refreshBusiness([
+      "/business/appointments",
+      "/business/calendar",
+      "/business/dashboard",
+      "/business/reports",
+      "/business/customers",
+    ]);
     return { ok: true, message: "Randevu durumu güncellendi." };
   } catch (error) {
     return failure(error, "Randevu durumu güncellenemedi.");
   }
 }
 
-type AppointmentStatusInput = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+type AppointmentStatusInput =
+  | "pending"
+  | "confirmed"
+  | "completed"
+  | "cancelled"
+  | "no_show";
 
-export async function replyToReview(reviewId: string, reply: string): Promise<BusinessActionResult> {
+export async function replyToReview(
+  reviewId: string,
+  reply: string,
+): Promise<BusinessActionResult> {
   try {
     const id = idSchema.parse(reviewId);
     const text = z.string().trim().min(2).max(2000).parse(reply);
     const { supabase, business } = await requireBusinessMutation();
-    const { error } = await supabase.from("reviews").update({ business_reply: text, replied_at: new Date().toISOString() }).eq("id", id).eq("business_id", business.id);
+    const { error } = await supabase
+      .from("reviews")
+      .update({ business_reply: text, replied_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("business_id", business.id);
     if (error) throw error;
     revalidatePath(`/business/${business.slug}`);
     revalidatePath("/business/reports");
@@ -384,5 +783,427 @@ export async function replyToReview(reviewId: string, reply: string): Promise<Bu
     return { ok: true, message: "Yanıtınız yayınlandı." };
   } catch (error) {
     return failure(error, "Yorum yanıtı kaydedilemedi.");
+  }
+}
+
+export async function createWaitlistEntry(
+  input: z.input<typeof waitlistSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = waitlistSchema.parse(input);
+    const { supabase, business, branch, user } =
+      await requireBusinessPermissionMutation("operations");
+    const { data, error } = await supabase
+      .from("waitlist_entries")
+      .insert({
+        business_id: business.id,
+        branch_id: branch.id,
+        customer_id: values.customerId,
+        service_id: values.serviceId,
+        employee_id: values.employeeId || null,
+        desired_from: values.desiredFrom,
+        desired_to: values.desiredTo,
+        party_size: values.partySize,
+        notes: values.notes || null,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    revalidatePath("/business/operations");
+    return {
+      ok: true,
+      id: data.id,
+      message: "Müşteri bekleme listesine eklendi.",
+    };
+  } catch (error) {
+    return failure(error, "Bekleme listesi kaydedilemedi.");
+  }
+}
+
+export async function setWaitlistStatus(
+  id: string,
+  status: "waiting" | "accepted" | "cancelled",
+): Promise<BusinessActionResult> {
+  try {
+    const entryId = idSchema.parse(id);
+    const next = z.enum(["waiting", "accepted", "cancelled"]).parse(status);
+    const { supabase, business } =
+      await requireBusinessPermissionMutation("operations");
+    const { error } = await supabase
+      .from("waitlist_entries")
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq("id", entryId)
+      .eq("business_id", business.id);
+    if (error) throw error;
+    revalidatePath("/business/operations");
+    return { ok: true, message: "Bekleme listesi durumu güncellendi." };
+  } catch (error) {
+    return failure(error, "Bekleme listesi güncellenemedi.");
+  }
+}
+
+export async function saveBusinessResource(
+  input: z.input<typeof resourceSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = resourceSchema.parse(input);
+    const { supabase, business, branch } =
+      await requireBusinessPermissionMutation("operations");
+    let resourceId = values.id;
+    const payload = {
+      business_id: business.id,
+      branch_id: branch.id,
+      name: values.name,
+      kind: values.kind,
+      capacity: values.capacity,
+      active: values.active,
+    };
+    if (resourceId) {
+      const { error } = await supabase
+        .from("business_resources")
+        .update(payload)
+        .eq("id", resourceId)
+        .eq("business_id", business.id);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase
+        .from("business_resources")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error) throw error;
+      resourceId = data.id;
+    }
+    await supabase
+      .from("service_resources")
+      .delete()
+      .eq("resource_id", resourceId);
+    if (values.serviceIds.length) {
+      const { data: valid } = await supabase
+        .from("services")
+        .select("id")
+        .eq("business_id", business.id)
+        .in("id", values.serviceIds);
+      const { error } = await supabase.from("service_resources").insert(
+        (valid ?? []).map((service) => ({
+          resource_id: resourceId!,
+          service_id: service.id,
+        })),
+      );
+      if (error) throw error;
+    }
+    revalidatePath("/business/operations");
+    return {
+      ok: true,
+      id: resourceId,
+      message: "Kaynak ve hizmet bağlantıları kaydedildi.",
+    };
+  } catch (error) {
+    return failure(error, "Kaynak kaydedilemedi.");
+  }
+}
+
+export async function createBookingLink(
+  input: z.input<typeof bookingLinkSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = bookingLinkSchema.parse(input);
+    const { supabase, business, branch } =
+      await requireBusinessPermissionMutation("operations");
+    const { data, error } = await supabase
+      .from("booking_links")
+      .insert({
+        business_id: business.id,
+        branch_id: branch.id,
+        service_id: values.serviceId || null,
+        label: values.label,
+        source: values.source,
+        campaign: values.campaign || null,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    revalidatePath("/business/operations");
+    return {
+      ok: true,
+      id: data.id,
+      message: "Takip edilebilir rezervasyon bağlantısı oluşturuldu.",
+    };
+  } catch (error) {
+    return failure(error, "Rezervasyon bağlantısı oluşturulamadı.");
+  }
+}
+
+export async function createServicePackage(
+  input: z.input<typeof packageSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = packageSchema.parse(input);
+    const { supabase, business } =
+      await requireBusinessPermissionMutation("operations");
+    const { data, error } = await supabase
+      .from("service_packages")
+      .insert({
+        business_id: business.id,
+        service_id: values.serviceId || null,
+        name: values.name,
+        session_count: values.sessionCount,
+        validity_days: values.validityDays,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    revalidatePath("/business/operations");
+    return { ok: true, id: data.id, message: "Hizmet paketi oluşturuldu." };
+  } catch (error) {
+    return failure(error, "Hizmet paketi oluşturulamadı.");
+  }
+}
+
+export async function assignServicePackage(
+  input: z.input<typeof customerPackageSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = customerPackageSchema.parse(input);
+    const { supabase, business } =
+      await requireBusinessPermissionMutation("operations");
+    const [{ data: customer }, { data: servicePackage }] = await Promise.all([
+      supabase
+        .from("customers")
+        .select("id")
+        .eq("id", values.customerId)
+        .eq("business_id", business.id)
+        .maybeSingle(),
+      supabase
+        .from("service_packages")
+        .select("id,session_count,validity_days")
+        .eq("id", values.packageId)
+        .eq("business_id", business.id)
+        .eq("active", true)
+        .maybeSingle(),
+    ]);
+    if (!customer || !servicePackage)
+      throw new Error("Müşteri veya paket bulunamadı.");
+    const expiresAt = new Date(
+      Date.now() + servicePackage.validity_days * 86_400_000,
+    ).toISOString();
+    const { data, error } = await supabase
+      .from("customer_packages")
+      .insert({
+        business_id: business.id,
+        customer_id: customer.id,
+        package_id: servicePackage.id,
+        remaining_sessions: servicePackage.session_count,
+        expires_at: expiresAt,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    revalidatePath("/business/operations");
+    return { ok: true, id: data.id, message: "Paket müşteriye tanımlandı." };
+  } catch (error) {
+    return failure(error, "Paket müşteriye tanımlanamadı.");
+  }
+}
+
+export async function importCustomers(
+  rows: unknown,
+): Promise<BusinessActionResult> {
+  try {
+    const parsed = z
+      .array(customerSchema.omit({ id: true }))
+      .min(1)
+      .max(5000)
+      .parse(rows);
+    const { supabase } = await requireBusinessPermissionMutation("customers");
+    const { data, error } = await supabase.rpc("bulk_import_customers", {
+      p_rows: parsed,
+    });
+    if (error) throw error;
+    const result = data as { imported?: number; rejected?: number } | null;
+    refreshBusiness(["/business/customers", "/business/operations"]);
+    return {
+      ok: true,
+      message: `${result?.imported ?? parsed.length} müşteri içe aktarıldı${result?.rejected ? `, ${result.rejected} satır reddedildi` : ""}.`,
+    };
+  } catch (error) {
+    return failure(error, "Müşteri dosyası içe aktarılamadı.");
+  }
+}
+
+export async function saveCustomerCareProfile(
+  input: z.input<typeof careProfileSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = careProfileSchema.parse(input);
+    const { supabase, business, user } =
+      await requireBusinessPermissionMutation("customers");
+    const { error } = await supabase.from("customer_care_profiles").upsert(
+      {
+        customer_id: values.customerId,
+        business_id: business.id,
+        allergies: values.allergies,
+        anamnesis: values.anamnesis || null,
+        treatment_notes: values.treatmentNotes || null,
+        consent_status: values.consentStatus,
+        consent_at:
+          values.consentStatus === "signed" ? new Date().toISOString() : null,
+        consent_version: values.consentVersion || null,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "customer_id" },
+    );
+    if (error) throw error;
+    revalidatePath("/business/customers");
+    return { ok: true, message: "Müşteri bakım ve onam kaydı güncellendi." };
+  } catch (error) {
+    return failure(error, "Bakım kaydı kaydedilemedi.");
+  }
+}
+
+export async function registerCustomerCareMedia(
+  input: z.input<typeof careMediaSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = careMediaSchema.parse(input);
+    const { supabase, business, user } =
+      await requireBusinessPermissionMutation("customers");
+    if (!values.storagePath.startsWith(`${business.id}/${values.customerId}/`))
+      throw new Error("Geçersiz dosya yolu.");
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("id", values.customerId)
+      .eq("business_id", business.id)
+      .maybeSingle();
+    if (!customer) throw new Error("Müşteri bulunamadı.");
+    const { data, error } = await supabase
+      .from("customer_care_media")
+      .insert({
+        business_id: business.id,
+        customer_id: values.customerId,
+        kind: values.kind,
+        storage_path: values.storagePath,
+        caption: values.caption || null,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    revalidatePath("/business/customers");
+    return {
+      ok: true,
+      id: data.id,
+      message: "Bakım görseli güvenli alana kaydedildi.",
+    };
+  } catch (error) {
+    return failure(error, "Bakım görseli kaydedilemedi.");
+  }
+}
+
+export async function createStaffAppointmentSeries(
+  input: z.input<typeof staffSeriesSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = staffSeriesSchema.parse(input);
+    const { supabase, branch } =
+      await requireBusinessPermissionMutation("calendar");
+    const { data, error } = await supabase.rpc(
+      "create_staff_appointment_series",
+      {
+        p_customer_id: values.customerId,
+        p_employee_id: values.employeeId,
+        p_service_id: values.serviceId,
+        p_branch_id: branch.id,
+        p_starts_at: values.startsAt,
+        p_party_size: values.partySize,
+        p_repeat_count: values.repeatCount,
+        p_interval_days: values.intervalDays,
+        p_source: values.source,
+      },
+    );
+    if (error) throw error;
+    refreshBusiness([
+      "/business/operations",
+      "/business/appointments",
+      "/business/calendar",
+      "/business/dashboard",
+    ]);
+    return {
+      ok: true,
+      message: `${Array.isArray(data) ? data.length : values.repeatCount} randevu oluşturuldu.`,
+    };
+  } catch (error) {
+    return failure(
+      error,
+      "Randevu serisi oluşturulamadı; saatlerden biri dolu olabilir.",
+    );
+  }
+}
+
+export async function selectBusinessBranch(
+  branchId: string,
+): Promise<BusinessActionResult> {
+  try {
+    const id = idSchema.parse(branchId);
+    const { supabase, business } = await requireBusinessMutation([
+      "OWNER",
+      "MANAGER",
+      "EMPLOYEE",
+    ]);
+    const { data, error } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("id", id)
+      .eq("business_id", business.id)
+      .eq("active", true)
+      .maybeSingle();
+    if (error || !data) throw error ?? new Error("Şube bulunamadı.");
+    (await cookies()).set("salonny_branch_id", id, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/business",
+      maxAge: 31_536_000,
+    });
+    revalidatePath("/business", "layout");
+    return { ok: true, message: "Aktif şube değiştirildi." };
+  } catch (error) {
+    return failure(error, "Şube değiştirilemedi.");
+  }
+}
+
+export async function saveMemberPermissions(
+  input: z.input<typeof memberPermissionsSchema>,
+): Promise<BusinessActionResult> {
+  try {
+    const values = memberPermissionsSchema.parse(input);
+    const { supabase, business } = await requireBusinessMutation(["OWNER"]);
+    const { data: member, error: memberError } = await supabase
+      .from("business_members")
+      .select("user_id")
+      .eq("user_id", values.userId)
+      .eq("business_id", business.id)
+      .maybeSingle();
+    if (memberError || !member)
+      throw memberError ?? new Error("Üye bulunamadı.");
+    const { error } = await supabase.from("business_member_permissions").upsert(
+      {
+        user_id: values.userId,
+        business_id: business.id,
+        customer_visibility: values.customerVisibility,
+        financial_visibility: values.financialVisibility,
+        permissions: values.permissions,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "business_id,user_id" },
+    );
+    if (error) throw error;
+    revalidatePath("/business/operations");
+    return { ok: true, message: "Çalışan yetkileri güncellendi." };
+  } catch (error) {
+    return failure(error, "Yetkiler güncellenemedi.");
   }
 }

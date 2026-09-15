@@ -1,10 +1,11 @@
 import type { Instrumentation } from "next";
+import { emitEvent } from "@/lib/observability";
 
 export const onRequestError: Instrumentation.onRequestError = (error, request, context) => {
   const digest = typeof error === "object" && error !== null && "digest" in error ? String(error.digest) : undefined;
   const message = error instanceof Error ? error.message : String(error);
   const path = request.path.split("?", 1)[0];
-  console.error(JSON.stringify({
+  void emitEvent("error", {
     event: "request_error",
     message,
     digest,
@@ -15,6 +16,5 @@ export const onRequestError: Instrumentation.onRequestError = (error, request, c
     routerKind: context.routerKind,
     renderSource: context.renderSource,
     revalidateReason: context.revalidateReason,
-    timestamp: new Date().toISOString(),
-  }));
+  });
 };

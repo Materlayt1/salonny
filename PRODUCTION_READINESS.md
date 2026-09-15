@@ -1,6 +1,6 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 13 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 14 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
 ## Tamamlanan P0 işleri
 
@@ -25,43 +25,46 @@ Son güncelleme: 13 Eylül 2026. Ödeme ve online depozito bu çalışmanın kap
 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 
-- [ ] `202608180019_production_scale_indexes.sql` dahil tüm Supabase migrasyonlarını staging ve production'a uygula.
+- [x] `202608180022_customer_waitlist.sql` dahil tüm Supabase migrasyonlarını production'a uygula ve salt-okunur güvenlik sorgusuyla doğrula.
+- [ ] Ayrı bir staging Supabase projesi açıldığında aynı migrasyonları staging'e uygula.
 - [ ] Production ortamında Upstash Redis değişkenlerini tanımla; readiness ucu `200 ready` vermeden trafik açma.
 - [ ] Supabase bağlantı havuzu, PITR/yedekleme, geri yükleme tatbikatı ve kota alarmlarını etkinleştir.
-- [ ] Yapılandırılmış logları kalıcı bir gözlemleme sistemine aktar; hata oranı, p95/p99 gecikme, Core Web Vitals ve rezervasyon başarısı için alarm tanımla.
+- [x] Sunucu hataları ve Core Web Vitals için JSON log-drain aktarımını kodla; kalıcı hedef ve alarm eşiklerini runbook'ta tanımla.
+- [ ] Production log-drain hesabını bağla ve tanımlı alarmları etkinleştir.
 - [ ] Gerçek CDN, production alan adı ve temsili görsellerle Lighthouse/alan verisini tekrar ölç; p75 hedeflerini LCP ≤ 2,5 sn, INP ≤ 200 ms ve CLS ≤ 0,1 olarak alarm koşullarına bağla.
 - [ ] CDN/WAF üzerinde bot, DDoS ve ülke bazlı anomali kuralları kur; health uçlarını load balancer'a bağla.
 - [ ] Gerçekçi anonimleştirilmiş staging verisiyle k6/Artillery üzerinde kademeli 1k, 10k ve hedef eşzamanlılık testleri yap. “Milyon trafik” garantisi ancak bu test, kota ve altyapı ölçümleriyle verilebilir.
 - [ ] Supabase RLS ve `SECURITY DEFINER` fonksiyonları için ayrı bir penetrasyon testi çalıştır.
-- [ ] Gizli anahtar rotasyonu, olay müdahale planı, SLA/SLO ve kapasite bütçesini yazılı hale getir.
+- [x] Gizli anahtar rotasyonu, olay müdahale planı, SLO, kapasite/yük testi ve geri yükleme runbook'unu yazılı hale getir.
 
 ## Son yerel doğrulama sonuçları
 
-Bu değerler 13 Eylül 2026 tarihinde tek geliştirme makinesindeki üretim build'inde ölçülmüştür; staging kapasite garantisi değildir.
+Bu değerler 14 Eylül 2026 tarihinde tek geliştirme makinesindeki üretim build'inde ölçülmüştür; staging kapasite garantisi değildir.
 
-- Üretim build'i: başarılı, 43 rota.
-- TypeScript, ESLint ve birim testleri: başarılı; 4 dosyada 10/10 test geçti.
-- Playwright: masaüstü ve mobil pakette 13 test geçti, 13 test ortamda yayınlanmış işletme/oturum bulunmadığı veya karşı proje türüne ait olduğu için bilinçli olarak atlandı.
+- Üretim build'i: başarılı, 47 rota.
+- TypeScript, ESLint ve birim testleri: başarılı; 5 dosyada 13/13 test geçti.
+- Playwright: masaüstü ve mobil pakette 17 test geçti, 9 test karşı cihaz türüne ait olduğu için bilinçli olarak atlandı.
 - Üretim bağımlılık taraması: bilinen güvenlik açığı yok.
 - Lighthouse: performans 88, erişilebilirlik 100, iyi uygulamalar 100, SEO 100; FCP 953 ms, TBT 75 ms, CLS 0. Lighthouse'ın simüle LCP değeri 3,8 sn; uygulamanın gerçek kullanıcı telemetrisi aynı koşuda yaklaşık 960 ms LCP kaydetti.
-- Isınmış salt-okunur yük testi: 1.000 istek, 50 eşzamanlı bağlantı, 1.000/1.000 başarılı; 704,23 istek/sn, p95 123 ms, p99 155 ms.
+- Güncel production build salt-okunur yük testi: 1.000 istek, 50 eşzamanlı bağlantı, 1.000/1.000 başarılı; 308,96 istek/sn, p50 79 ms, p95 519 ms, p99 1.176 ms.
+- Canlı Supabase büyüme/operasyon güvenlik denetimi: 8 RLS politikası, anonim/normal kullanıcı worker claim yetkisi `false`, yalnızca service-role `true`, bakım bucket'ı public `false`, 2 otomasyon trigger'ı aktif.
 - Supabase erişilemezken soğuk başlangıç: 200/200 başarılı, p95 yaklaşık 1,97 sn; iki saniyelik güvenli veri zaman aşımı sonrasında boş durum gösterildi.
 
 ## Rakip analiziyle belirlenen P1 ürün boşlukları
 
 Salonny'nin güçlü tarafı marketplace keşfi ile işletme panelini aynı üründe birleştirmesi. Pazarın olgun ürünlerinde aşağıdaki yetenekler belirgin şekilde öne çıkıyor:
 
-- [ ] Bekleme listesini uçtan uca tamamla: müşteri talebi, işletme kuyruğu, boşluk oluşunca teklif, süreli kabul ve otomatik sıradaki müşteriye geçiş.
-- [ ] Sağlayıcı bağımsız SMS/WhatsApp/e-posta iş kuyruğu, retry, dead-letter ve teslimat raporu ekle.
-- [ ] Müşteri kartına alerji, anamnez, dijital onam, işlem notu ve önce/sonra fotoğrafı ekle.
-- [ ] Oda, koltuk ve cihaz gibi kaynakları hizmete bağlayıp çalışanla birlikte çakışmasız planla.
-- [ ] Grup/çoklu kişi, tekrar eden randevu ve walk-in sıra yönetimi ekle.
-- [ ] Rol bazlı ayrıntılı yetki matrisi ve çalışan bazlı görünürlük kuralları ekle.
-- [ ] CSV/Excel müşteri-hizmet içe aktarma, dışa aktarma ve veri taşıma sihirbazı ekle.
-- [ ] Doğrudan rezervasyon linki, QR kod, web widget'ı ve sosyal medya dönüşüm takibi ekle.
-- [ ] Çoklu şube bağlam seçici, şubeler arası personel/stok ve karşılaştırmalı raporlar ekle.
-- [ ] Sadakat, üyelik, hizmet paketi, tavsiye ve geri-kazanım otomasyonları ekle.
-- [ ] İptal/no-show tahmini, doluluk önerileri ve kampanya performans ölçümü ekle.
+- [x] Bekleme listesi: müşteri self-servis talebi, işletme kuyruğu, iptalde otomatik süreli teklif ve Randevularım ekranında kabul.
+- [x] Sağlayıcı bağımsız SMS/WhatsApp/e-posta kuyruğu, atomik claim, üstel retry, dead-letter ve teslimat özeti.
+- [x] Müşteri kartında alerji, anamnez, dijital onam, işlem notu ve özel depoda önce/sonra fotoğrafı.
+- [x] Oda, koltuk ve cihazları hizmete bağlayan, transaction kilitli kapasite/çakışma kontrolü.
+- [x] Grup/çoklu kişi, 52 kayda kadar tekrar eden randevu ve walk-in kaynağı.
+- [x] Sunucu tarafında zorunlu rol/yetki matrisi, atanmış müşteri ve finans görünürlüğü.
+- [ ] Türkçe/İngilizce başlıklı CSV müşteri içe/dışa aktarma hazır; hizmet içe aktarma, Excel ve yönlendirmeli taşıma sihirbazını ekle.
+- [x] Takip edilebilir doğrudan rezervasyon linki, kendi sunucusunda QR, kopyalanabilir web widget'ı ve dönüşüm sayacı.
+- [ ] Cookie tabanlı güvenli çoklu şube seçici ve karşılaştırmalı rapor hazır; şubeler arası personel/stok transferini ekle.
+- [ ] Sadakat hesabı, paket tanımı/atama ve otomatik puan/seans işleme hazır; tavsiye ve geri-kazanım akışlarını ekle.
+- [x] Açıklanabilir no-show risk uyarısı, 7 günlük düşük talep önerileri ve link/kampanya dönüşüm ölçümü.
 
 ## Rakip sinyalleri
 

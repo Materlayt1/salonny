@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit } from "@/lib/api-security";
+import { emitEvent } from "@/lib/observability";
 
 const metricSchema = z.object({
   id: z.string().min(1).max(160),
@@ -21,6 +22,6 @@ export async function POST(request: Request) {
   const parsed = metricSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Geçersiz performans metriği." }, { status: 422 });
 
-  console.info(JSON.stringify({ event: "web_vital", ...parsed.data }));
+  await emitEvent("info", { event: "web_vital", ...parsed.data });
   return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }

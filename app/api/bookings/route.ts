@@ -11,6 +11,7 @@ const bookingSchema = z.object({
   startsAt: z.iso.datetime({ offset: true }),
   customer: z.object({ name: z.string().min(2).max(120), phone: z.string().min(10).max(24), email: z.email() }),
   paymentMethod: z.enum(["business", "online"]),
+  bookingToken: z.string().regex(/^[a-f0-9]{18}$/i).optional(),
 });
 
 export async function POST(request: Request) {
@@ -52,5 +53,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: conflict ? "Bu saat az önce doldu. Lütfen başka bir saat seçin." : "Randevu oluşturulamadı." }, { status: conflict ? 409 : 500 });
   }
   const { data: appointment } = await supabase.from("appointments").select("status").eq("id", data).eq("customer_user_id", user.id).maybeSingle();
+  if (parsed.data.bookingToken) await supabase.rpc("track_booking_conversion", { p_token: parsed.data.bookingToken });
   return NextResponse.json({ id: data, status: appointment?.status ?? "pending" }, { status: 201 });
 }
