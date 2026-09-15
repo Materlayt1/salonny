@@ -17,9 +17,12 @@ export async function GET(request: Request) {
   const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return NextResponse.json({ error: "Uygunluk bilgileri geçersiz." }, { status: 422 });
   const supabase = await createServerClientOptional();
-  if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });
+  if (!supabase) {
+    return NextResponse.json(
+      { error: "Uygunluk servisi yapılandırılmamış." },
+      { status: 503 },
+    );
+  }
   const { data, error } = await supabase.rpc("get_booking_slots", {
     p_business_id: parsed.data.businessId,
     p_branch_id: parsed.data.branchId,

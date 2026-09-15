@@ -28,6 +28,7 @@ export function BusinessCard({
   mobileCompact = false,
   dense = false,
   homeRail = false,
+  feed = false,
   priority = false,
 }: {
   business: Business;
@@ -35,6 +36,7 @@ export function BusinessCard({
   mobileCompact?: boolean;
   dense?: boolean;
   homeRail?: boolean;
+  feed?: boolean;
   priority?: boolean;
 }) {
   const [favorite, setFavorite] = useState(false);
@@ -78,7 +80,9 @@ export function BusinessCard({
         mobileCompact && "max-md:min-h-[106px] max-md:rounded-xl max-md:p-1.5",
         dense && "md:rounded-xl md:p-2",
         homeRail &&
-          "min-h-[136px] rounded-[20px] border-[#E6E1F2] p-2.5 shadow-[0_8px_28px_rgba(40,27,91,.06)] hover:-translate-y-0.5 hover:border-[#D5CCF6] hover:shadow-[0_14px_34px_rgba(40,27,91,.11)]",
+          "min-h-[136px] w-[min(86vw,390px)] shrink-0 snap-start rounded-[20px] border-[#E6E1F2] p-2.5 shadow-[0_8px_28px_rgba(40,27,91,.06)] hover:-translate-y-0.5 hover:border-[#D5CCF6] hover:shadow-[0_14px_34px_rgba(40,27,91,.11)] md:w-[390px]",
+        feed &&
+          "rounded-[20px] shadow-[0_8px_28px_rgba(40,27,91,.07)] hover:border-[#D5CCF6]",
       )}
     >
       <Link
@@ -91,6 +95,7 @@ export function BusinessCard({
           mobileCompact && "max-md:h-[94px] max-md:w-[100px] max-md:rounded-lg",
           dense && "md:h-[86px] md:w-[98px] md:rounded-lg",
           homeRail && "h-[116px] w-[108px] rounded-[15px] sm:w-[124px]",
+          feed && !horizontal && "aspect-[2.05] md:aspect-[1.9]",
         )}
       >
         <Image
@@ -103,6 +108,8 @@ export function BusinessCard({
           sizes={
             homeRail
               ? "124px"
+              : feed
+                ? "(max-width: 768px) 100vw, 50vw"
               : horizontal
                 ? "120px"
                 : "(max-width: 768px) 50vw, 280px"
@@ -121,6 +128,7 @@ export function BusinessCard({
           mobileCompact && "max-md:pl-2.5 max-md:pr-1 max-md:pt-0.5",
           dense && "md:py-0 md:pl-3",
           homeRail && "py-1.5 pl-3 pr-1",
+          feed && "p-4",
         )}
       >
         <button
@@ -151,6 +159,7 @@ export function BusinessCard({
               mobileCompact && "max-md:text-[14px]",
               dense && "md:text-[13px]",
               homeRail && "text-[14px]",
+              feed && "text-[16px]",
             )}
           >
             {business.name}
@@ -187,6 +196,14 @@ export function BusinessCard({
               <span className="shrink-0">{business.distance} km</span>
             )}
           </div>
+          {feed && business.services.length > 0 && (
+            <p className="mt-2 truncate text-[11px] text-[#777783]">
+              {business.services
+                .slice(0, 3)
+                .map((service) => service.name)
+                .join(" · ")}
+            </p>
+          )}
         </Link>
         <div
           className={cn(

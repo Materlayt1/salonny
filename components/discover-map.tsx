@@ -238,6 +238,8 @@ export function DiscoverMap({
                 src={selectedOnMap.image}
                 alt={`${selectedOnMap.name} işletme görünümü`}
                 fill
+                priority
+                loading="eager"
                 className="object-cover"
                 sizes="74px"
               />

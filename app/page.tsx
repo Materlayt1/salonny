@@ -18,6 +18,7 @@ import {
 import { BusinessCard } from "@/components/business-card";
 import { CategoryGrid } from "@/components/category-grid";
 import { Footer } from "@/components/footer";
+import { HomeBusinessFeed } from "@/components/home-business-feed";
 import { HomeMapPreview } from "@/components/home-map-preview";
 import { MobileHomeHeader } from "@/components/mobile-home-header";
 import { MobileNav } from "@/components/mobile-nav";
@@ -89,7 +90,7 @@ function popularItems(
 
 function BusinessRail({ businesses }: { businesses: Business[] }) {
   return (
-    <div className="grid grid-flow-col auto-cols-[min(91vw,390px)] gap-3 overflow-x-auto pb-3 hide-scrollbar lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-2 lg:overflow-visible xl:grid-cols-3">
+    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 pr-4 hide-scrollbar">
       {businesses.map((business, index) => (
         <BusinessCard
           key={business.id}
@@ -108,14 +109,15 @@ export default async function HomePage() {
     listMarketplaceBusinesses(50),
     listPublicCategories(),
   ]);
-  const featured = businesses.slice(0, 8);
-  const newest = [...businesses]
-    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+  const featured = [...businesses]
+    .sort(
+      (a, b) =>
+        Number(b.sponsored) - Number(a.sponsored) ||
+        b.rating - a.rating ||
+        b.reviews - a.reviews,
+    )
     .slice(0, 8);
-  const rated = [...businesses]
-    .filter((business) => business.reviews > 0)
-    .sort((a, b) => b.rating - a.rating || b.reviews - a.reviews)
-    .slice(0, 8);
+  const showFeaturedRail = businesses.length >= 4;
   const topics = popularItems(businesses, categories);
   const cityCount = new Set(
     businesses.map((business) => business.city).filter(Boolean),
@@ -266,27 +268,38 @@ export default async function HomePage() {
           <CategoryGrid categories={categories} />
         </section>
 
-        <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-8 md:py-12">
-          <div className="container-shell">
-            <SectionHeading
-              title="Yakınındaki popüler işletmeler"
-              description="Yayındaki işletmeler ve uygun randevu seçenekleri"
-              href="/kesfet"
-            />
-            {featured.length ? (
+        {showFeaturedRail && (
+          <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-8 md:py-12">
+            <div className="container-shell">
+              <SectionHeading
+                title="Öne çıkan işletmeler"
+                description="Salonny'de dikkat çeken özel seçenekler"
+                href="/kesfet"
+              />
               <BusinessRail businesses={featured} />
-            ) : (
-              <div className="rounded-[22px] border border-dashed border-[#D9D4F3] bg-white p-8 text-center">
-                <Store className="mx-auto h-8 w-8 text-[#8D75F5]" />
-                <h3 className="mt-3 font-semibold">
-                  Yeni işletmeler hazırlanıyor
-                </h3>
-                <p className="mt-2 text-sm text-[#686872]">
-                  Onaylanan profiller burada otomatik olarak yerini alacak.
-                </p>
-              </div>
-            )}
-          </div>
+            </div>
+          </section>
+        )}
+
+        <section className="container-shell py-8 md:py-14">
+          <SectionHeading
+            title="Tüm işletmeler"
+            description="Sana uygun işletmeleri aşağı kaydırarak keşfet"
+            href="/kesfet"
+          />
+          {businesses.length ? (
+            <HomeBusinessFeed businesses={businesses} />
+          ) : (
+            <div className="rounded-[22px] border border-dashed border-[#D9D4F3] bg-white p-8 text-center">
+              <Store className="mx-auto h-8 w-8 text-[#8D75F5]" />
+              <h3 className="mt-3 font-semibold">
+                Yeni işletmeler hazırlanıyor
+              </h3>
+              <p className="mt-2 text-sm text-[#686872]">
+                Onaylanan profiller burada otomatik olarak yerini alacak.
+              </p>
+            </div>
+          )}
         </section>
 
         {businesses.length > 0 && (
@@ -375,30 +388,6 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
-
-        {newest.length > 0 && (
-          <section className="container-shell py-10 md:py-14">
-            <SectionHeading
-              title="Yeni eklenen işletmeler"
-              description="Salonny ailesine en son katılan yerler"
-              href="/kesfet"
-            />
-            <BusinessRail businesses={newest} />
-          </section>
-        )}
-
-        {rated.length > 0 && (
-          <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-10 md:py-14">
-            <div className="container-shell">
-              <SectionHeading
-                title="En yüksek puanlılar"
-                description="Doğrulanmış değerlendirmelerde öne çıkan işletmeler"
-                href="/kesfet?sort=rating"
-              />
-              <BusinessRail businesses={rated} />
-            </div>
-          </section>
-        )}
 
         {reviews.length > 0 && (
           <section className="container-shell py-10 md:py-14">

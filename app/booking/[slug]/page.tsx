@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BookingFlow } from "@/components/booking-flow";
 import { getMarketplaceBusiness } from "@/lib/marketplace";
@@ -9,24 +9,20 @@ export default async function BookingPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ service?: string; bookingToken?: string }>;
+  searchParams: Promise<{
+    service?: string;
+    employee?: string;
+    date?: string;
+    time?: string;
+    step?: string;
+    bookingToken?: string;
+  }>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const business = await getMarketplaceBusiness(slug);
   if (!business) notFound();
   const supabase = await createServerClientOptional();
-  if (!supabase) notFound();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    const next = new URLSearchParams();
-    if (query.service) next.set("service", query.service);
-    if (query.bookingToken) next.set("bookingToken", query.bookingToken);
-    redirect(
-      `/auth/login?next=${encodeURIComponent(`/booking/${business.slug}${next.size ? `?${next}` : ""}`)}`,
-    );
-  }
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   if (
     !business.branchId ||
     !business.services.length ||
@@ -51,31 +47,37 @@ export default async function BookingPage({
         </div>
       </main>
     );
-  const { data: profile } = await supabase
-    .from("users")
-    .select("full_name,phone")
-    .eq("id", user.id)
-    .maybeSingle();
+  const { data: profile } = user
+    ? await supabase!
+        .from("users")
+        .select("full_name,phone")
+        .eq("id", user.id)
+        .maybeSingle()
+    : { data: null };
   const customer = {
     name:
       profile?.full_name ??
-      (typeof user.user_metadata.full_name === "string"
+      (typeof user?.user_metadata.full_name === "string"
         ? user.user_metadata.full_name
-        : (user.email?.split("@")[0] ?? "")),
+        : (user?.email?.split("@")[0] ?? "")),
     phone:
       profile?.phone ??
-      (typeof user.user_metadata.phone === "string"
+      (typeof user?.user_metadata.phone === "string"
         ? user.user_metadata.phone
         : ""),
-    email: user.email ?? "",
+    email: user?.email ?? "",
   };
   return (
     <BookingFlow
       business={business}
       initialService={query.service}
+      initialEmployee={query.employee}
+      initialDate={query.date}
+      initialTime={query.time}
+      initialStep={query.step === "4" ? 4 : undefined}
       bookingToken={query.bookingToken}
       customer={customer}
-      onlinePaymentsEnabled={Boolean(process.env.PAYMENT_PROVIDER_KEY)}
+      isAuthenticated={Boolean(user)}
     />
   );
 }

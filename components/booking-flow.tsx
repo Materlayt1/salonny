@@ -9,7 +9,6 @@ import {
   Check,
   CheckCircle2,
   Clock3,
-  CreditCard,
   LoaderCircle,
   MapPin,
   ShieldCheck,
@@ -67,15 +66,23 @@ function formatTRY(value: number) {
 export function BookingFlow({
   business,
   initialService,
+  initialEmployee,
+  initialDate,
+  initialTime,
+  initialStep,
   bookingToken,
   customer: initialCustomer,
-  onlinePaymentsEnabled = false,
+  isAuthenticated,
 }: {
   business: Business;
   initialService?: string;
+  initialEmployee?: string;
+  initialDate?: string;
+  initialTime?: string;
+  initialStep?: 4;
   bookingToken?: string;
   customer: { name: string; phone: string; email: string };
-  onlinePaymentsEnabled?: boolean;
+  isAuthenticated: boolean;
 }) {
   const router = useRouter();
   const dates = useMemo(() => buildDates(), []);
@@ -84,18 +91,24 @@ export function BookingFlow({
   )
     ? initialService!
     : business.services[0].id;
-  const [step, setStep] = useState(initialService ? 2 : 1);
+  const [step, setStep] = useState(initialStep ?? (initialService ? 2 : 1));
   const [serviceId, setServiceId] = useState(defaultServiceId);
   const [employeeId, setEmployeeId] = useState(
-    business.employees.find((item) => item.services.includes(defaultServiceId))
-      ?.id ?? business.employees[0].id,
+    business.employees.find(
+      (item) =>
+        item.id === initialEmployee && item.services.includes(defaultServiceId),
+    )?.id ??
+      business.employees.find((item) => item.services.includes(defaultServiceId))
+        ?.id ??
+      business.employees[0].id,
   );
-  const [date, setDate] = useState(dates[1]);
-  const [time, setTime] = useState("");
+  const [date, setDate] = useState(
+    dates.find((item) => item.iso === initialDate) ?? dates[1],
+  );
+  const [time, setTime] = useState(initialTime ?? "");
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(true);
   const [availabilityError, setAvailabilityError] = useState<string>();
-  const [payment, setPayment] = useState<"business" | "online">("business");
   const [customer, setCustomer] = useState(initialCustomer);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,6 +125,24 @@ export function BookingFlow({
   const employee =
     eligibleEmployees.find((item) => item.id === employeeId) ??
     eligibleEmployees[0];
+
+  function bookingReturnUrl(targetStep = step) {
+    const params = new URLSearchParams({
+      service: service.id,
+      employee: employee.id,
+      date: date.iso,
+    });
+    if (time) params.set("time", time);
+    if (targetStep === 4) params.set("step", "4");
+    if (bookingToken) params.set("bookingToken", bookingToken);
+    return `/booking/${business.slug}?${params}`;
+  }
+
+  function continueWithAccount(targetStep = step) {
+    router.push(
+      `/auth/login?next=${encodeURIComponent(bookingReturnUrl(targetStep))}`,
+    );
+  }
 
   useEffect(() => {
     if (!employee?.id || !service?.id || !date?.iso) {
@@ -185,6 +216,11 @@ export function BookingFlow({
       setLoading(false);
       return;
     }
+    if (!isAuthenticated) {
+      setLoading(false);
+      continueWithAccount(4);
+      return;
+    }
     if (
       customer.name.trim().length < 2 ||
       customer.phone.trim().length < 10 ||
@@ -208,7 +244,7 @@ export function BookingFlow({
       serviceId: service.id,
       startsAt: time,
       customer,
-      paymentMethod: payment,
+      paymentMethod: "business",
       bookingToken,
     };
     try {
@@ -226,9 +262,7 @@ export function BookingFlow({
         error?: string;
       };
       if (response.status === 401) {
-        router.push(
-          `/auth/login?next=${encodeURIComponent(`/booking/${business.slug}?service=${service.id}`)}`,
-        );
+        continueWithAccount(4);
         return;
       }
       if (!response.ok)
@@ -277,6 +311,10 @@ export function BookingFlow({
         }),
       });
       const result = (await response.json()) as { error?: string };
+      if (response.status === 401) {
+        continueWithAccount(3);
+        return;
+      }
       if (!response.ok)
         throw new Error(result.error ?? "Bekleme listesine eklenemediniz.");
       setWaitlistJoined(true);
@@ -588,7 +626,7 @@ export function BookingFlow({
               <div>
                 <h1 className="text-2xl font-bold">Randevunu onayla</h1>
                 <p className="mt-1 text-sm text-[#686872]">
-                  Bilgilerini kontrol et ve ödeme yöntemini seç.
+                  Seçimini kontrol et; randevu işletmede ödemeli oluşturulur.
                 </p>
                 <div className="mt-6 grid gap-3 rounded-2xl bg-[#F8F8FA] p-5 text-sm">
                   <div className="flex items-center justify-between">
@@ -610,97 +648,77 @@ export function BookingFlow({
                     <strong>{employee.name}</strong>
                   </div>
                 </div>
-                <h2 className="mt-6 text-sm font-semibold">
-                  İletişim bilgileri
-                </h2>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <input
-                    aria-label="Ad soyad"
-                    value={customer.name}
-                    onChange={(event) =>
-                      setCustomer((value) => ({
-                        ...value,
-                        name: event.target.value,
-                      }))
-                    }
-                    placeholder="Ad soyad"
-                    className="h-11 rounded-xl border border-[#E3E3E9] px-3 text-sm outline-none focus:border-[#6C4BF4]"
-                  />
-                  <input
-                    aria-label="Telefon"
-                    value={customer.phone}
-                    onChange={(event) =>
-                      setCustomer((value) => ({
-                        ...value,
-                        phone: event.target.value,
-                      }))
-                    }
-                    placeholder="Telefon"
-                    className="h-11 rounded-xl border border-[#E3E3E9] px-3 text-sm outline-none focus:border-[#6C4BF4]"
-                  />
-                  <input
-                    aria-label="E-posta"
-                    type="email"
-                    value={customer.email}
-                    onChange={(event) =>
-                      setCustomer((value) => ({
-                        ...value,
-                        email: event.target.value,
-                      }))
-                    }
-                    placeholder="E-posta"
-                    className="h-11 rounded-xl border border-[#E3E3E9] px-3 text-sm outline-none focus:border-[#6C4BF4] sm:col-span-2"
-                  />
-                </div>
-                <h2 className="mt-7 text-sm font-semibold">Ödeme yöntemi</h2>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <button
-                    onClick={() => setPayment("business")}
-                    className={cn(
-                      "rounded-2xl border p-4 text-left",
-                      payment === "business"
-                        ? "border-[#6C4BF4] bg-[#FAF9FF]"
-                        : "border-[#E8E8EE]",
-                    )}
-                  >
-                    <CreditCard className="h-5 w-5 text-[#6C4BF4]" />
-                    <strong className="mt-3 block text-sm">
-                      İşletmede öde
-                    </strong>
-                    <span className="mt-1 block text-xs text-[#686872]">
-                      Nakit veya kart
+                {isAuthenticated ? (
+                  <>
+                    <h2 className="mt-6 text-sm font-semibold">
+                      İletişim bilgileri
+                    </h2>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <input
+                        aria-label="Ad soyad"
+                        value={customer.name}
+                        onChange={(event) =>
+                          setCustomer((value) => ({
+                            ...value,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="Ad soyad"
+                        className="h-11 rounded-xl border border-[#E3E3E9] px-3 text-sm outline-none focus:border-[#6C4BF4]"
+                      />
+                      <input
+                        aria-label="Telefon"
+                        value={customer.phone}
+                        onChange={(event) =>
+                          setCustomer((value) => ({
+                            ...value,
+                            phone: event.target.value,
+                          }))
+                        }
+                        placeholder="Telefon"
+                        className="h-11 rounded-xl border border-[#E3E3E9] px-3 text-sm outline-none focus:border-[#6C4BF4]"
+                      />
+                      <input
+                        aria-label="E-posta"
+                        type="email"
+                        value={customer.email}
+                        onChange={(event) =>
+                          setCustomer((value) => ({
+                            ...value,
+                            email: event.target.value,
+                          }))
+                        }
+                        placeholder="E-posta"
+                        className="h-11 rounded-xl border border-[#E3E3E9] px-3 text-sm outline-none focus:border-[#6C4BF4] sm:col-span-2"
+                      />
+                    </div>
+                    <div className="mt-6 flex items-center gap-3 rounded-xl border border-[#E4E0F7] bg-[#FAF9FF] p-4 text-xs text-[#5B3BE7]">
+                      <ShieldCheck className="h-5 w-5 shrink-0" />
+                      Ödeme uygulama üzerinden alınmaz; randevu işletmede ödemeli oluşturulur.
+                    </div>
+                    <label className="mt-6 flex items-start gap-3 text-xs leading-5 text-[#666672]">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(event) =>
+                          setTermsAccepted(event.target.checked)
+                        }
+                        className="mt-0.5 h-4 w-4 accent-[#6C4BF4]"
+                      />{" "}
+                      Randevu ve iptal koşullarını okudum, onaylıyorum.
+                    </label>
+                  </>
+                ) : (
+                  <div className="mt-6 rounded-2xl border border-[#DED8FA] bg-[#FAF9FF] p-5">
+                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#EEE9FF] text-[#5B3BE7]">
+                      <UserRound className="h-5 w-5" />
                     </span>
-                  </button>
-                  <button
-                    disabled={!onlinePaymentsEnabled}
-                    onClick={() => setPayment("online")}
-                    className={cn(
-                      "rounded-2xl border p-4 text-left disabled:cursor-not-allowed disabled:opacity-50",
-                      payment === "online"
-                        ? "border-[#6C4BF4] bg-[#FAF9FF]"
-                        : "border-[#E8E8EE]",
-                    )}
-                  >
-                    <ShieldCheck className="h-5 w-5 text-[#6C4BF4]" />
-                    <strong className="mt-3 block text-sm">
-                      Online depozito
-                    </strong>
-                    <span className="mt-1 block text-xs text-[#686872]">
-                      {onlinePaymentsEnabled
-                        ? `${formatTRY(Math.round(service.price * 0.2))} güvenli ödeme`
-                        : "Ödeme sağlayıcısı bağlandığında açılacak"}
-                    </span>
-                  </button>
-                </div>
-                <label className="mt-6 flex items-start gap-3 text-xs leading-5 text-[#666672]">
-                  <input
-                    type="checkbox"
-                    checked={termsAccepted}
-                    onChange={(event) => setTermsAccepted(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[#6C4BF4]"
-                  />{" "}
-                  Randevu ve iptal koşullarını okudum, onaylıyorum.
-                </label>
+                    <h2 className="mt-4 font-semibold">Seçimin hazır</h2>
+                    <p className="mt-1 text-sm leading-6 text-[#686872]">
+                      Bu hizmet ve saat korunacak. Randevuyu tamamlamak için giriş yap veya ücretsiz hesap oluştur.
+                    </p>
+                  </div>
+                )}
                 {availabilityError && (
                   <p className="mt-3 rounded-xl bg-[#FFF1F2] p-3 text-sm text-[#B42332]">
                     {availabilityError}
@@ -726,9 +744,15 @@ export function BookingFlow({
               ) : (
                 <Button
                   onClick={confirmBooking}
-                  disabled={loading || !time || !termsAccepted}
+                  disabled={
+                    loading || !time || (isAuthenticated && !termsAccepted)
+                  }
                 >
-                  {loading ? "Oluşturuluyor..." : "Randevuyu Onayla"}
+                  {loading
+                    ? "Lütfen bekleyin..."
+                    : isAuthenticated
+                      ? "Randevuyu Onayla"
+                      : "Giriş yap ve devam et"}
                 </Button>
               )}
             </div>

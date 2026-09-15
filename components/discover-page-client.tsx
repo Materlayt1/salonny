@@ -11,7 +11,13 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { BusinessCard } from "@/components/business-card";
 import { CategoryGrid } from "@/components/category-grid";
 import { DiscoverMap } from "@/components/discover-map";
@@ -52,7 +58,16 @@ export default function DiscoverPage({
   const [loading, setLoading] = useState(!initialBusinesses);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [desktopListOnly, setDesktopListOnly] = useState(false);
-  const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [mobileSheet, setMobileSheet] = useState<"peek" | "half" | "full">(
+    "peek",
+  );
+  const sheetDrag = useRef<
+    | {
+        y: number;
+        snap: "peek" | "half" | "full";
+      }
+    | undefined
+  >(undefined);
   const [filterOpen, setFilterOpen] = useState(false);
   const [openNow, setOpenNow] = useState(false);
   const [selected, setSelected] = useState<Business>();
@@ -205,6 +220,36 @@ export default function DiscoverPage({
   );
   const pageTitle =
     categories.find((item) => item.id === selectedCategory)?.name ?? "Keşfet";
+  const activeFilterCount = [
+    Boolean(selectedCategory),
+    openNow,
+    Boolean(location),
+    maxDistance < 25,
+    maxPrice < 5000,
+    minRating > 0,
+  ].filter(Boolean).length;
+
+  function moveMobileSheet(direction: "up" | "down") {
+    const snaps = ["peek", "half", "full"] as const;
+    const current = snaps.indexOf(mobileSheet);
+    const next = direction === "up" ? current + 1 : current - 1;
+    setMobileSheet(snaps[Math.max(0, Math.min(snaps.length - 1, next))]);
+  }
+
+  function startSheetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sheetDrag.current = { y: event.clientY, snap: mobileSheet };
+  }
+
+  function finishSheetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = sheetDrag.current;
+    sheetDrag.current = undefined;
+    if (!drag) return;
+    const distance = event.clientY - drag.y;
+    if (distance < -42) moveMobileSheet("up");
+    else if (distance > 42) moveMobileSheet("down");
+    else setMobileSheet(drag.snap === "full" ? "peek" : "full");
+  }
 
   function locate() {
     if (!navigator.geolocation) {
@@ -293,14 +338,24 @@ export default function DiscoverPage({
             <button
               type="button"
               onClick={() => setFilterOpen(true)}
-              aria-label="Filtreler"
-              className="grid h-9 w-9 place-items-center rounded-full"
+              aria-label={
+                activeFilterCount
+                  ? `Filtreler, ${activeFilterCount} etkin`
+                  : "Filtreler"
+              }
+              className="relative grid h-9 w-9 place-items-center rounded-full"
             >
               <SlidersHorizontal className="h-5 w-5" />
+              {activeFilterCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#6C4BF4] px-1 text-[9px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
           </header>
 
-          <div className="flex gap-2 overflow-x-auto border-b border-[#ECECF1] bg-white px-4 py-2.5 hide-scrollbar">
+          <div className="relative border-b border-[#ECECF1] bg-white">
+            <div className="flex scroll-px-4 gap-2 overflow-x-auto px-4 py-2.5 pr-12 hide-scrollbar">
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value)}
@@ -340,75 +395,90 @@ export default function DiscoverPage({
             <button
               type="button"
               onClick={() => setFilterOpen(true)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[#E3E3E9] px-3 text-[11px] font-medium"
+              className={cn(
+                "flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[11px] font-medium",
+                activeFilterCount
+                  ? "border-[#6C4BF4] bg-[#F0ECFF] text-[#5B3BE7]"
+                  : "border-[#E3E3E9]",
+              )}
             >
-              Filtreler <ChevronDown className="h-3 w-3" />
+              Filtreler
+              {activeFilterCount > 0 && ` (${activeFilterCount})`}
+              <ChevronDown className="h-3 w-3" />
             </button>
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white via-white/90 to-transparent" />
           </div>
 
-          {mobileView === "map" ? (
-            <div>
-              <section className="relative h-[330px] overflow-hidden border-b border-[#E5E5EA]">
+          <section className="relative h-[calc(100dvh-183px)] min-h-[430px] overflow-hidden bg-[#E9EAE6]">
+            <div className="absolute inset-0">
                 <DiscoverMap
                   items={filtered}
                   selected={activeBusiness}
-                  onSelect={setSelected}
+                  onSelect={(business) => {
+                    setSelected(business);
+                    setMobileSheet("half");
+                  }}
                   onClearSelection={() => setSelected(undefined)}
-                  showSelectedCard
+                  showSelectedCard={false}
                   testId="mobile-discover-map"
                 />
                 {loading && (
                   <div className="absolute inset-0 z-10 animate-pulse bg-[#E9EAE6]" />
                 )}
-              </section>
-              <section className="bg-[#F7F7FA] px-3 py-3">
-                <div className="mb-2 flex items-center justify-between px-0.5">
-                  <h1 className="text-[13px] font-bold">
-                    Yakınındaki işletmeler
-                  </h1>
-                  <span className="text-[10px] text-[#686872]">
-                    {filtered.length} sonuç
-                  </span>
-                </div>
-                {results}
-              </section>
             </div>
-          ) : (
-            <section className="min-h-[calc(100vh-174px)] bg-[#F7F7FA] px-3 pb-28 pt-4">
-              <div className="mb-3 flex items-center justify-between px-0.5">
-                <div>
-                  <p className="text-[10px] text-[#8A8A94]">
-                    {location
-                      ? "Konumuna göre sıralanabilir"
-                      : "Yayınlanmış işletmeler"}
-                  </p>
-                  <h1 className="mt-0.5 text-lg font-bold">{pageTitle}</h1>
-                </div>
-                <span className="text-[10px] text-[#686872]">
-                  {loading ? "Yükleniyor" : `${filtered.length} sonuç`}
-                </span>
-              </div>
-              {results}
-            </section>
-          )}
 
-          <button
-            type="button"
-            onClick={() =>
-              setMobileView((value) => (value === "map" ? "list" : "map"))
-            }
-            className="fixed bottom-[82px] left-4 right-4 z-40 flex h-12 items-center justify-center gap-2 rounded-xl bg-[#6C4BF4] text-sm font-semibold text-white shadow-[0_12px_28px_rgba(74,44,196,.28)]"
-          >
-            {mobileView === "map" ? (
-              <>
-                <List className="h-4 w-4" /> Listeyi göster
-              </>
-            ) : (
-              <>
-                <Map className="h-4 w-4" /> Haritayı göster
-              </>
-            )}
-          </button>
+            <section
+              data-testid="mobile-results-sheet"
+              className={cn(
+                "absolute inset-x-0 bottom-0 z-30 flex h-[calc(100%-10px)] flex-col rounded-t-[26px] border border-b-0 border-white/80 bg-[#F7F7FA] shadow-[0_-14px_36px_rgba(38,28,79,.16)] transition-transform duration-300 ease-out",
+                mobileSheet === "peek" && "translate-y-[calc(100%-92px)]",
+                mobileSheet === "half" && "translate-y-[46%]",
+                mobileSheet === "full" && "translate-y-0",
+              )}
+            >
+              <button
+                type="button"
+                data-testid="mobile-sheet-handle"
+                aria-label={
+                  mobileSheet === "full"
+                    ? "İşletme listesini küçült"
+                    : "İşletme listesini genişlet"
+                }
+                onPointerDown={startSheetDrag}
+                onPointerUp={finishSheetDrag}
+                onPointerCancel={() => {
+                  sheetDrag.current = undefined;
+                }}
+                className="touch-none rounded-t-[26px] px-4 pb-3 pt-2 text-left active:cursor-grabbing"
+              >
+                <span className="mx-auto block h-1 w-10 rounded-full bg-[#CAC7D8]" />
+                <span className="mt-3 flex items-center justify-between">
+                  <span>
+                    <strong className="block text-[13px]">Yakınındaki işletmeler</strong>
+                    <span className="mt-0.5 block text-[10px] text-[#7B7B86]">
+                      {mobileSheet === "peek"
+                        ? "Listeyi görmek için yukarı kaydır"
+                        : location
+                          ? "Konumuna göre sıralanabilir"
+                          : pageTitle}
+                    </span>
+                  </span>
+                  <span className="rounded-full bg-[#EEEAFD] px-2.5 py-1 text-[10px] font-semibold text-[#5B3BE7]">
+                    {loading ? "Yükleniyor" : `${filtered.length} sonuç`}
+                  </span>
+                </span>
+              </button>
+              <div
+                className={cn(
+                  "min-h-0 flex-1 px-3 pb-5",
+                  mobileSheet === "peek" ? "overflow-hidden" : "overflow-y-auto",
+                )}
+              >
+                {results}
+              </div>
+            </section>
+          </section>
         </div>
 
         <div className="hidden md:block">
@@ -532,11 +602,11 @@ export default function DiscoverPage({
       <MobileNav />
       {filterOpen && (
         <div
-          className="fixed inset-0 z-[70] flex justify-end bg-black/35"
+          className="fixed inset-0 z-[70] flex items-end bg-black/35 md:items-stretch md:justify-end"
           onClick={() => setFilterOpen(false)}
         >
           <aside
-            className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl"
+            className="max-h-[88dvh] w-full overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl md:h-full md:max-h-none md:max-w-md md:rounded-none"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between">

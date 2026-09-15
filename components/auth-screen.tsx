@@ -212,19 +212,6 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
   );
 }
 
-function ComingSoonButton({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      disabled
-      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E1E1E7] bg-[#FAFAFC] px-3 text-xs font-semibold text-[#686872]"
-    >
-      {label}
-      <span className="rounded-md bg-[#EEEAFD] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#6C4BF4]">Yakında</span>
-    </button>
-  );
-}
-
 export function AuthScreen({ initialMode, initialRole = "customer", next, initialError }: { initialMode: AuthMode; initialRole?: AccountRole; next?: string; initialError?: string }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [role, setRole] = useState<AccountRole>(initialRole);
@@ -274,13 +261,7 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
 
           <AuthForm key={`${mode}-${role}`} mode={mode} role={role} next={next} initialError={initialError} />
 
-          <div className="my-6 flex items-center gap-3 text-[11px] text-[#A1A1AA]"><span className="h-px flex-1 bg-[#E8E8EE]" />veya<span className="h-px flex-1 bg-[#E8E8EE]" /></div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ComingSoonButton label="Google ile devam et" />
-            <ComingSoonButton label="Apple ile devam et" />
-          </div>
-
-          <p className="mt-7 text-center text-sm text-[#686872]">
+          <p className="mt-6 text-center text-sm text-[#686872]">
             {signup ? "Zaten hesabın var mı?" : "Henüz hesabın yok mu?"}{" "}
             <button type="button" onClick={() => setMode(signup ? "signin" : "signup")} className="font-semibold text-[#6C4BF4] hover:text-[#5635E6]">
               {signup ? "Giriş yap" : "Ücretsiz kayıt ol"}
@@ -315,7 +296,7 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
             </div>
             <div className="mt-7 flex items-center gap-3 border-t border-white/10 pt-5">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-[#6C4BF4]"><BadgeCheck className="h-5 w-5" /></span>
-              <div><strong className="block text-sm">500+ seçkin işletme</strong><span className="text-[11px] text-white/55">İzmir&apos;de keşfetmeye hazır</span></div>
+              <div><strong className="block text-sm">Gerçek işletmeler, gerçek uygunluk</strong><span className="text-[11px] text-white/55">Yayındaki profiller canlı veriden gelir</span></div>
             </div>
           </div>
         </div>
