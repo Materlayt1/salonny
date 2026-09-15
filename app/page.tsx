@@ -109,15 +109,23 @@ export default async function HomePage() {
     listMarketplaceBusinesses(50),
     listPublicCategories(),
   ]);
-  const featured = [...businesses]
+  const popular = [...businesses]
     .sort(
       (a, b) =>
-        Number(b.sponsored) - Number(a.sponsored) ||
         b.rating - a.rating ||
         b.reviews - a.reviews,
     )
     .slice(0, 8);
-  const showFeaturedRail = businesses.length >= 4;
+  const sponsored = businesses
+    .filter((business) => business.sponsored)
+    .slice(0, 8);
+  const newest = [...businesses]
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+    .slice(0, 8);
+  const rated = [...businesses]
+    .filter((business) => business.reviews > 0)
+    .sort((a, b) => b.rating - a.rating || b.reviews - a.reviews)
+    .slice(0, 8);
   const topics = popularItems(businesses, categories);
   const cityCount = new Set(
     businesses.map((business) => business.city).filter(Boolean),
@@ -268,39 +276,31 @@ export default async function HomePage() {
           <CategoryGrid categories={categories} />
         </section>
 
-        {showFeaturedRail && (
+        {sponsored.length > 0 && (
           <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-8 md:py-12">
             <div className="container-shell">
               <SectionHeading
-                title="Öne çıkan işletmeler"
-                description="Salonny'de dikkat çeken özel seçenekler"
+                title="Sponsorlu işletmeler"
+                description="Sana özel öne çıkarılan seçenekler"
                 href="/kesfet"
               />
-              <BusinessRail businesses={featured} />
+              <BusinessRail businesses={sponsored} />
             </div>
           </section>
         )}
 
-        <section className="container-shell py-8 md:py-14">
-          <SectionHeading
-            title="Tüm işletmeler"
-            description="Sana uygun işletmeleri aşağı kaydırarak keşfet"
-            href="/kesfet"
-          />
-          {businesses.length ? (
-            <HomeBusinessFeed businesses={businesses} />
-          ) : (
-            <div className="rounded-[22px] border border-dashed border-[#D9D4F3] bg-white p-8 text-center">
-              <Store className="mx-auto h-8 w-8 text-[#8D75F5]" />
-              <h3 className="mt-3 font-semibold">
-                Yeni işletmeler hazırlanıyor
-              </h3>
-              <p className="mt-2 text-sm text-[#686872]">
-                Onaylanan profiller burada otomatik olarak yerini alacak.
-              </p>
+        {popular.length > 0 && (
+          <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-8 md:py-12">
+            <div className="container-shell">
+              <SectionHeading
+                title="Yakınındaki popüler işletmeler"
+                description="Yayındaki işletmeler ve uygun randevu seçenekleri"
+                href="/kesfet?nearby=1"
+              />
+              <BusinessRail businesses={popular} />
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {businesses.length > 0 && (
           <section className="container-shell py-10 md:py-16">
@@ -388,6 +388,30 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        {newest.length > 0 && (
+          <section className="container-shell py-10 md:py-14">
+            <SectionHeading
+              title="Yeni eklenen işletmeler"
+              description="Salonny ailesine en son katılan yerler"
+              href="/kesfet?sort=newest"
+            />
+            <BusinessRail businesses={newest} />
+          </section>
+        )}
+
+        {rated.length > 0 && (
+          <section className="border-y border-[#EEEAF6] bg-[#FAF9FD] py-10 md:py-14">
+            <div className="container-shell">
+              <SectionHeading
+                title="En yüksek puanlılar"
+                description="Doğrulanmış değerlendirmelerde öne çıkan işletmeler"
+                href="/kesfet?sort=rating"
+              />
+              <BusinessRail businesses={rated} />
+            </div>
+          </section>
+        )}
 
         {reviews.length > 0 && (
           <section className="container-shell py-10 md:py-14">
@@ -500,6 +524,31 @@ export default async function HomePage() {
                 İşletmeni ücretsiz ekle <ArrowRight className="h-4 w-4" />
               </ButtonLink>
             </div>
+          </div>
+        </section>
+
+        <section className="border-t border-[#E8E3F4] bg-[#FAF9FD] py-10 md:py-16">
+          <div className="container-shell">
+            <SectionHeading
+              title="Tüm işletmeler"
+              description="Filtrele, karşılaştır ve sana uygun işletmeyi bul"
+            />
+            {businesses.length ? (
+              <HomeBusinessFeed
+                initialBusinesses={businesses.slice(0, 12)}
+                categories={categories}
+              />
+            ) : (
+              <div className="rounded-[22px] border border-dashed border-[#D9D4F3] bg-white p-8 text-center">
+                <Store className="mx-auto h-8 w-8 text-[#8D75F5]" />
+                <h3 className="mt-3 font-semibold">
+                  Yeni işletmeler hazırlanıyor
+                </h3>
+                <p className="mt-2 text-sm text-[#686872]">
+                  Onaylanan profiller burada otomatik olarak yerini alacak.
+                </p>
+              </div>
+            )}
           </div>
         </section>
       </main>

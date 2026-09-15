@@ -8,7 +8,7 @@ import type { Business } from "@/lib/types";
 
 type DbBusiness = {
   id: string; name: string; slug: string; description: string | null; phone: string | null; website_url: string | null; timezone: string; verified_at: string | null; rating_average: number | string; review_count: number; created_at: string;
-  business_categories: { name_tr: string } | { name_tr: string }[] | null;
+  business_categories: { name_tr: string; slug: string } | { name_tr: string; slug: string }[] | null;
   branches: { id: string; name: string; is_primary: boolean; active: boolean }[];
   business_locations: { branch_id: string | null; address_line: string; district: string; city: string; latitude: number | string; longitude: number | string }[];
   business_images: { storage_path: string; kind: "logo" | "cover" | "gallery"; sort_order: number }[];
@@ -18,7 +18,7 @@ type DbBusiness = {
   reviews?: { id: string; rating: number; comment: string | null; business_reply: string | null; created_at: string; moderation_status: string }[];
 };
 
-const summarySelect = "id,name,slug,description,phone,website_url,timezone,verified_at,rating_average,review_count,created_at,business_categories(name_tr),branches(id,name,is_primary,active),business_locations(branch_id,address_line,district,city,latitude,longitude),business_images(storage_path,kind,sort_order),business_hours(branch_id,weekday,opens_at,closes_at,is_closed),services(id,name,description,duration_minutes,price_minor,active),reviews(id,rating,comment,business_reply,created_at,moderation_status)";
+const summarySelect = "id,name,slug,description,phone,website_url,timezone,verified_at,rating_average,review_count,created_at,business_categories!inner(name_tr,slug),branches(id,name,is_primary,active),business_locations!inner(branch_id,address_line,district,city,latitude,longitude),business_images(storage_path,kind,sort_order),business_hours(branch_id,weekday,opens_at,closes_at,is_closed),services(id,name,description,duration_minutes,price_minor,active),reviews(id,rating,comment,business_reply,created_at,moderation_status)";
 const detailSelect = `${summarySelect},employees(id,display_name,title,avatar_path,active,employee_services(service_id))`;
 function first<T>(value: T | T[] | null) { return Array.isArray(value) ? value[0] : value; }
 function publicAssetUrl(path: string | null | undefined) { if (!path) return "/brand/salonny-mark.png"; if (/^https?:\/\//.test(path)) return path; const base = process.env.NEXT_PUBLIC_SUPABASE_URL; if (!base) return "/brand/salonny-mark.png"; return `${base}/storage/v1/object/public/business-assets/${path.split("/").map(encodeURIComponent).join("/")}`; }
@@ -104,6 +104,103 @@ export async function listMarketplaceBusinesses(limit = 50) {
   localLists.set(safeLimit, { pending, expiresAt: now + 60_000 });
   return pending;
 }
+
+export type MarketplacePageSort = "recommended" | "rating" | "newest" | "name";
+
+export type MarketplacePageOptions = {
+  offset?: number;
+  limit?: number;
+  query?: string;
+  category?: string;
+  city?: string;
+  openNow?: boolean;
+  sort?: MarketplacePageSort;
+};
+
+export type MarketplaceBusinessPage = {
+  businesses: Business[];
+  total: number;
+  hasMore: boolean;
+};
+
+export async function listMarketplaceBusinessPage(
+  options: MarketplacePageOptions = {},
+): Promise<MarketplaceBusinessPage> {
+  const supabase = createPublicSupabaseClientOptional();
+  if (!supabase) return { businesses: [], total: 0, hasMore: false };
+
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 12)));
+  const search = options.query?.trim().slice(0, 80);
+  const category = options.category?.trim().slice(0, 80);
+  const city = options.city?.trim().slice(0, 80);
+  const sort = options.sort ?? "recommended";
+  const istanbulNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" }),
+  );
+  const weekday = (istanbulNow.getDay() + 6) % 7;
+  const clock = istanbulNow.toTimeString().slice(0, 8);
+  const pageSelect = options.openNow
+    ? summarySelect.replace("business_hours(", "business_hours!inner(")
+    : summarySelect;
+
+  let request = supabase
+    .from("businesses")
+    .select(pageSelect, { count: "exact" })
+    .eq("status", "published");
+
+  if (search) request = request.ilike("name", `%${search}%`);
+  if (category) request = request.eq("business_categories.slug", category);
+  if (city) request = request.ilike("business_locations.city", city);
+  if (options.openNow) {
+    request = request
+      .eq("business_hours.weekday", weekday)
+      .eq("business_hours.is_closed", false)
+      .lte("business_hours.opens_at", clock)
+      .gt("business_hours.closes_at", clock);
+  }
+
+  if (sort === "newest") {
+    request = request.order("created_at", { ascending: false });
+  } else if (sort === "name") {
+    request = request.order("name", { ascending: true });
+  } else {
+    request = request
+      .order("rating_average", { ascending: false })
+      .order("review_count", { ascending: false });
+  }
+
+  const result = await awaitPublicRequest(
+    request
+      .order("created_at", { referencedTable: "reviews", ascending: false })
+      .limit(3, { referencedTable: "reviews" })
+      .range(offset, offset + limit - 1),
+  );
+
+  if (!result || result.error) {
+    if (result?.error) {
+      console.error(
+        JSON.stringify({
+          event: "marketplace_page_failed",
+          code: result.error.code,
+        }),
+      );
+    }
+    return { businesses: [], total: 0, hasMore: false };
+  }
+
+  const businesses = ((result.data ?? []) as unknown as DbBusiness[])
+    .map(toBusiness)
+    .filter((item): item is Business => Boolean(item));
+  const total = result.count ?? offset + businesses.length;
+
+  return {
+    businesses,
+    total,
+    hasMore: offset + limit < total,
+  };
+}
+
 export async function getMarketplaceBusiness(slug: string) {
   if (!/^[a-z0-9-]{2,160}$/.test(slug)) return null;
   const result = await getCached(slug);
