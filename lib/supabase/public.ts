@@ -1,9 +1,11 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const PUBLIC_REQUEST_TIMEOUT_MS = 2_000;
+const PUBLIC_REQUEST_TIMEOUT_MS = 1_500;
 type PublicClient = SupabaseClient;
 let publicClient: PublicClient | null | undefined;
+let circuitOpenUntil = 0;
+let consecutiveTimeouts = 0;
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   const timeoutSignal = AbortSignal.timeout(PUBLIC_REQUEST_TIMEOUT_MS);
@@ -12,6 +14,7 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function createPublicSupabaseClientOptional() {
+  if (Date.now() < circuitOpenUntil) return null;
   if (publicClient !== undefined) return publicClient;
   if (process.env.NEXT_PUBLIC_SUPABASE_OFFLINE === "true") {
     publicClient = null;
@@ -36,7 +39,15 @@ export async function awaitPublicRequest<T>(request: PromiseLike<T>, timeoutMs =
     timer = setTimeout(() => resolve(null), timeoutMs);
   });
   try {
-    return await Promise.race([Promise.resolve(request), timeout]);
+    const result = await Promise.race([Promise.resolve(request), timeout]);
+    if (result === null) {
+      consecutiveTimeouts += 1;
+      if (consecutiveTimeouts >= 2) circuitOpenUntil = Date.now() + 30_000;
+    } else {
+      consecutiveTimeouts = 0;
+      circuitOpenUntil = 0;
+    }
+    return result;
   } finally {
     if (timer) clearTimeout(timer);
   }

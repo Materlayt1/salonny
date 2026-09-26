@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { apiRateLimit } from "@/lib/api-security";
+import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { emitEvent } from "@/lib/observability";
 
 const metricSchema = z.object({
@@ -14,12 +14,11 @@ const metricSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
-  if (Number(request.headers.get("content-length") ?? 0) > 4_096) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
+  const body = await readBoundedJson(request, 4_096);
+  if (!body.ok) return body.response;
   const limited = await apiRateLimit(request, "web-vitals", 30, 60_000);
   if (limited) return limited;
-  const parsed = metricSchema.safeParse(await request.json().catch(() => null));
+  const parsed = metricSchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Geçersiz performans metriği." }, { status: 422 });
 
   await emitEvent("info", { event: "web_vital", ...parsed.data });

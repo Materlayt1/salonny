@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerClientOptional } from "@/lib/supabase/server";
-import { apiRateLimit } from "@/lib/api-security";
+import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 
 const bookingSchema = z.object({
   businessId: z.uuid(),
@@ -15,18 +15,13 @@ const bookingSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  const requestOrigin = new URL(request.url).origin;
-  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin : requestOrigin;
-  if (origin && origin !== requestOrigin && origin !== configuredOrigin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "Yalnızca JSON istekleri desteklenir." }, { status: 415 });
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (contentLength > 65_536) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
+  const body = await readBoundedJson(request, 65_536);
+  if (!body.ok) return body.response;
   const limited = await apiRateLimit(request, "booking", 12, 60_000, { critical: true, message: "Çok fazla deneme yaptınız. Lütfen kısa süre sonra tekrar deneyin." });
   if (limited) return limited;
   const idempotencyKey = request.headers.get("idempotency-key");
   if (!idempotencyKey) return NextResponse.json({ error: "İşlem anahtarı eksik." }, { status: 400 });
-  const parsed = bookingSchema.safeParse(await request.json().catch(() => null));
+  const parsed = bookingSchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Randevu bilgileri geçersiz.", issues: parsed.error.issues }, { status: 422 });
   if (parsed.data.paymentMethod === "online") return NextResponse.json({ error: "Online ödeme sağlayıcısı henüz etkin değil. İşletmede ödeme seçin." }, { status: 501 });
 

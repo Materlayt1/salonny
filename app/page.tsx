@@ -241,12 +241,12 @@ export default async function HomePage() {
                 style={{ clipPath: "url(#salonny-hero-shape)" }}
               >
                 <Image
-                  src="https://images.unsplash.com/photo-1562322140-8baeececf3df?w=1200&auto=format&fit=crop"
-                  alt="Modern kuaför salonunda saç bakımı"
+                  src="/brand/salonny-mark.png"
+                  alt="Salonny hizmet ve konum simgesi"
                   fill
                   priority
                   className="object-cover object-center"
-                  sizes="620px"
+                  sizes="(min-width: 1024px) 620px, 16px"
                 />
               </div>
               <div className="surface soft-shadow absolute bottom-14 left-[20%] w-[230px] p-4">

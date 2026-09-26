@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { apiRateLimit } from "@/lib/api-security";
+import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createServerClientOptional } from "@/lib/supabase/server";
 
 const schema = z.object({
@@ -13,9 +13,11 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  const body = await readBoundedJson(request, 16_384);
+  if (!body.ok) return body.response;
   const limited = await apiRateLimit(request, "customer-waitlist", 10, 60_000);
   if (limited) return limited;
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const parsed = schema.safeParse(body.value);
   if (!parsed.success)
     return NextResponse.json(
       { error: "Geçersiz bekleme listesi talebi." },
@@ -83,6 +85,8 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const body = await readBoundedJson(request, 8_192);
+  if (!body.ok) return body.response;
   const limited = await apiRateLimit(
     request,
     "customer-waitlist-accept",
@@ -92,7 +96,7 @@ export async function PATCH(request: Request) {
   if (limited) return limited;
   const parsed = z
     .object({ entryId: z.string().uuid() })
-    .safeParse(await request.json().catch(() => null));
+    .safeParse(body.value);
   if (!parsed.success)
     return NextResponse.json({ error: "Geçersiz teklif." }, { status: 422 });
   const supabase = await createServerClientOptional();

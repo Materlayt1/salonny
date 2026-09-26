@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { apiRateLimit } from "@/lib/api-security";
+import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createServerClientOptional } from "@/lib/supabase/server";
 
 const idSchema = z.uuid();
@@ -43,16 +43,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const origin = request.headers.get("origin");
-  const requestOrigin = new URL(request.url).origin;
-  if (origin && origin !== requestOrigin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "Yalnızca JSON istekleri desteklenir." }, { status: 415 });
-  if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
+  const body = await readBoundedJson(request, 16_384);
+  if (!body.ok) return body.response;
   const { id } = await params;
   if (!idSchema.safeParse(id).success) return NextResponse.json({ error: "Geçersiz randevu." }, { status: 400 });
   const limited = await apiRateLimit(request, "appointment-change", 12, 60_000, { critical: true, message: "Çok fazla işlem yaptınız. Lütfen kısa süre sonra tekrar deneyin." });
   if (limited) return limited;
-  const parsed = actionSchema.safeParse(await request.json().catch(() => null));
+  const parsed = actionSchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "İşlem bilgileri geçersiz." }, { status: 422 });
   const { supabase, authenticated } = await authenticatedClient();
   if (!authenticated) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });

@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:browser-performance": "node scripts/browser-performance.mjs",
     "test:load": "node scripts/load-smoke.mjs"
   },
   "dependencies": {

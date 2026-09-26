@@ -19,6 +19,7 @@ type DbBusiness = {
 };
 
 const summarySelect = "id,name,slug,description,phone,website_url,timezone,verified_at,rating_average,review_count,created_at,business_categories!inner(name_tr,slug),branches(id,name,is_primary,active),business_locations!inner(branch_id,address_line,district,city,latitude,longitude),business_images(storage_path,kind,sort_order),business_hours(branch_id,weekday,opens_at,closes_at,is_closed),services(id,name,description,duration_minutes,price_minor,active),reviews(id,rating,comment,business_reply,created_at,moderation_status)";
+const browseSelect = "id,name,slug,description,phone,website_url,timezone,verified_at,rating_average,review_count,created_at,business_categories!inner(name_tr,slug),branches(id,name,is_primary,active),business_locations!inner(branch_id,address_line,district,city,latitude,longitude),business_images(storage_path,kind,sort_order),business_hours(branch_id,weekday,opens_at,closes_at,is_closed),services(id,name,description,duration_minutes,price_minor,active)";
 const detailSelect = `${summarySelect},employees(id,display_name,title,avatar_path,active,employee_services(service_id))`;
 function first<T>(value: T | T[] | null) { return Array.isArray(value) ? value[0] : value; }
 function publicAssetUrl(path: string | null | undefined) { if (!path) return "/brand/salonny-mark.png"; if (/^https?:\/\//.test(path)) return path; const base = process.env.NEXT_PUBLIC_SUPABASE_URL; if (!base) return "/brand/salonny-mark.png"; return `${base}/storage/v1/object/public/business-assets/${path.split("/").map(encodeURIComponent).join("/")}`; }
@@ -45,6 +46,12 @@ const listCached = unstable_cache(async (limit: number): Promise<MarketplaceList
     .select(summarySelect)
     .eq("status", "published")
     .order("rating_average", { ascending: false })
+    .order("is_primary", { referencedTable: "branches", ascending: false })
+    .limit(2, { referencedTable: "branches" })
+    .order("sort_order", { referencedTable: "business_images", ascending: true })
+    .limit(4, { referencedTable: "business_images" })
+    .order("price_minor", { referencedTable: "services", ascending: true })
+    .limit(12, { referencedTable: "services" })
     .order("created_at", { referencedTable: "reviews", ascending: false })
     .limit(3, { referencedTable: "reviews" })
     .limit(limit));
@@ -123,15 +130,46 @@ export type MarketplaceBusinessPage = {
   hasMore: boolean;
 };
 
-export async function listMarketplaceBusinessPage(
+function fallbackMarketplaceBusinessPage(
+  options: MarketplacePageOptions,
+): MarketplaceBusinessPage {
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 12)));
+  const query = options.query?.trim().toLocaleLowerCase("tr-TR");
+  const category = options.category?.trim().toLocaleLowerCase("tr-TR");
+  const city = options.city?.trim().toLocaleLowerCase("tr-TR");
+  let items = lastKnownMarketplaceBusinesses(200).filter((business) => {
+    const searchable = `${business.name} ${business.category} ${business.services.map((service) => service.name).join(" ")}`.toLocaleLowerCase("tr-TR");
+    const categorySlug = business.category.toLocaleLowerCase("tr-TR")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return (!query || searchable.includes(query))
+      && (!category || categorySlug === category)
+      && (!city || business.city.toLocaleLowerCase("tr-TR") === city)
+      && (!options.openNow || business.open);
+  });
+  const sort = options.sort ?? "recommended";
+  items = [...items].sort((a, b) => {
+    if (sort === "newest") return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+    if (sort === "name") return a.name.localeCompare(b.name, "tr-TR");
+    return b.rating - a.rating || b.reviews - a.reviews;
+  });
+  const total = items.length;
+  return {
+    businesses: items.slice(offset, offset + limit),
+    total,
+    hasMore: offset + limit < total,
+  };
+}
+
+async function queryMarketplaceBusinessPage(
   options: MarketplacePageOptions = {},
 ): Promise<MarketplaceBusinessPage> {
   const supabase = createPublicSupabaseClientOptional();
-  if (!supabase) return { businesses: [], total: 0, hasMore: false };
+  if (!supabase) return fallbackMarketplaceBusinessPage(options);
 
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 12)));
-  const search = options.query?.trim().slice(0, 80);
+  const search = options.query?.trim().replace(/[%_]/g, "").slice(0, 80);
   const category = options.category?.trim().slice(0, 80);
   const city = options.city?.trim().slice(0, 80);
   const sort = options.sort ?? "recommended";
@@ -141,8 +179,8 @@ export async function listMarketplaceBusinessPage(
   const weekday = (istanbulNow.getDay() + 6) % 7;
   const clock = istanbulNow.toTimeString().slice(0, 8);
   const pageSelect = options.openNow
-    ? summarySelect.replace("business_hours(", "business_hours!inner(")
-    : summarySelect;
+    ? browseSelect.replace("business_hours(", "business_hours!inner(")
+    : browseSelect;
 
   let request = supabase
     .from("businesses")
@@ -172,8 +210,12 @@ export async function listMarketplaceBusinessPage(
 
   const result = await awaitPublicRequest(
     request
-      .order("created_at", { referencedTable: "reviews", ascending: false })
-      .limit(3, { referencedTable: "reviews" })
+      .order("is_primary", { referencedTable: "branches", ascending: false })
+      .limit(2, { referencedTable: "branches" })
+      .order("sort_order", { referencedTable: "business_images", ascending: true })
+      .limit(4, { referencedTable: "business_images" })
+      .order("price_minor", { referencedTable: "services", ascending: true })
+      .limit(12, { referencedTable: "services" })
       .range(offset, offset + limit - 1),
   );
 
@@ -186,7 +228,7 @@ export async function listMarketplaceBusinessPage(
         }),
       );
     }
-    return { businesses: [], total: 0, hasMore: false };
+    return fallbackMarketplaceBusinessPage(options);
   }
 
   const businesses = ((result.data ?? []) as unknown as DbBusiness[])
@@ -199,6 +241,48 @@ export async function listMarketplaceBusinessPage(
     total,
     hasMore: offset + limit < total,
   };
+}
+
+type PageCacheEntry = {
+  expiresAt: number;
+  value?: MarketplaceBusinessPage;
+  pending?: Promise<MarketplaceBusinessPage>;
+};
+const localPages = new Map<string, PageCacheEntry>();
+
+export async function listMarketplaceBusinessPage(
+  options: MarketplacePageOptions = {},
+): Promise<MarketplaceBusinessPage> {
+  const normalized: MarketplacePageOptions = {
+    offset: Math.max(0, Math.floor(options.offset ?? 0)),
+    limit: Math.min(100, Math.max(1, Math.floor(options.limit ?? 12))),
+    query: options.query?.trim().slice(0, 80) || undefined,
+    category: options.category?.trim().slice(0, 80) || undefined,
+    city: options.city?.trim().slice(0, 80) || undefined,
+    openNow: Boolean(options.openNow),
+    sort: options.sort ?? "recommended",
+  };
+  const key = JSON.stringify(normalized);
+  const now = Date.now();
+  const current = localPages.get(key);
+  if (current?.value && current.expiresAt > now) return current.value;
+  if (current?.pending) return current.pending;
+
+  const pending = queryMarketplaceBusinessPage(normalized).then((value) => {
+    localPages.set(key, { value, expiresAt: Date.now() + 60_000 });
+    if (localPages.size > 250) {
+      for (const [cacheKey, entry] of localPages) {
+        if (entry.expiresAt <= Date.now() || localPages.size > 200) localPages.delete(cacheKey);
+        if (localPages.size <= 200) break;
+      }
+    }
+    return value;
+  }).catch((error) => {
+    localPages.delete(key);
+    throw error;
+  });
+  localPages.set(key, { pending, expiresAt: now + 60_000 });
+  return pending;
 }
 
 export async function getMarketplaceBusiness(slug: string) {

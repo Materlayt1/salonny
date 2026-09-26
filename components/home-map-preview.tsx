@@ -2,19 +2,46 @@
 
 import Link from "next/link";
 import { ArrowRight, MapPin, Star } from "lucide-react";
-import { useState } from "react";
-import { DiscoverMap } from "@/components/discover-map";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/types";
+
+const DiscoverMap = dynamic(
+  () => import("@/components/discover-map").then((module) => module.DiscoverMap),
+  {
+    ssr: false,
+    loading: () => <div className="h-full animate-pulse bg-[#F2EFFF]" aria-label="Harita yükleniyor" />,
+  },
+);
 
 export function HomeMapPreview({ businesses }: { businesses: Business[] }) {
   const [selected, setSelected] = useState<Business | undefined>(businesses[0]);
+  const [mapVisible, setMapVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element || mapVisible) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setMapVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [mapVisible]);
 
   if (!businesses.length) return null;
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-[#E7E3F6] bg-white shadow-[0_18px_50px_rgba(55,36,135,.1)]">
+    <div ref={containerRef} className="overflow-hidden rounded-[24px] border border-[#E7E3F6] bg-white shadow-[0_18px_50px_rgba(55,36,135,.1)]">
       <div className="h-[260px] sm:h-[320px] lg:h-[390px]">
-        <DiscoverMap items={businesses} selected={selected} onSelect={setSelected} testId="home-map-preview" />
+        {mapVisible
+          ? <DiscoverMap items={businesses} selected={selected} onSelect={setSelected} testId="home-map-preview" />
+          : <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_30%_25%,#FFFFFF_0%,#F0ECFF_70%)] text-sm font-semibold text-[#5B3BE7]">Canlı harita aşağı kaydırınca yüklenir</div>}
       </div>
       <div className="flex items-center gap-3 border-t border-[#ECE9F7] p-3.5 sm:p-4">
         {selected && <>
