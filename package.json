@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,7 +14,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:browser-performance": "node scripts/browser-performance.mjs",
-    "test:load": "node scripts/load-smoke.mjs"
+    "test:load": "node scripts/load-smoke.mjs",
+    "test:production-readiness": "node scripts/production-readiness.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

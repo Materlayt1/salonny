@@ -6,6 +6,7 @@ This checklist is the release gate for the marketplace. Payments are deliberatel
 
 - `pnpm audit --prod` reports no known production dependency vulnerabilities.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all pass.
+- `pnpm test:production-readiness` reports `ready` using the production secret store and deployed readiness URL.
 - `pnpm test:e2e` passes its desktop and mobile scenarios (environment-specific scenarios may be explicitly skipped).
 - Run `PERF_TEST_URL=https://staging.example.com pnpm test:browser-performance` against the deployed candidate.
 - Run `LOAD_TEST_URL=https://staging.example.com LOAD_TEST_REQUESTS=5000 LOAD_TEST_CONCURRENCY=100 pnpm test:load` from an approved load-test source.
@@ -14,7 +15,7 @@ This checklist is the release gate for the marketplace. Payments are deliberatel
 ## Required infrastructure gate
 
 - Supabase is active and its TLS certificate chain is trusted from the deployment region.
-- All migrations through `202609260024_marketplace_query_indexes.sql` are applied in order.
+- All migrations through `202609290026_performance_advisor_cleanup.sql` are applied in order.
 - Supabase PITR or daily backups are enabled and a restore drill has been recorded.
 - `NEXT_PUBLIC_APP_URL` is the final HTTPS origin; Supabase Auth redirect URLs contain the same origin.
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are configured.

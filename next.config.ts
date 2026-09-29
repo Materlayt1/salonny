@@ -19,6 +19,8 @@ const contentSecurityPolicy = [
 ].filter(Boolean).join("; ");
 
 const nextConfig: NextConfig = {
+  output: process.env.NEXT_OUTPUT_MODE === "standalone" ? "standalone" : undefined,
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID ?? process.env.VERCEL_DEPLOYMENT_ID,
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 86_400,

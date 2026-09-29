@@ -1,6 +1,6 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 14 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 29 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
 ## Tamamlanan P0 işleri
 
@@ -22,6 +22,11 @@ Son güncelleme: 14 Eylül 2026. Ödeme ve online depozito bu çalışmanın kap
 - [x] Arayüz renk kontrastları WCAG denetiminde tam puan verecek şekilde düzeltildi.
 - [x] Salt-okunur, ayarlanabilir eşzamanlı yük testi (`pnpm test:load`) eklendi.
 - [x] Tip kontrolü, lint, birim testleri, E2E, üretim build'i ve bağımlılık denetimi kalite kapısı olarak tanımlandı.
+- [x] Tekrarlanabilir container dağıtımı için çok aşamalı, root olmayan standalone Docker imajı ve canlılık kontrolü eklendi.
+- [x] GitHub Actions üzerinde bağımlılık, lint, tip, birim test ve üretim build kalite kapısı eklendi.
+- [x] Üretim sırları, HTTPS, Supabase, Redis ve readiness uçlarını doğrulayan `pnpm test:production-readiness` kapısı eklendi.
+- [x] Trigger-only `SECURITY DEFINER` fonksiyonlarının doğrudan API çalıştırma yetkileri kapatıldı; Supabase Security Advisor 0 hata verdi.
+- [x] Çakışan SELECT/ALL RLS politikaları ayrıştırıldı ve yinelenen yorum indeksi kaldırıldı; Supabase Performance Advisor 0 hata/0 uyarı verdi.
 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 
@@ -39,15 +44,17 @@ Son güncelleme: 14 Eylül 2026. Ödeme ve online depozito bu çalışmanın kap
 
 ## Son yerel doğrulama sonuçları
 
-Bu değerler 14 Eylül 2026 tarihinde tek geliştirme makinesindeki üretim build'inde ölçülmüştür; staging kapasite garantisi değildir.
+Bu değerler 29 Eylül 2026 tarihinde tek geliştirme makinesindeki üretim build'inde ölçülmüştür; staging kapasite garantisi değildir.
 
 - Üretim build'i: başarılı, 47 rota.
-- TypeScript, ESLint ve birim testleri: başarılı; 5 dosyada 13/13 test geçti.
-- Playwright: masaüstü ve mobil pakette 17 test geçti, 9 test karşı cihaz türüne ait olduğu için bilinçli olarak atlandı.
+- TypeScript, ESLint ve birim testleri: başarılı; 17/17 test geçti.
+- Playwright üretim sunucusu doğrulaması: 19 test geçti, 9 test bilinçli olarak atlandı, hata yok.
 - Üretim bağımlılık taraması: bilinen güvenlik açığı yok.
-- Lighthouse: performans 88, erişilebilirlik 100, iyi uygulamalar 100, SEO 100; FCP 953 ms, TBT 75 ms, CLS 0. Lighthouse'ın simüle LCP değeri 3,8 sn; uygulamanın gerçek kullanıcı telemetrisi aynı koşuda yaklaşık 960 ms LCP kaydetti.
-- Güncel production build salt-okunur yük testi: 1.000 istek, 50 eşzamanlı bağlantı, 1.000/1.000 başarılı; 308,96 istek/sn, p50 79 ms, p95 519 ms, p99 1.176 ms.
+- Isınmış üretim tarayıcı testi: ana sayfa masaüstü LCP 796 ms / CLS 0,0044; keşfet masaüstü LCP 1.172 ms; mobil ana sayfa LCP 520 ms; mobil keşfet LCP 200 ms.
+- Güncel production build salt-okunur yük testi: 10.000 istek / 250 eşzamanlı bağlantı ve 20.000 istek / 500 eşzamanlı bağlantıda hata yok; ikinci koşu 498,43 istek/sn, p50 672 ms, p95 2.013 ms, p99 2.237 ms.
+- Geçici dağıtık Redis ile `/api/health/ready` 200 döndü; rezervasyon mutasyonunda dağıtık oran sınırı 13. isteği 429 ile engelledi. Bu Redis örneği yalnızca doğrulama içindir ve kalıcı production altyapısının yerini tutmaz.
 - Canlı Supabase büyüme/operasyon güvenlik denetimi: 8 RLS politikası, anonim/normal kullanıcı worker claim yetkisi `false`, yalnızca service-role `true`, bakım bucket'ı public `false`, 2 otomasyon trigger'ı aktif.
+- Canlı Supabase danışmanları: Security Advisor 0 hata; Performance Advisor 0 hata ve 0 uyarı.
 - Supabase erişilemezken soğuk başlangıç: 200/200 başarılı, p95 yaklaşık 1,97 sn; iki saniyelik güvenli veri zaman aşımı sonrasında boş durum gösterildi.
 
 ## Rakip analiziyle belirlenen P1 ürün boşlukları

@@ -1,6 +1,6 @@
 const target = (process.env.LOAD_TEST_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const total = Math.min(10_000, Math.max(1, Number(process.env.LOAD_TEST_REQUESTS ?? 200)));
-const concurrency = Math.min(100, Math.max(1, Number(process.env.LOAD_TEST_CONCURRENCY ?? 20)));
+const total = Math.min(100_000, Math.max(1, Number(process.env.LOAD_TEST_REQUESTS ?? 200)));
+const concurrency = Math.min(1_000, Math.max(1, Number(process.env.LOAD_TEST_CONCURRENCY ?? 20)));
 const maxP95Ms = Math.max(1, Number(process.env.LOAD_TEST_MAX_P95_MS ?? 2_500));
 const minRequestsPerSecond = Math.max(0, Number(process.env.LOAD_TEST_MIN_RPS ?? 20));
 const paths = ["/", "/kesfet", "/api/businesses", "/api/categories", "/api/health/live"];
