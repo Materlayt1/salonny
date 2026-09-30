@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BRAND } from "@/config/brand";
+import { WebVitals } from "@/components/web-vitals";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -30,8 +31,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const structuredData = [{ "@context": "https://schema.org", "@type": "Organization", "@id": `${BRAND.siteUrl}/#organization`, name: BRAND.name, legalName: BRAND.legalName, url: BRAND.siteUrl, logo: `${BRAND.siteUrl}/brand/salonny-mark.png` }, { "@context": "https://schema.org", "@type": "WebSite", "@id": `${BRAND.siteUrl}/#website`, url: BRAND.siteUrl, name: BRAND.name, publisher: { "@id": `${BRAND.siteUrl}/#organization` }, inLanguage: "tr-TR", potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: `${BRAND.siteUrl}/kesfet?q={search_term_string}` }, "query-input": "required name=search_term_string" } }];
   return (
-    <html lang="tr">
-      <body>{children}<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} /></body>
+    <html lang="tr" data-scroll-behavior="smooth">
+      <body>
+        <a href="#main-content" className="skip-link">Ana içeriğe geç</a>
+        <div id="main-content" tabIndex={-1}>{children}</div>
+        <WebVitals />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
+      </body>
     </html>
   );
 }

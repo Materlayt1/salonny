@@ -1,21 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createServerClientOptional } from "@/lib/supabase/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { createRequestClientOptional } from "@/lib/supabase/request";
+import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 
 const bodySchema = z.object({ ids: z.array(z.uuid()).max(100).optional() });
 
 export async function PATCH(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "Yalnızca JSON istekleri desteklenir." }, { status: 415 });
-  if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
-  const rateKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`notifications:${rateKey}`, 30, 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla işlem yaptınız." }, { status: 429 });
-  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+  const body = await readBoundedJson(request, 16_384);
+  if (!body.ok) return body.response;
+  const limited = await apiRateLimit(request, "notifications", 30, 60_000, { critical: true, message: "Çok fazla işlem yaptınız." });
+  if (limited) return limited;
+  const parsed = bodySchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Bildirim seçimi geçersiz." }, { status: 422 });
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });

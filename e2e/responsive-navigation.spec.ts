@@ -54,20 +54,45 @@ test("business photos open in a navigable gallery", async ({ page, request }, te
 
 test("mobile navigation matches the five-item booking layout", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile-only navigation assertion");
+  expect(page.viewportSize()?.width).toBeLessThan(768);
   await page.goto("/");
+  expect(await page.evaluate(() => window.innerWidth)).toBeLessThan(768);
   const navigation = page.getByRole("navigation").last();
   await expect(navigation.getByRole("link", { name: "Ana Sayfa" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Keşfet" })).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "Randevu", exact: true })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Randevu al", exact: true })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Randevular", exact: true })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Profilim" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Bildirimler" })).toBeVisible();
 });
 
-test("mobile discover opens with a map and can switch to the list", async ({ page }, testInfo) => {
+test("mobile discover opens with a map and an expandable results sheet", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile-only map assertion");
   await page.goto("/kesfet");
   await expect(page.getByTestId("mobile-discover-map")).toBeVisible();
-  await page.getByRole("button", { name: "Listeyi göster" }).click();
-  await expect(page.getByRole("button", { name: "Haritayı göster" })).toBeVisible();
+  await expect(page.getByTestId("mobile-results-sheet")).toBeVisible();
+  await page.getByRole("button", { name: "İşletme listesini genişlet" }).click();
+  await expect(page.getByRole("button", { name: "İşletme listesini küçült" })).toBeVisible();
+});
+
+test("home keeps curated rails above a filtered paged directory", async ({ page, request }) => {
+  const response = await request.get("/api/businesses?limit=1&sort=newest");
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as {
+    businesses: Array<{ id: string }>;
+    total: number;
+    hasMore: boolean;
+  };
+  expect(payload.businesses.length).toBeLessThanOrEqual(1);
+  expect(payload.total).toBeGreaterThanOrEqual(payload.businesses.length);
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Yakınındaki popüler işletmeler" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Yeni eklenen işletmeler" })).toBeVisible();
+  const directory = page.getByTestId("home-business-directory");
+  await expect(directory.getByPlaceholder("İşletme ara")).toBeVisible();
+  await expect(directory.getByLabel("Kategori filtresi")).toBeVisible();
+  await expect(directory.getByPlaceholder("Şehir")).toBeVisible();
+  await expect(directory.getByLabel("Sıralama")).toBeVisible();
+  await expect(directory.getByRole("button", { name: "Şu an açık" })).toBeVisible();
 });

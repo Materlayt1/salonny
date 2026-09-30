@@ -1,15 +1,14 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { apiRateLimit } from "@/lib/api-security";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
-  const rateKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`business-cache:${rateKey}`, 30, 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla yenileme isteği." }, { status: 429 });
-  const supabase = await createServerClientOptional();
+  const limited = await apiRateLimit(request, "business-cache", 30, 60_000, { critical: true, message: "Çok fazla yenileme isteği." });
+  if (limited) return limited;
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });
