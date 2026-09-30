@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 
 const bodySchema = z.object({ ids: z.array(z.uuid()).max(100).optional() });
@@ -12,7 +12,7 @@ export async function PATCH(request: Request) {
   if (limited) return limited;
   const parsed = bodySchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Bildirim seçimi geçersiz." }, { status: 422 });
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });

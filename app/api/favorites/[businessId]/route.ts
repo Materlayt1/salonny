@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit } from "@/lib/api-security";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 const idSchema = z.uuid();
 
@@ -12,7 +12,7 @@ async function mutateFavorite(request: Request, businessId: string, remove: bool
   const limited = await apiRateLimit(request, "favorite-change", 30, 60_000, { critical: true, message: "Çok fazla favori işlemi yaptınız." });
   if (limited) return limited;
 
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });

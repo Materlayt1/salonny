@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeocodingBusyError, searchTurkeyAddress } from "@/lib/geocoding";
 import { apiRateLimit } from "@/lib/api-security";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 const querySchema = z.object({ q: z.string().trim().min(3).max(180) });
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return NextResponse.json({ error: "Aramak için en az 3 karakterlik bir adres girin." }, { status: 422 });
 
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (supabase) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Konum aramak için oturum açmanız gerekiyor." }, { status: 401 });

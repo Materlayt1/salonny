@@ -1,6 +1,6 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 29 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 30 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
 ## Tamamlanan P0 işleri
 
@@ -27,6 +27,8 @@ Son güncelleme: 29 Eylül 2026. Ödeme ve online depozito bu çalışmanın kap
 - [x] Üretim sırları, HTTPS, Supabase, Redis ve readiness uçlarını doğrulayan `pnpm test:production-readiness` kapısı eklendi.
 - [x] Trigger-only `SECURITY DEFINER` fonksiyonlarının doğrudan API çalıştırma yetkileri kapatıldı; Supabase Security Advisor 0 hata verdi.
 - [x] Çakışan SELECT/ALL RLS politikaları ayrıştırıldı ve yinelenen yorum indeksi kaldırıldı; Supabase Performance Advisor 0 hata/0 uyarı verdi.
+- [x] Expo/React Native iOS ve Android müşteri uygulaması; ortak tip sözleşmeleri, SecureStore oturumu, Bearer API yetkilendirmesi, keşfet/detay/rezervasyon/favori/randevu/profil akışlarıyla eklendi.
+- [x] Mobil uygulama için EAS build profilleri, mağaza kimlikleri, uygulama içi hesap silme talebi, CORS allowlist'i ve ayrı CI typecheck/export kapısı eklendi.
 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 
@@ -40,6 +42,7 @@ Son güncelleme: 29 Eylül 2026. Ödeme ve online depozito bu çalışmanın kap
 - [ ] CDN/WAF üzerinde bot, DDoS ve ülke bazlı anomali kuralları kur; health uçlarını load balancer'a bağla.
 - [ ] Gerçekçi anonimleştirilmiş staging verisiyle k6/Artillery üzerinde kademeli 1k, 10k ve hedef eşzamanlılık testleri yap. “Milyon trafik” garantisi ancak bu test, kota ve altyapı ölçümleriyle verilebilir.
 - [ ] Supabase RLS ve `SECURITY DEFINER` fonksiyonları için ayrı bir penetrasyon testi çalıştır.
+- [ ] Mobil uygulamayı fiziksel iPhone/Android cihazlarda ve TestFlight/Play Internal Testing kanallarında kabul testinden geçir; mağaza hesapları, imzalama ve hukuki formlar tamamlanmadan public rollout açma.
 - [x] Gizli anahtar rotasyonu, olay müdahale planı, SLO, kapasite/yük testi ve geri yükleme runbook'unu yazılı hale getir.
 
 ## Son yerel doğrulama sonuçları
@@ -56,6 +59,9 @@ Bu değerler 29 Eylül 2026 tarihinde tek geliştirme makinesindeki üretim buil
 - Canlı Supabase büyüme/operasyon güvenlik denetimi: 8 RLS politikası, anonim/normal kullanıcı worker claim yetkisi `false`, yalnızca service-role `true`, bakım bucket'ı public `false`, 2 otomasyon trigger'ı aktif.
 - Canlı Supabase danışmanları: Security Advisor 0 hata; Performance Advisor 0 hata ve 0 uyarı.
 - Supabase erişilemezken soğuk başlangıç: 200/200 başarılı, p95 yaklaşık 1,97 sn; iki saniyelik güvenli veri zaman aşımı sonrasında boş durum gösterildi.
+- 30 Eylül mobil/web son kapısı: Next.js 16.3.6 üretim build'i, Expo web export'u, Expo Doctor 21/21, ESLint, web+mobil TypeScript, 17/17 birim ve 19/19 çalışan E2E senaryosu geçti; 9 platforma özgü senaryo bilinçli atlandı.
+- Son yerel üretim smoke yükü: 1.000 salt-okunur istek / 50 eşzamanlı bağlantı, 0 hata, 350,08 istek/sn, p95 356 ms, p99 733 ms. Bu sonuç staging kapasite garantisi değildir.
+- Son ısınmış tarayıcı smoke ölçümünde masaüstü DCL ana sayfa 472 ms/keşfet 93 ms; mobil DCL ana sayfa 104 ms/keşfet 68 ms; tarayıcı sayfa hatası yok.
 
 ## Rakip analiziyle belirlenen P1 ürün boşlukları
 
@@ -85,9 +91,11 @@ Salonny'nin güçlü tarafı marketplace keşfi ile işletme panelini aynı ür�
 
 ```bash
 pnpm typecheck
+pnpm mobile:typecheck
 pnpm lint
 pnpm test
 pnpm build
+pnpm mobile:export
 pnpm test:e2e
 pnpm audit --prod
 pnpm test:load

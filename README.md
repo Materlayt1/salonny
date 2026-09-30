@@ -12,13 +12,28 @@ pnpm dev
 
 Uygulama operasyonel veriler için Supabase gerektirir. Anahtarlar eksikse güvenli boş durumlar gösterilir. Marketplace, kimlik doğrulama, randevu ve işletme yönetimi verileri doğrudan yapılandırılmış Supabase projesinden alınır. Rezervasyonlar `/api/bookings` üzerinden atomik PostgreSQL RPC'si ile oluşturulur.
 
+## iOS ve Android uygulaması
+
+`apps/mobile`, aynı Supabase verisini ve Next.js API katmanını kullanan Expo/React Native müşteri uygulamasıdır. Oturum bilgisi cihazda SecureStore içinde tutulur; uygulama servis rolü anahtarını içermez. Ana sayfa, keşfet/filtreler, işletme detayı, uygunluk, randevu oluşturma, favoriler, randevular ve hesap silme talebi native akış olarak bulunur.
+
+```bash
+cp apps/mobile/.env.example apps/mobile/.env.local
+pnpm mobile:start
+pnpm mobile:typecheck
+pnpm mobile:export
+```
+
+Yerel cihazdan API'ye erişirken `EXPO_PUBLIC_API_URL` bilgisayarın aynı ağdaki adresi olmalıdır (ör. `http://192.168.1.8:3001`). Production build'de HTTPS API adresi, Supabase URL'si ve publishable/anon anahtarı EAS ortam değişkeni olarak tanımlanır. Mağaza imzalama ve gönderim adımları için [mobil yayın kontrol listesine](docs/mobile-release-checklist.md) bakın.
+
 ## Doğrulama
 
 ```bash
 pnpm typecheck
+pnpm mobile:typecheck
 pnpm lint
 pnpm test
 pnpm build
+pnpm mobile:export
 pnpm test:e2e
 pnpm audit --prod
 pnpm test:load

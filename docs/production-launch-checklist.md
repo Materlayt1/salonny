@@ -6,6 +6,7 @@ This checklist is the release gate for the marketplace. Payments are deliberatel
 
 - `pnpm audit --prod` reports no known production dependency vulnerabilities.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all pass.
+- `pnpm mobile:typecheck`, `pnpm mobile:export`, and `pnpm dlx expo-doctor@latest apps/mobile` all pass.
 - `pnpm test:production-readiness` reports `ready` using the production secret store and deployed readiness URL.
 - `pnpm test:e2e` passes its desktop and mobile scenarios (environment-specific scenarios may be explicitly skipped).
 - Run `PERF_TEST_URL=https://staging.example.com pnpm test:browser-performance` against the deployed candidate.
@@ -33,6 +34,7 @@ This checklist is the release gate for the marketplace. Payments are deliberatel
 - Admin moderation and tenant isolation are verified with separate customer, business, and admin accounts.
 - Cache revalidation makes a published business change visible within the expected 60-second window.
 - Security headers, robots, sitemap, legal pages, account deletion, and mobile navigation are checked on the final domain.
+- The iOS/Android candidate passes the separate [mobile release checklist](mobile-release-checklist.md) before either store rollout begins.
 
 ## Controlled rollout
 

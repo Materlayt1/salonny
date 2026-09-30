@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 
 const bookingSchema = z.object({
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Randevu bilgileri geçersiz.", issues: parsed.error.issues }, { status: 422 });
   if (parsed.data.paymentMethod === "online") return NextResponse.json({ error: "Online ödeme sağlayıcısı henüz etkin değil. İşletmede ödeme seçin." }, { status: 501 });
 
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) {
     return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   }

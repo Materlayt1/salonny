@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 const idSchema = z.uuid();
 const dateSchema = z.iso.date();
@@ -20,8 +20,8 @@ function errorMessage(message: string) {
   return "İşlem şu anda tamamlanamadı. Lütfen tekrar deneyin.";
 }
 
-async function authenticatedClient() {
-  const supabase = await createServerClientOptional();
+async function authenticatedClient(request: Request) {
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return { supabase: null, authenticated: false };
   const { data: { user } } = await supabase.auth.getUser();
   return { supabase, authenticated: Boolean(user) };
@@ -34,7 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!date || !dateSchema.safeParse(date).success) return NextResponse.json({ error: "Geçerli bir tarih seçin." }, { status: 422 });
   const limited = await apiRateLimit(request, "appointment-slots", 60, 60_000, { message: "Çok fazla uygunluk sorgusu yaptınız." });
   if (limited) return limited;
-  const { supabase, authenticated } = await authenticatedClient();
+  const { supabase, authenticated } = await authenticatedClient(request);
   if (!authenticated) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data, error } = await supabase.rpc("get_appointment_reschedule_slots", { p_appointment_id: id, p_date: date });
@@ -51,7 +51,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (limited) return limited;
   const parsed = actionSchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "İşlem bilgileri geçersiz." }, { status: 422 });
-  const { supabase, authenticated } = await authenticatedClient();
+  const { supabase, authenticated } = await authenticatedClient(request);
   if (!authenticated) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
 

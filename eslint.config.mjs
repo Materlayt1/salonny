@@ -11,5 +11,7 @@ export default defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    "apps/mobile/.expo/**",
+    "apps/mobile/dist/**",
   ]),
 ]);

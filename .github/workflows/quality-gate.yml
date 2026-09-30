@@ -25,5 +25,7 @@ jobs:
       - run: pnpm audit --prod
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm mobile:typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm mobile:export

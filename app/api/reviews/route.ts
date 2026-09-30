@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 const schema = z.object({ appointmentId: z.uuid(), rating: z.number().int().min(1).max(5), comment: z.string().trim().max(2000).optional().default("") });
 
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
   const parsed = schema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Değerlendirme bilgileri geçersiz." }, { status: 422 });
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Değerlendirme için giriş yapmalısınız." }, { status: 401 });

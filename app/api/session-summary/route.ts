@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { apiRateLimit } from "@/lib/api-security";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 export async function GET(request: Request) {
   const limited = await apiRateLimit(request, "session-summary", 60, 60_000);
   if (limited) return limited;
 
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ authenticated: false }, { headers: { "Cache-Control": "private, no-store" } });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ authenticated: false }, { headers: { "Cache-Control": "private, no-store" } });

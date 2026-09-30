@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { createRequestClientOptional } from "@/lib/supabase/request";
 
 const schema = z.object({
   businessId: z.string().uuid(),
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       { error: "Geçersiz bekleme listesi talebi." },
       { status: 422 },
     );
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase)
     return NextResponse.json(
       { error: "Kimlik servisi kullanılamıyor." },
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     60_000,
   );
   if (limited) return limited;
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase)
     return NextResponse.json(
       { error: "Kimlik servisi kullanılamıyor." },
@@ -99,7 +99,7 @@ export async function PATCH(request: Request) {
     .safeParse(body.value);
   if (!parsed.success)
     return NextResponse.json({ error: "Geçersiz teklif." }, { status: 422 });
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase)
     return NextResponse.json(
       { error: "Kimlik servisi kullanılamıyor." },

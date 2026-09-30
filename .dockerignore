@@ -1,6 +1,9 @@
 .git
 .github
 .next
+apps/mobile/.expo
+apps/mobile/dist
+apps/mobile/node_modules
 node_modules
 artifacts
 coverage
