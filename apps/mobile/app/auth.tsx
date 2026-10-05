@@ -10,30 +10,39 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { AppButton, Screen } from "@/components/app-ui";
+import { AppButton, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
 import { useAuth } from "@/providers/auth-provider";
 
 export default function AuthScreen() {
-  const { configured, signIn, signUp } = useAuth();
+  const { loading: authLoading, signIn, signUp, resetPassword, resendVerification } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const sendEmail = async (kind: "reset" | "verify") => {
+    setError(""); setMessage("");
+    if (!email.trim().includes("@")) { setError("Önce e-posta adresini gir."); return; }
+    setBusy(true);
+    try {
+      if (kind === "reset") await resetPassword(email.trim());
+      else await resendVerification(email.trim());
+      setMessage(kind === "reset" ? "E-posta adresine gönderilen bağlantıdan şifreni yenileyebilirsin. Gelen kutunu ve spam klasörünü kontrol et." : "Doğrulama e-postası yeniden gönderildi. Gelen kutunu ve spam klasörünü kontrol et.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "İşlem tamamlanamadı."); }
+    finally { setBusy(false); }
+  };
+
   const submit = async () => {
     setError("");
     setMessage("");
-    if (!configured) {
-      setError("Mobil kimlik servisi henüz yapılandırılmamış.");
-      return;
-    }
-    if (!email.includes("@") || password.length < 8) {
-      setError("Geçerli bir e-posta ve en az 8 karakterli şifre gir.");
+    if (!email.includes("@") || !password || (mode === "signup" && password.length < 8)) {
+      setError(mode === "signup" ? "Geçerli bir e-posta ve en az 8 karakterli şifre gir." : "E-posta ve şifreni gir.");
       return;
     }
     if (mode === "signup" && (fullName.trim().length < 2 || !accepted)) {
@@ -44,10 +53,12 @@ export default function AuthScreen() {
     try {
       if (mode === "login") {
         await signIn(email.trim(), password);
-        router.back();
+        if (router.canGoBack()) router.back();
+        else router.replace("/");
       } else {
-        await signUp(email.trim(), password, fullName.trim());
-        setMessage("Hesabın oluşturuldu. E-postana gelen doğrulama bağlantısını aç.");
+        const signedIn = await signUp(email.trim(), password, fullName.trim());
+        if (signedIn) router.replace("/");
+        else setMessage("Hesabın oluşturuldu. E-postana gelen doğrulama bağlantısını aç.");
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "İşlem tamamlanamadı.");
@@ -55,6 +66,8 @@ export default function AuthScreen() {
       setBusy(false);
     }
   };
+
+  if (authLoading) return <Screen><LoadingState label="Giriş ekranı hazırlanıyor..." /></Screen>;
 
   return (
     <Screen>
@@ -72,7 +85,8 @@ export default function AuthScreen() {
               <TextInput accessibilityLabel="Ad soyad" autoCapitalize="words" placeholder="Ad soyad" placeholderTextColor={theme.colors.muted} style={styles.input} value={fullName} onChangeText={setFullName} />
             ) : null}
             <TextInput accessibilityLabel="E-posta" autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="E-posta" placeholderTextColor={theme.colors.muted} style={styles.input} value={email} onChangeText={setEmail} />
-            <TextInput accessibilityLabel="Şifre" autoCapitalize="none" autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Şifre" placeholderTextColor={theme.colors.muted} secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
+            <View style={styles.passwordRow}><TextInput accessibilityLabel="Şifre" autoCapitalize="none" autoCorrect={false} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Şifre" placeholderTextColor={theme.colors.muted} secureTextEntry={!showPassword} style={[styles.input, styles.passwordInput]} value={password} onChangeText={setPassword} /><Pressable accessibilityRole="button" accessibilityLabel={showPassword ? "Şifreyi gizle" : "Şifreyi göster"} onPress={() => setShowPassword((old) => !old)} style={styles.passwordToggle}><Text style={styles.linkText}>{showPassword ? "Gizle" : "Göster"}</Text></Pressable></View>
+            {mode === "login" ? <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sendEmail("reset")}><Text style={styles.linkText}>Şifremi unuttum</Text></Pressable> : null}
             {mode === "signup" ? (
               <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accepted }} onPress={() => setAccepted((value) => !value)} style={styles.checkRow}>
                 <View style={[styles.checkbox, accepted && styles.checkboxChecked]}><Text style={styles.checkmark}>{accepted ? "✓" : ""}</Text></View>
@@ -82,8 +96,9 @@ export default function AuthScreen() {
             {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
             {message ? <Text style={styles.success}>{message}</Text> : null}
             <AppButton label={mode === "login" ? "Giriş yap" : "Hesap oluştur"} busy={busy} onPress={() => void submit()} />
+            <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sendEmail("verify")}><Text style={styles.linkText}>Doğrulama e-postasını yeniden gönder</Text></Pressable>
           </View>
-          <Text style={styles.security}>Oturum bilgilerin cihazın güvenli anahtar deposunda şifreli tutulur.</Text>
+          <Text style={styles.security}>Hesabını ve randevularını tek yerden yönet.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
@@ -104,6 +119,7 @@ const styles = StyleSheet.create({
   modeTextActive: { color: theme.colors.primaryDark },
   form: { gap: 12, marginTop: 20, width: "100%" },
   input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.md, borderWidth: 1, color: theme.colors.text, fontSize: 15, paddingHorizontal: 16, paddingVertical: 15 },
+  passwordRow: { flexDirection: "row", alignItems: "center", gap: 10 }, passwordInput: { flex: 1 }, passwordToggle: { padding: 8 }, linkText: { color: theme.colors.primaryDark, fontSize: 12, fontWeight: "700", textAlign: "center", paddingVertical: 6 },
   checkRow: { alignItems: "flex-start", flexDirection: "row", gap: 10, paddingVertical: 4 },
   checkbox: { alignItems: "center", borderColor: theme.colors.border, borderRadius: 6, borderWidth: 1, height: 22, justifyContent: "center", width: 22 },
   checkboxChecked: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },

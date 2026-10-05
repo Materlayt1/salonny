@@ -2,13 +2,19 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import type { SupportedStorage } from "@supabase/supabase-js";
 
-const chunkSize = 1_800;
+// Code-point chunks remain below SecureStore's small-value limits even in UTF-8.
+const chunkSize = 400;
+const maxChunks = 128;
+const chunkCount = (value: string | null) => {
+  const count = Number(value ?? 0);
+  return Number.isInteger(count) && count >= 0 && count <= maxChunks ? count : 0;
+};
 const countKey = (key: string) => `${key}.chunks`;
 const chunkKey = (key: string, index: number) => `${key}.${index}`;
 
 async function removeNativeValue(key: string) {
   const rawCount = await SecureStore.getItemAsync(countKey(key));
-  const count = Math.max(0, Number(rawCount ?? 0));
+  const count = chunkCount(rawCount);
   await Promise.all([
     SecureStore.deleteItemAsync(key),
     SecureStore.deleteItemAsync(countKey(key)),
@@ -20,7 +26,7 @@ async function removeNativeValue(key: string) {
 const nativeStorage: SupportedStorage = {
   async getItem(key) {
     const rawCount = await SecureStore.getItemAsync(countKey(key));
-    const count = Math.max(0, Number(rawCount ?? 0));
+    const count = chunkCount(rawCount);
     if (!count) return SecureStore.getItemAsync(key);
     const chunks = await Promise.all(
       Array.from({ length: count }, (_, index) =>
@@ -34,7 +40,8 @@ const nativeStorage: SupportedStorage = {
       await SecureStore.setItemAsync(key, value);
       return;
     }
-    const chunks = value.match(new RegExp(`.{1,${chunkSize}}`, "gs")) ?? [];
+    const chunks = value.match(new RegExp(`.{1,${chunkSize}}`, "gsu")) ?? [];
+    if (chunks.length > maxChunks) throw new Error("Oturum bilgisi güvenli depolama sınırını aşıyor.");
     await Promise.all(chunks.map((chunk, index) =>
       SecureStore.setItemAsync(chunkKey(key, index), chunk)));
     await SecureStore.setItemAsync(countKey(key), String(chunks.length));

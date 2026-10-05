@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiRateLimit } from "@/lib/api-security";
-import { getMarketplaceBusiness } from "@/lib/marketplace";
+import { getMarketplaceBusinessSummaries } from "@/lib/marketplace";
 import { createRequestClientOptional } from "@/lib/supabase/request";
-
-type FavoriteRow = {
-  businesses: { slug: string } | { slug: string }[] | null;
-};
 
 export async function GET(request: Request) {
   const limited = await apiRateLimit(request, "favorites-read", 60, 60_000);
@@ -20,18 +16,19 @@ export async function GET(request: Request) {
   }
   const { data, error } = await supabase
     .from("favorites")
-    .select("businesses(slug)")
+    .select("business_id")
     .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
     .limit(100);
   if (error) {
     return NextResponse.json({ error: "Favoriler alınamadı." }, { status: 500 });
   }
-  const slugs = (data as unknown as FavoriteRow[]).flatMap((row) => {
-    const value = Array.isArray(row.businesses) ? row.businesses[0] : row.businesses;
-    return value?.slug ? [value.slug] : [];
-  });
-  const businesses = (await Promise.all(slugs.map(getMarketplaceBusiness)))
-    .filter((business) => business !== null);
+  let businesses;
+  try {
+    businesses = await getMarketplaceBusinessSummaries(supabase, (data ?? []).map((row) => row.business_id));
+  } catch {
+    return NextResponse.json({ error: "Favoriler alınamadı." }, { status: 503 });
+  }
   return NextResponse.json(
     { businesses },
     { headers: { "Cache-Control": "private, no-store" } },

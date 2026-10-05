@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 const SERVER_REQUEST_TIMEOUT_MS = 2_000;
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const timeoutSignal = AbortSignal.timeout(SERVER_REQUEST_TIMEOUT_MS);
+  const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const timeoutSignal = AbortSignal.timeout(target.includes("/auth/v1/") ? 12_000 : SERVER_REQUEST_TIMEOUT_MS);
   const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
   return fetch(input, { ...init, signal });
 }

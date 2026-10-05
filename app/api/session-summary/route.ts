@@ -13,11 +13,11 @@ export async function GET(request: Request) {
 
   const [membership, profile, notifications, favorites] = await Promise.all([
     supabase.from("business_members").select("business_id").eq("user_id", user.id).eq("active", true).limit(1).maybeSingle(),
-    supabase.from("users").select("role,city").eq("id", user.id).maybeSingle(),
+    supabase.from("users").select("role,city,full_name").eq("id", user.id).maybeSingle(),
     supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null),
     supabase.from("favorites").select("business_id").eq("user_id", user.id).limit(500),
   ]);
-  const metadataName = user.user_metadata.full_name ?? user.user_metadata.name;
+  const metadataName = profile.data?.full_name ?? user.user_metadata.full_name ?? user.user_metadata.name;
   const displayName = typeof metadataName === "string" && metadataName.trim()
     ? metadataName.trim()
     : user.email?.split("@")[0] ?? "Profilim";

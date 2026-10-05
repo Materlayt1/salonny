@@ -1,7 +1,17 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { getBusiness, listBusinesses, listCategories, type BusinessQuery } from "@/lib/api";
 
 const pageSize = 12;
+
+function useDebounced(value: string | undefined) {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), 300);
+    return () => clearTimeout(timer);
+  }, [value]);
+  return settled;
+}
 
 export function useBusinessRail(
   key: string,
@@ -15,11 +25,12 @@ export function useBusinessRail(
 }
 
 export function useBusinessDirectory(query: Omit<BusinessQuery, "offset" | "limit">) {
+  const settled = { ...query, q: useDebounced(query.q), city: useDebounced(query.city) };
   return useInfiniteQuery({
-    queryKey: ["business-directory", query],
+    queryKey: ["business-directory", settled],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => listBusinesses({
-      ...query,
+      ...settled,
       offset: pageParam,
       limit: pageSize,
     }),

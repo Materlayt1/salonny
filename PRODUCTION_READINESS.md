@@ -1,10 +1,10 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 30 Eylül 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 5 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
 ## Tamamlanan P0 işleri
 
-- [x] Next.js ve MapLibre kritik güvenlik güncellemeleri uygulandı; üretim bağımlılık taraması temizlendi.
+- [x] Next.js ve MapLibre kritik güvenlik güncellemeleri uygulandı; yeni bağımlılık advisory'leri için aşağıdaki doğrulanmış yerel yama kapısı eklendi.
 - [x] CSP, HSTS, frame, MIME, referrer, tarayıcı izinleri ve statik varlık cache başlıkları sertleştirildi.
 - [x] IP adresini düz metin saklamayan ortak API oran sınırlama katmanı eklendi.
 - [x] Rezervasyon, randevu değişikliği, yorum, bildirim, cache yenileme, admin ve işletme mutasyonları üretimde dağıtık rate limiter yoksa güvenli biçimde kapanacak şekilde ayarlandı.
@@ -46,6 +46,21 @@ Son güncelleme: 30 Eylül 2026. Ödeme ve online depozito bu çalışmanın kap
 - [x] Gizli anahtar rotasyonu, olay müdahale planı, SLO, kapasite/yük testi ve geri yükleme runbook'unu yazılı hale getir.
 
 ## Son yerel doğrulama sonuçları
+
+5 Ekim mobil düzeltmeleri: giriş public ayarlarının API'den yüklenmesi, ortak kimlik geçidi, boşta kalan form hata yönetimi, mobil CORS ve kaynak doğrulaması düzeltildi. Randevu iptal/değişiklik, yorum, kişisel bilgi ve bildirim ekranları eklendi. İşletme listeleri sanallaştırıldı, arama istekleri geciktirildi, favori kartları tek toplu sorguya taşındı. 32 birim/güvenlik testi ve 8 kontrollü mobil E2E senaryosu geçti.
+
+Ham bağımlılık taraması yeni `node-forge` ve `braces` advisory kayıtlarını sürüm numaralarından dolayı göstermeye devam ediyor; yayımlanmış upstream düzeltme yok. Her iki paket dar kapsamlı yerel yamalarla korunuyor; `pnpm test:security` kurulu paketlere bozuk imza/derin desen regresyonlarını uyguluyor ve bunların dışındaki tüm advisory'lerde kapanıyor. [Yama notları](docs/dependency-security-patches.md) bu geçici yaklaşımın kapsamını kaydediyor.
+
+5 Ekim son kapısı:
+
+- Next.js üretim derlemesi, web/mobil TypeScript ve ESLint başarılı; 32/32 birim testi ve 8/8 kontrollü mobil E2E testi geçti.
+- Üretim web E2E: 18 geçti, 10 platform/veri koşullu senaryo atlandı. Canlı hesapla doğru parola, e-posta teslimatı veya gerçek rezervasyon oluşturma bu testlerin kapsamı değildir.
+- Expo Doctor 21/21; Android/iOS Hermes paketleri ve web static export başarılı. Fiziksel cihaz kabul testinin yerine geçmez.
+- Yerel üretim yük smoke'u: 1.000 salt-okunur istek, 50 eşzamanlı bağlantı; 0 hata, 254,5 istek/sn; p95 376 ms, p99 463 ms.
+- Isınmış tarayıcı smoke'u: masaüstü ana sayfa/keşfet DCL 247/105 ms, LCP 268/160 ms; mobil DCL 244/120 ms, LCP 252/456 ms; sayfa hatası yok. Ağ/CPU yavaşlatması uygulanmadı; saha Core Web Vitals ölçümü değildir.
+- Canlı public dizin iki gerçek Gogo işletmesini döndürdü; Auth sağlık geçidi 200 verdi. Yerel production readiness 503: veritabanı `ok`, dağıtık rate limiter `not_configured`. Production Redis bağlanmadan giriş/rezervasyon mutasyonları güvenlik nedeniyle kapalı kalır; yayın için bu operasyon engeli sürüyor.
+
+### Önceki doğrulamalar (tarihsel)
 
 Bu değerler 29 Eylül 2026 tarihinde tek geliştirme makinesindeki üretim build'inde ölçülmüştür; staging kapasite garantisi değildir.
 
@@ -96,8 +111,11 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm mobile:export
+pnpm mobile:bundle
+pnpm mobile:test:e2e
 pnpm test:e2e
 pnpm audit --prod
+pnpm test:security
 pnpm test:load
 ```
 

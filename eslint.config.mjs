@@ -11,6 +11,7 @@ export default defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    "artifacts/**",
     "apps/mobile/.expo/**",
     "apps/mobile/dist/**",
   ]),

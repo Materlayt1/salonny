@@ -22,10 +22,25 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm audit --prod
+      - run: pnpm test:security
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm mobile:typecheck
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm mobile:export
+      - run: pnpm mobile:bundle
+  mobile-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm mobile:test:e2e

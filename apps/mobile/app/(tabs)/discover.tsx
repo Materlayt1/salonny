@@ -2,6 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   RefreshControl,
+  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,7 +18,10 @@ export default function DiscoverScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
-  const [category, setCategory] = useState(params.category ?? "");
+  const [categorySelection, setCategorySelection] = useState<{ source: string; value: string } | null>(null);
+  const categorySource = params.category ?? "";
+  const category = categorySelection?.source === categorySource ? categorySelection.value : categorySource;
+  const setCategory = (value: string) => setCategorySelection({ source: categorySource, value });
   const [openNow, setOpenNow] = useState(false);
   const [sort, setSort] = useState<"recommended" | "rating" | "newest" | "name">("recommended");
   const categories = useCategories();
@@ -30,11 +34,14 @@ export default function DiscoverScreen() {
   return (
     <Screen>
       <BrandHeader />
-      <ScrollView
+      <FlatList
+        data={businesses} keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <View style={styles.list}><BusinessCard business={item} /></View>}
+        initialNumToRender={6} maxToRenderPerBatch={6} windowSize={7}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={directory.isRefetching} onRefresh={() => void directory.refetch()} tintColor={theme.colors.primary} />}
         contentContainerStyle={styles.content}
-      >
+        ListHeaderComponent={<>
         <View style={styles.intro}>
           <Text style={styles.title}>Keşfet</Text>
           <Text style={styles.subtitle}>Binlerce işletme arasından sana uygun olanı bul.</Text>
@@ -78,18 +85,16 @@ export default function DiscoverScreen() {
         </View>
         {directory.isLoading ? <LoadingState label="Sonuçlar hazırlanıyor..." /> : null}
         {directory.isError ? <ErrorState onRetry={() => void directory.refetch()} /> : null}
-        {!directory.isLoading && !directory.isError && !businesses.length ? (
+        </>}
+        ListEmptyComponent={!directory.isLoading && !directory.isError && !businesses.length ? (
           <EmptyState icon="⌕" title="Sonuç bulunamadı" detail="Filtrelerini değiştirerek yeniden deneyebilirsin." />
         ) : null}
-        <View style={styles.list}>
-          {businesses.map((business) => <BusinessCard key={business.id} business={business} />)}
-        </View>
-        {directory.hasNextPage ? (
+        ListFooterComponent={directory.hasNextPage ? (
           <View style={styles.loadMore}>
             <AppButton label="Daha fazla göster" variant="secondary" busy={directory.isFetchingNextPage} onPress={() => void directory.fetchNextPage()} />
           </View>
         ) : null}
-      </ScrollView>
+      />
     </Screen>
   );
 }

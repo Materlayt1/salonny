@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { AppButton, BrandHeader, Chip, ErrorState, LoadingState, Screen, SectionHeader } from "@/components/app-ui";
+import { AppButton, BrandHeader, Chip, EmptyState, ErrorState, LoadingState, Screen, SectionHeader } from "@/components/app-ui";
 import { BusinessCard } from "@/components/business-card";
 import { theme } from "@/constants/theme";
 import { useAuth } from "@/providers/auth-provider";
@@ -78,11 +78,17 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <ScrollView
+      <FlatList
+        data={businesses}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <View style={styles.directoryItem}><BusinessCard business={item} /></View>}
+        initialNumToRender={4}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.primary} />}
         contentContainerStyle={styles.content}
-      >
+        ListHeaderComponent={<>
         <BrandHeader right={(
           <Pressable
             accessibilityRole="button"
@@ -127,8 +133,8 @@ export default function HomeScreen() {
           />
         )}
 
-        <BusinessRail title="Yakınındaki popüler işletmeler" subtitle="Yüksek puanlı ve çok tercih edilenler" businesses={popular.data?.businesses ?? []} />
-        <BusinessRail title="Sana özel öneriler" subtitle="Salonny'de öne çıkan işletmeler" businesses={recommended.data?.businesses ?? []} />
+        <BusinessRail title="En popüler işletmeler" subtitle="Yüksek puanlı ve çok tercih edilenler" businesses={popular.data?.businesses ?? []} />
+        <BusinessRail title="Öne çıkan işletmeler" subtitle="Salonny'de keşfetmeye değer işletmeler" businesses={recommended.data?.businesses ?? []} />
         <BusinessRail title="Yeni eklenen işletmeler" subtitle="Platforma yeni katılanları keşfet" businesses={newest.data?.businesses ?? []} />
 
         <View style={styles.directoryHeader}>
@@ -158,10 +164,9 @@ export default function HomeScreen() {
 
         {directory.isLoading ? <LoadingState label="İşletmeler getiriliyor..." /> : null}
         {directory.isError ? <ErrorState onRetry={() => void directory.refetch()} /> : null}
-        <View style={styles.directoryList}>
-          {businesses.map((business) => <BusinessCard key={business.id} business={business} />)}
-        </View>
-        {directory.hasNextPage ? (
+        </>}
+        ListEmptyComponent={!directory.isLoading && !directory.isError ? <EmptyState title="Sonuç bulunamadı" detail="Farklı bir kategori veya arama deneyebilirsin." /> : null}
+        ListFooterComponent={directory.hasNextPage ? (
           <View style={styles.loadMore}>
             <AppButton
               label="Daha fazla işletme getir"
@@ -171,7 +176,7 @@ export default function HomeScreen() {
             />
           </View>
         ) : businesses.length ? <Text style={styles.endText}>Tüm sonuçları gördün.</Text> : null}
-      </ScrollView>
+      />
     </Screen>
   );
 }
@@ -195,7 +200,7 @@ const styles = StyleSheet.create({
   directoryHeader: { marginTop: 10 },
   input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.md, borderWidth: 1, color: theme.colors.text, fontSize: 15, marginHorizontal: 20, paddingHorizontal: 16, paddingVertical: 14 },
   filterRow: { gap: 8, paddingHorizontal: 20, paddingTop: 12 },
-  directoryList: { paddingHorizontal: 20, paddingTop: 16 },
+  directoryItem: { paddingHorizontal: 20, paddingTop: 12 },
   loadMore: { paddingHorizontal: 20 },
   endText: { color: theme.colors.muted, fontSize: 13, padding: 18, textAlign: "center" },
 });

@@ -22,6 +22,7 @@ import { type FormEvent, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { BRAND } from "@/config/brand";
 import { authErrorMessage } from "@/lib/auth/messages";
+import { safeAuthDestination } from "@/lib/auth/redirect";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -46,8 +47,8 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
     const phone = String(form.get("phone") ?? "").trim();
     const city = String(form.get("city") ?? "").trim();
     const businessName = String(form.get("business_name") ?? "").trim();
-    if (!email || password.length < 8) {
-      setErrorMessage("Geçerli bir e-posta ve en az 8 karakterli şifre gir.");
+    if (!email || !password || (mode === "signup" && password.length < 8)) {
+      setErrorMessage(mode === "signup" ? "Geçerli bir e-posta ve en az 8 karakterli şifre gir." : "E-posta ve şifreni gir.");
       setPending(false);
       return;
     }
@@ -62,11 +63,12 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
       return;
     }
 
+    try {
     const supabase = createBrowserSupabaseClient();
     const fallback = role === "business"
       ? mode === "signup" ? "/business/onboarding" : "/business/dashboard"
       : "/";
-    const destination = next?.startsWith("/") && !next.startsWith("//") ? next : fallback;
+    const destination = safeAuthDestination(next, fallback);
 
     if (!supabase) {
       setErrorMessage("Kimlik servisi şu anda çevrimdışı. Supabase projesi geri yüklendiğinde giriş yeniden açılacak.");
@@ -124,6 +126,11 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
     }
     router.replace(`/auth/verify?email=${encodeURIComponent(email)}`);
     router.refresh();
+    } catch {
+      setErrorMessage("Bağlantı kurulamadı. Lütfen yeniden dene.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -180,7 +187,7 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
             name="password"
             type={showPassword ? "text" : "password"}
             required
-            minLength={8}
+            minLength={mode === "signup" ? 8 : 1}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             placeholder="••••••••"
             className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]"
@@ -201,6 +208,8 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
           {errorMessage}
         </div>
       )}
+
+      {mode === "signin" && <Link href="/auth/reset-password" className="text-right text-xs font-semibold text-[#6C4BF4]">Şifremi unuttum</Link>}
 
       <button
         disabled={pending}

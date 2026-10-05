@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { checkRateLimit, RateLimitUnavailableError } from "@/lib/rate-limit";
+import { isAllowedMobileOrigin } from "@/lib/mobile-origins";
 
 type RateLimitOptions = {
   critical?: boolean;
@@ -34,7 +35,7 @@ export function validateMutationOrigin(request: Request) {
     // A malformed deployment URL must not weaken the same-origin default.
   }
 
-  if (origin === requestOrigin || origin === configuredOrigin) return null;
+  if (origin === requestOrigin || origin === configuredOrigin || isAllowedMobileOrigin(origin)) return null;
   return errorResponse("Geçersiz istek kaynağı.", 403);
 }
 

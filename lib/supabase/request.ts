@@ -31,6 +31,9 @@ export async function createRequestClientOptional(
       detectSessionInUrl: false,
       persistSession: false,
     },
-    global: { headers: { Authorization: authorization } },
+    global: {
+      headers: { Authorization: authorization },
+      fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(12_000) }),
+    },
   });
 }

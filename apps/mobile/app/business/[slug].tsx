@@ -16,6 +16,7 @@ import { theme } from "@/constants/theme";
 import { useBusiness } from "@/hooks/use-marketplace";
 import { getSessionSummary, setFavorite } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { Alert } from "@/lib/alert";
 
 export default function BusinessDetailScreen() {
   const { slug = "" } = useLocalSearchParams<{ slug: string }>();
@@ -47,6 +48,7 @@ export default function BusinessDetailScreen() {
       void queryClient.invalidateQueries({ queryKey: ["favorites"] });
       void queryClient.invalidateQueries({ queryKey: ["session-summary"] });
     },
+    onError: (error) => Alert.alert("Favori güncellenemedi", error.message),
   });
 
   if (business.isLoading) return <Screen><LoadingState label="İşletme hazırlanıyor..." /></Screen>;
@@ -66,7 +68,7 @@ export default function BusinessDetailScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heroWrap}>
           <Image alt={`${item.name} kapak fotoğrafı`} source={{ uri: item.image }} style={styles.hero} />
-          <Pressable accessibilityRole="button" accessibilityLabel={favorite ? "Favorilerden çıkar" : "Favorilere ekle"} onPress={toggleFavorite} style={styles.favorite}>
+          <Pressable disabled={favoriteMutation.isPending} accessibilityRole="button" accessibilityLabel={favorite ? "Favorilerden çıkar" : "Favorilere ekle"} onPress={toggleFavorite} style={styles.favorite}>
             <Text style={styles.favoriteText}>{favorite ? "♥" : "♡"}</Text>
           </Pressable>
           <View style={styles.heroOverlay}>

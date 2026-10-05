@@ -25,6 +25,16 @@ pnpm mobile:export
 
 Yerel cihazdan API'ye erişirken `EXPO_PUBLIC_API_URL` bilgisayarın aynı ağdaki adresi olmalıdır (ör. `http://192.168.1.8:3001`). Production build'de HTTPS API adresi, Supabase URL'si ve publishable/anon anahtarı EAS ortam değişkeni olarak tanımlanır. Mağaza imzalama ve gönderim adımları için [mobil yayın kontrol listesine](docs/mobile-release-checklist.md) bakın.
 
+Development'ta Expo Go, Metro sunucusunun LAN adresinden API adresini otomatik bulur; mobil önizleme `http://localhost:3001` kullanır. Supabase public ayarları verilmediyse `/api/mobile/config` üzerinden alınır. Giriş/yenileme/çıkış işlemleri sınırlandırılmış `/api/auth/supabase/*` geçidinden geçer; TLS doğrulaması sunucuda etkin kalır. Mobil uygulamada iptal, randevu saatini değiştirme, doğrulanmış yorum, profil düzenleme ve bildirim akışları da bulunur.
+
+```bash
+pnpm mobile:test:e2e
+pnpm mobile:bundle
+pnpm test:security
+```
+
+Mobil E2E senaryoları test verileri ve kontrollü API yanıtları kullanır; gerçek müşteri hesapları/randevuları değişmez. `mobile:bundle` iOS/Android/web JavaScript paketlerini doğrular; imzalı AAB/IPA üretimi için EAS build gerekir. Güvenlik kapısı iki yerel bağımlılık yamasını ayrıca test eder; ayrıntılar [bağımlılık yama notlarında](docs/dependency-security-patches.md) açıklanmıştır.
+
 ## Doğrulama
 
 ```bash
@@ -36,6 +46,7 @@ pnpm build
 pnpm mobile:export
 pnpm test:e2e
 pnpm audit --prod
+pnpm test:security
 pnpm test:load
 ```
 

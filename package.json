@@ -16,11 +16,14 @@
     "test:browser-performance": "node scripts/browser-performance.mjs",
     "test:load": "node scripts/load-smoke.mjs",
     "test:production-readiness": "node scripts/production-readiness.mjs",
+    "test:security": "node scripts/security-audit.mjs",
     "mobile:start": "pnpm --filter @salonny/mobile start",
     "mobile:android": "pnpm --filter @salonny/mobile android",
     "mobile:ios": "pnpm --filter @salonny/mobile ios",
     "mobile:typecheck": "pnpm --filter @salonny/mobile typecheck",
-    "mobile:export": "pnpm --filter @salonny/mobile exec expo export --platform web"
+    "mobile:export": "pnpm --filter @salonny/mobile exec expo export --platform web",
+    "mobile:bundle": "pnpm --filter @salonny/mobile exec expo export --platform all",
+    "mobile:test:e2e": "playwright test --config playwright.mobile.config.ts"
   },
   "dependencies": {
     "@salonny/contracts": "workspace:*",

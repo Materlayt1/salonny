@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { apiRateLimit } from "@/lib/api-security";
+import { apiRateLimit, validateMutationOrigin } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 
 const idSchema = z.uuid();
 
 async function mutateFavorite(request: Request, businessId: string, remove: boolean) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
+  const originError = validateMutationOrigin(request);
+  if (originError) return originError;
   if (!idSchema.safeParse(businessId).success) return NextResponse.json({ error: "Geçersiz işletme." }, { status: 400 });
   const limited = await apiRateLimit(request, "favorite-change", 30, 60_000, { critical: true, message: "Çok fazla favori işlemi yaptınız." });
   if (limited) return limited;

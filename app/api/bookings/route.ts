@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const limited = await apiRateLimit(request, "booking", 12, 60_000, { critical: true, message: "Çok fazla deneme yaptınız. Lütfen kısa süre sonra tekrar deneyin." });
   if (limited) return limited;
   const idempotencyKey = request.headers.get("idempotency-key");
-  if (!idempotencyKey) return NextResponse.json({ error: "İşlem anahtarı eksik." }, { status: 400 });
+  if (!idempotencyKey || !/^[A-Za-z0-9:_-]{16,128}$/.test(idempotencyKey)) return NextResponse.json({ error: "İşlem anahtarı eksik veya geçersiz." }, { status: 400 });
   const parsed = bookingSchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Randevu bilgileri geçersiz.", issues: parsed.error.issues }, { status: 422 });
   if (parsed.data.paymentMethod === "online") return NextResponse.json({ error: "Online ödeme sağlayıcısı henüz etkin değil. İşletmede ödeme seçin." }, { status: 501 });

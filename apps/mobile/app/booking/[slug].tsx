@@ -1,34 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { randomUUID } from "expo-crypto";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert } from "@/lib/alert";
 import { AppButton, Chip, EmptyState, ErrorState, LoadingState, Screen, SectionHeader } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
 import { useBusiness } from "@/hooks/use-marketplace";
-import { createBooking, getAvailability } from "@/lib/api";
+import { createBooking, getAvailability, getCustomerProfile } from "@/lib/api";
+import { dateKey, formatDate, formatTime, upcomingDates } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
-
-function dateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-const bookingDates = Array.from({ length: 14 }, (_, index) => {
-  const value = new Date();
-  value.setDate(value.getDate() + index + 1);
-  return value;
-});
 
 export default function BookingScreen() {
   const { slug = "" } = useLocalSearchParams<{ slug: string }>();
   const { session, user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+  const bookingDates = useMemo(() => upcomingDates(), []);
+  const operation = useRef({ signature: "", key: "" });
   const business = useBusiness(slug);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [date, setDate] = useState(dateKey(bookingDates[0]));
   const [slotSelection, setSlotSelection] = useState({ key: "", value: "" });
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState<string | null>(null);
+  const profile = useQuery({ queryKey: ["customer-profile", user?.id], queryFn: () => getCustomerProfile(session!.access_token), enabled: Boolean(session) });
   const serviceId = selectedServiceId || business.data?.services[0]?.id || "";
 
   const employees = useMemo(() => {
@@ -41,8 +37,9 @@ export default function BookingScreen() {
     : employees[0]?.id ?? "";
   const selectionKey = `${serviceId}:${employeeId}:${date}`;
   const slot = slotSelection.key === selectionKey ? slotSelection.value : "";
-  const defaultName = String(user?.user_metadata.full_name ?? user?.email?.split("@")[0] ?? "");
+  const defaultName = String(profile.data?.fullName || user?.user_metadata.full_name || user?.email?.split("@")[0] || "");
   const customerName = name.trim() || defaultName;
+  const customerPhone = phone ?? profile.data?.phone ?? "";
 
   const availability = useQuery({
     queryKey: ["availability", business.data?.id, serviceId, employeeId, date],
@@ -58,17 +55,23 @@ export default function BookingScreen() {
   });
 
   const booking = useMutation({
-    mutationFn: () => createBooking({
+    mutationFn: () => {
+      const input = {
       businessId: business.data!.id,
       branchId: business.data!.branchId!,
       serviceId,
       employeeId,
       startsAt: slot,
-      customer: { name: customerName, phone: phone.trim(), email: user!.email! },
-      paymentMethod: "business",
-    }, session!.access_token),
+      customer: { name: customerName, phone: customerPhone.trim(), email: user!.email! },
+      paymentMethod: "business" as const,
+      };
+      const signature = JSON.stringify(input);
+      if (operation.current.signature !== signature) operation.current = { signature, key: randomUUID() };
+      return createBooking(input, session!.access_token, operation.current.key);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["availability"] });
       Alert.alert("Randevun oluşturuldu", "İşletmenin onay durumunu Randevularım ekranından takip edebilirsin.", [
         { text: "Randevularıma git", onPress: () => router.replace("/appointments") },
       ]);
@@ -90,7 +93,7 @@ export default function BookingScreen() {
   }
 
   const selectedService = business.data.services.find((service) => service.id === serviceId);
-  const canSubmit = Boolean(slot && customerName.length >= 2 && phone.replace(/\D/g, "").length >= 10);
+  const canSubmit = Boolean(slot && customerName.length >= 2 && customerPhone.replace(/\D/g, "").length >= 10);
 
   return (
     <Screen>
@@ -117,7 +120,7 @@ export default function BookingScreen() {
 
         <SectionHeader title="3. Tarih ve saat" subtitle="Önümüzdeki 14 gündeki uygun saatler" />
         <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-          {bookingDates.map((item) => <Chip key={dateKey(item)} label={item.toLocaleDateString("tr-TR", { weekday: "short", day: "2-digit", month: "short" })} selected={date === dateKey(item)} onPress={() => setDate(dateKey(item))} />)}
+          {bookingDates.map((item) => <Chip key={dateKey(item)} label={formatDate(item)} selected={date === dateKey(item)} onPress={() => setDate(dateKey(item))} />)}
         </ScrollView>
         <View style={styles.timeCard}>
           {availability.isLoading ? <LoadingState label="Uygun saatler aranıyor..." /> : null}
@@ -125,7 +128,7 @@ export default function BookingScreen() {
           {!availability.isLoading && !availability.isError && !availability.data?.slots.length ? <Text style={styles.noSlot}>Bu tarihte uygun saat bulunamadı.</Text> : null}
           <View style={styles.timeGrid}>
             {(availability.data?.slots ?? []).map((startsAt) => (
-              <View key={startsAt} style={styles.timeItem}><Chip label={new Date(startsAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} selected={slot === startsAt} onPress={() => setSlotSelection({ key: selectionKey, value: startsAt })} /></View>
+              <View key={startsAt} style={styles.timeItem}><Chip label={formatTime(startsAt)} selected={slot === startsAt} onPress={() => setSlotSelection({ key: selectionKey, value: startsAt })} /></View>
             ))}
           </View>
         </View>
@@ -133,16 +136,16 @@ export default function BookingScreen() {
         <SectionHeader title="4. İletişim bilgileri" />
         <View style={styles.form}>
           <TextInput accessibilityLabel="Ad soyad" autoCapitalize="words" placeholder="Ad soyad" placeholderTextColor={theme.colors.muted} style={styles.input} value={name || defaultName} onChangeText={setName} />
-          <TextInput accessibilityLabel="Telefon" keyboardType="phone-pad" placeholder="Telefon" placeholderTextColor={theme.colors.muted} style={styles.input} value={phone} onChangeText={setPhone} />
+          <TextInput accessibilityLabel="Telefon" keyboardType="phone-pad" placeholder="Telefon" placeholderTextColor={theme.colors.muted} style={styles.input} value={customerPhone} onChangeText={setPhone} />
           <Text style={styles.email}>{user.email}</Text>
         </View>
 
         <View style={styles.confirmCard}>
-          <View><Text style={styles.confirmLabel}>{selectedService?.name ?? "Hizmet"}</Text><Text style={styles.confirmDetail}>{slot ? new Date(slot).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" }) : "Tarih ve saat seç"}</Text></View>
+          <View><Text style={styles.confirmLabel}>{selectedService?.name ?? "Hizmet"}</Text><Text style={styles.confirmDetail}>{slot ? `${formatDate(slot)} · ${formatTime(slot)}` : "Tarih ve saat seç"}</Text></View>
           <Text style={styles.confirmPrice}>{selectedService?.price.toLocaleString("tr-TR")} ₺</Text>
         </View>
         <Text style={styles.payment}>Ödeme işletmede yapılacaktır. Online ödeme şu an kullanılmıyor.</Text>
-        <AppButton label="Randevuyu oluştur" busy={booking.isPending} disabled={!canSubmit} onPress={() => booking.mutate()} />
+        <View style={styles.form}><AppButton label="Randevuyu oluştur" busy={booking.isPending} disabled={!canSubmit} onPress={() => booking.mutate()} /></View>
       </ScrollView>
     </Screen>
   );

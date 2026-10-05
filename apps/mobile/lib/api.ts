@@ -138,10 +138,30 @@ export async function createBooking(
     paymentMethod: "business";
   },
   accessToken: string,
+  idempotencyKey: string,
 ) {
   return requestJson<{ id: string; status: string }>("/api/bookings", {
     method: "POST",
-    headers: { "Idempotency-Key": crypto.randomUUID() },
+    headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify(input),
   }, accessToken);
 }
+
+export type CustomerProfile = { fullName: string; phone: string; city: string; email: string };
+export const getCustomerProfile = (token: string) => requestJson<CustomerProfile>("/api/customer-profile", {}, token);
+export const saveCustomerProfile = (profile: Omit<CustomerProfile, "email">, token: string) =>
+  requestJson("/api/customer-profile", { method: "PATCH", body: JSON.stringify(profile) }, token);
+export const requestAccountDeletion = (token: string) =>
+  requestJson("/api/customer-profile", { method: "DELETE", body: JSON.stringify({ confirmed: true }) }, token);
+
+export const getRescheduleSlots = (id: string, date: string, token: string) =>
+  requestJson<{ slots: string[] }>(`/api/appointments/${id}?date=${encodeURIComponent(date)}`, {}, token);
+export const changeAppointment = (id: string, action: { action: "cancel"; reason?: string } | { action: "reschedule"; startsAt: string }, token: string) =>
+  requestJson(`/api/appointments/${id}`, { method: "PATCH", body: JSON.stringify(action) }, token);
+export const submitReview = (appointmentId: string, rating: number, comment: string, token: string) =>
+  requestJson("/api/reviews", { method: "POST", body: JSON.stringify({ appointmentId, rating, comment }) }, token);
+
+export type NotificationItem = { id: string; title: string; body: string; readAt: string | null; createdAt: string };
+export const listNotifications = (token: string) => requestJson<{ notifications: NotificationItem[] }>("/api/notifications", {}, token);
+export const markNotificationsRead = (token: string, ids?: string[]) =>
+  requestJson("/api/notifications", { method: "PATCH", body: JSON.stringify(ids ? { ids } : {}) }, token);

@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { rateLimitKeyFromHeaders } from "@/lib/api-security";
 import { authErrorMessage } from "@/lib/auth/messages";
+import { safeAuthDestination } from "@/lib/auth/redirect";
 import { checkRateLimit, RateLimitUnavailableError } from "@/lib/rate-limit";
 import { createServerClientOptional } from "@/lib/supabase/server";
 
@@ -18,7 +19,7 @@ const schema = z.object({
 });
 
 function safeNext(value: string | undefined, fallback: string) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : fallback;
+  return safeAuthDestination(value, fallback);
 }
 
 async function authRateLimit(scope: "signin" | "signup") {

@@ -32,6 +32,9 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="business/[slug]" options={{ title: "İşletme" }} />
         <Stack.Screen name="booking/[slug]" options={{ title: "Randevu al" }} />
+        <Stack.Screen name="appointment/[id]" options={{ title: "Randevun" }} />
+        <Stack.Screen name="profile-edit" options={{ title: "Kişisel bilgiler" }} />
+        <Stack.Screen name="notifications" options={{ title: "Bildirimler" }} />
         <Stack.Screen name="auth" options={{ presentation: "modal", title: "Salonny hesabı" }} />
       </Stack>
     </AppProviders>

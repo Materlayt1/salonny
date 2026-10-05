@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { formatTime } from "@/lib/dates";
 import { AppButton, BrandHeader, EmptyState, ErrorState, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
 import { listAppointments } from "@/lib/api";
@@ -62,7 +63,7 @@ export default function AppointmentsScreen() {
           {(appointments.data ?? []).map((appointment) => {
             const date = new Date(appointment.startsAt);
             return (
-              <View key={appointment.id} style={styles.card}>
+              <Pressable key={appointment.id} accessibilityRole="button" accessibilityLabel={`${appointment.businessName} randevusunu yönet`} onPress={() => router.push(`/appointment/${appointment.id}`)} style={styles.card}>
                 <View style={styles.dateBadge}>
                   <Text style={styles.dateDay}>{date.toLocaleDateString("tr-TR", { day: "2-digit" })}</Text>
                   <Text style={styles.dateMonth}>{date.toLocaleDateString("tr-TR", { month: "short" }).toUpperCase()}</Text>
@@ -73,10 +74,10 @@ export default function AppointmentsScreen() {
                     <Text style={[styles.status, styles[`status_${appointment.status}`]]}>{statusLabels[appointment.status]}</Text>
                   </View>
                   <Text style={styles.service}>{appointment.serviceName} · {appointment.employeeName}</Text>
-                  <Text style={styles.meta}>{date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} · {appointment.durationMinutes} dk</Text>
+                  <Text style={styles.meta}>{formatTime(date)} · {appointment.durationMinutes} dk</Text>
                   <Text numberOfLines={1} style={styles.address}>{appointment.district}, {appointment.city}</Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>

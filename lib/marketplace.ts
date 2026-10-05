@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidCoordinate } from "@/lib/geo";
 import { lastKnownMarketplaceBusiness, lastKnownMarketplaceBusinesses } from "@/lib/last-known-marketplace";
 import { awaitPublicRequest, createPublicSupabaseClientOptional } from "@/lib/supabase/public";
@@ -35,6 +36,20 @@ function toBusiness(row: DbBusiness): Business | null {
   return { id: row.id, branchId: branch.id, slug: row.slug, name: row.name, category, rating: Number(row.rating_average), reviews: row.review_count, distance: null, district: location.district, city: location.city, address: location.address_line, image: images[0] ?? "/brand/salonny-mark.png", gallery: images.length ? images : ["/brand/salonny-mark.png"], open, nextAvailable: "Uygun saatleri gör", startingPrice: services.length ? Math.min(...services.map((item) => item.price)) : 0, verified: Boolean(row.verified_at), lat: latitude, lng: longitude, phone: row.phone ?? "", website: row.website_url ?? undefined, description: row.description ?? "", createdAt: row.created_at, timezone: row.timezone, todayHours, hours, reviewItems, services, employees };
 }
 
+export async function getMarketplaceBusinessSummaries(client: SupabaseClient, ids: string[]) {
+  if (!ids.length) return [];
+  const { data, error } = await client.from("businesses").select(browseSelect)
+    .in("id", ids.slice(0, 100)).eq("status", "published")
+    .eq("branches.active", true).eq("services.active", true)
+    .order("is_primary", { referencedTable: "branches", ascending: false }).limit(2, { referencedTable: "branches" })
+    .order("sort_order", { referencedTable: "business_images", ascending: true }).limit(4, { referencedTable: "business_images" })
+    .order("price_minor", { referencedTable: "services", ascending: true }).limit(12, { referencedTable: "services" });
+  if (error) throw new Error("Business summaries unavailable");
+  const businesses = ((data ?? []) as unknown as DbBusiness[]).map(toBusiness).filter((item): item is Business => Boolean(item));
+  const order = new Map(ids.map((id, index) => [id, index]));
+  return businesses.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+}
+
 type MarketplaceListResult = { available: boolean; businesses: Business[] };
 type MarketplaceDetailResult = { available: boolean; business: Business | null };
 
@@ -45,6 +60,7 @@ const listCached = unstable_cache(async (limit: number): Promise<MarketplaceList
     .from("businesses")
     .select(summarySelect)
     .eq("status", "published")
+    .eq("branches.active", true).eq("services.active", true)
     .order("rating_average", { ascending: false })
     .order("is_primary", { referencedTable: "branches", ascending: false })
     .limit(2, { referencedTable: "branches" })
@@ -185,7 +201,8 @@ async function queryMarketplaceBusinessPage(
   let request = supabase
     .from("businesses")
     .select(pageSelect, { count: "exact" })
-    .eq("status", "published");
+    .eq("status", "published")
+    .eq("branches.active", true).eq("services.active", true);
 
   if (search) request = request.ilike("name", `%${search}%`);
   if (category) request = request.eq("business_categories.slug", category);

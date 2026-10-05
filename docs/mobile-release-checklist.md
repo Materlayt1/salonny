@@ -7,12 +7,17 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [x] Müşteri ana sayfası, yatay vitrinler ve sayfalı/filtreli tüm işletmeler listesi native olarak hazır.
 - [x] Keşfet, işletme detayı, hizmet/çalışan/tarih/saat seçimi ve rezervasyon akışı hazır.
 - [x] Favoriler, randevular, profil ve uygulama içi hesap silme talebi hazır.
+- [x] Randevu iptal/değişiklik, tamamlanan randevuya yorum, kişisel bilgi düzenleme ve bildirimleri okuma/okundu işaretleme native ekranlara eklendi.
+- [x] Mobil Supabase public yapılandırması API'den alınabiliyor; giriş/yenileme/çıkış için sınırlı ve TLS doğrulamalı ortak geçit var.
+- [x] Web önizlemede çalışmayan Alert geri bildirimleri düzeltildi; kayıt/giriş, şifre gösterme, şifre yenileme ve e-posta tekrar gönderme akışları var.
+- [x] İşletme listeleri sanallaştırılıyor, arama 300 ms geciktiriliyor, tarih/saatler İstanbul saat diliminde gösteriliyor; aynı rezervasyon denemesinde işlem anahtarı korunuyor.
+- [x] 8 mobil akış E2E senaryosu kontrollü test API'siyle geçti; gerçek Supabase kimlik servisine erişim ve hatalı parola yanıtı canlı önizlemede doğrulandı.
 - [x] Mobil oturumlar işletim sistemi SecureStore alanında parçalı ve kalıcı saklanıyor.
 - [x] Next.js API rotaları web cookie oturumuna ek olarak doğrulanmış Bearer token kabul ediyor.
 - [x] Servis rolü anahtarı mobil pakete konmuyor; tenant sınırları Supabase RLS ve API yetkilendirmesiyle korunuyor.
 - [x] API isteklerinde zaman aşımı, kontrollü hata mesajı, query cache/retry ve rezervasyonda idempotency anahtarı var.
 - [x] Development CORS yalnızca bilinen Expo origin'lerine açık; production web origin'leri `MOBILE_ALLOWED_ORIGINS` ile açıkça tanımlanıyor.
-- [x] `expo-doctor` tüm kontrolleri geçti; TypeScript ve static web export doğrulandı.
+- [x] `expo-doctor` 21/21 kontrolü geçti; TypeScript, Android/iOS Hermes paketleri ve static web export doğrulandı.
 - [ ] Fiziksel iPhone ve Android cihazda düşük ağ, çevrimdışı/geçiş, deep-link ve klavye testlerini tamamla.
 - [ ] Ayrı müşteri, işletme ve admin hesaplarıyla RLS/IDOR mobil penetrasyon testini kayda al.
 
@@ -22,6 +27,7 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [ ] EAS ortamına `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` ekle.
 - [ ] Apple Developer ve Google Play Console hesaplarında `com.salonny.app` kimliğini ayır.
 - [ ] Production API, gizlilik politikası, kullanım şartları ve hesap silme URL'lerinin herkese açık HTTPS adreslerini doğrula.
+- [ ] Supabase Auth Redirect URLs listesine production `/auth/reset-password` adresini ekle; doğrulama/kurtarma e-postasını gerçek posta kutusuyla kabul testinden geçir.
 - [ ] Apple/Google imzalama kimliklerini EAS Credentials ile oluştur veya güvenli kasadan bağla.
 - [ ] `eas build --profile preview --platform all` ile iç dağıtım paketlerini üret ve cihaz kabul testini tamamla.
 - [ ] Kamera/konum/bildirim gibi ileride eklenecek izinleri sadece gerektiğinde ve açıklama metniyle iste.

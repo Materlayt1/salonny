@@ -4,7 +4,7 @@ This checklist is the release gate for the marketplace. Payments are deliberatel
 
 ## Automated gate
 
-- `pnpm audit --prod` reports no known production dependency vulnerabilities.
+- `pnpm test:security` reports no unresolved production dependency advisories. Raw `pnpm audit --prod` remains visible; the two version-based findings with tested local patches are documented in [dependency patch notes](dependency-security-patches.md).
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all pass.
 - `pnpm mobile:typecheck`, `pnpm mobile:export`, and `pnpm dlx expo-doctor@latest apps/mobile` all pass.
 - `pnpm test:production-readiness` reports `ready` using the production secret store and deployed readiness URL.

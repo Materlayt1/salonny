@@ -2,13 +2,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readBoundedJson, validateMutationOrigin } from "@/lib/api-security";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalMobileOrigins = process.env.MOBILE_ALLOWED_ORIGINS;
 
 afterEach(() => {
   if (originalAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
   else process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+  if (originalMobileOrigins === undefined) delete process.env.MOBILE_ALLOWED_ORIGINS;
+  else process.env.MOBILE_ALLOWED_ORIGINS = originalMobileOrigins;
 });
 
 describe("API mutation guards", () => {
+  it("allows an explicitly configured mobile origin but not a prefix-matching attacker", () => {
+    process.env.MOBILE_ALLOWED_ORIGINS = "https://mobile.salonny.example";
+    const from = (origin: string) => new Request("http://internal:3000/api/bookings", { method: "POST", headers: { origin } });
+    expect(validateMutationOrigin(from("https://mobile.salonny.example"))).toBeNull();
+    expect(validateMutationOrigin(from("https://mobile.salonny.example.attacker.com"))?.status).toBe(403);
+  });
   it("accepts configured public origin behind an internal request host", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://salonny.example";
     const request = new Request("http://internal:3000/api/bookings", {

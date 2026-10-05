@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/lib/alert";
 import { AppButton, BrandHeader, EmptyState, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
-import { getSessionSummary } from "@/lib/api";
+import { getSessionSummary, requestAccountDeletion } from "@/lib/api";
 import { config } from "@/lib/config";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/auth-provider";
 
 const menu = [
@@ -52,15 +52,12 @@ export default function ProfileScreen() {
           text: "Talep oluştur",
           style: "destructive",
           onPress: async () => {
-            if (!supabase) return;
-            const { error } = await supabase.from("account_deletion_requests").insert({
-              user_id: user.id,
-              reason: "Salonny mobil uygulamasından talep edildi.",
-              status: "requested",
-            });
-            if (error?.code === "23505") Alert.alert("Talep mevcut", "Hesabın için zaten açık bir silme talebi bulunuyor.");
-            else if (error) Alert.alert("Talep oluşturulamadı", "Lütfen daha sonra yeniden dene.");
-            else Alert.alert("Talebin alındı", "İşlem sonucu e-posta adresine bildirilecek.");
+            try {
+              await requestAccountDeletion(session.access_token);
+              Alert.alert("Talebin alındı", "İşlem sonucu e-posta adresine bildirilecek.");
+            } catch (error) {
+              Alert.alert("Talep oluşturulamadı", error instanceof Error ? error.message : "Lütfen yeniden dene.");
+            }
           },
         },
       ],
@@ -88,6 +85,8 @@ export default function ProfileScreen() {
         ) : null}
 
         <View style={styles.menuCard}>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/profile-edit")} style={styles.menuRow}><View style={styles.menuText}><Text style={styles.menuLabel}>Kişisel bilgiler</Text><Text style={styles.menuDetail}>Ad soyad, telefon ve şehir bilgilerini düzenle</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.menuRow}><View style={styles.menuText}><Text style={styles.menuLabel}>Bildirimler</Text><Text style={styles.menuDetail}>{summary.data?.authenticated && summary.data.unreadCount ? `${summary.data.unreadCount} okunmamış bildirim` : "Randevu ve işletme güncellemeleri"}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
           {menu.map((item) => (
             <Pressable key={item.path} onPress={() => void Linking.openURL(`${config.apiUrl}${item.path}`)} style={styles.menuRow}>
               <View style={styles.menuIcon}><Text style={styles.menuIconText}>i</Text></View>
@@ -100,7 +99,7 @@ export default function ProfileScreen() {
           ))}
         </View>
         <View style={styles.actions}>
-          <AppButton label="Oturumu kapat" variant="ghost" onPress={() => void signOut()} />
+          <AppButton label="Oturumu kapat" variant="ghost" onPress={() => void signOut().catch((error) => Alert.alert("İşlem tamamlanamadı", error.message))} />
           <AppButton label="Hesap silme talebi oluştur" variant="danger" onPress={requestDeletion} />
         </View>
       </ScrollView>

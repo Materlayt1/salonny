@@ -1,30 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { isAllowedMobileOrigin } from "@/lib/mobile-origins";
 
 const corsOptions = {
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key, apikey, X-Client-Info, X-Supabase-Api-Version",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
 
-function allowedMobileOrigins() {
-  const configured = process.env.MOBILE_ALLOWED_ORIGINS
-    ?.split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean) ?? [];
-  if (process.env.NODE_ENV !== "production") {
-    configured.push(
-      "http://localhost:8081",
-      "http://localhost:8082",
-      "http://localhost:19006",
-    );
-  }
-  return new Set(configured);
-}
-
 function withCors(response: NextResponse, request: NextRequest) {
   const origin = request.headers.get("origin") ?? "";
-  if (origin && allowedMobileOrigins().has(origin)) {
+  if (origin && isAllowedMobileOrigin(origin)) {
     response.headers.set("Access-Control-Allow-Origin", origin);
   }
   response.headers.set("Vary", "Origin");
