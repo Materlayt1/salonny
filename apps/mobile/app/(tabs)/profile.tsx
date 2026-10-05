@@ -7,6 +7,7 @@ import { theme } from "@/constants/theme";
 import { getSessionSummary, requestAccountDeletion } from "@/lib/api";
 import { config } from "@/lib/config";
 import { useAuth } from "@/providers/auth-provider";
+import { Heart, UserRound, Bell, ShieldCheck, FileText, ChevronRight, Store } from "lucide-react-native";
 
 const menu = [
   { label: "Gizlilik politikası", detail: "Verilerinin nasıl işlendiğini incele", path: "/privacy" },
@@ -78,23 +79,24 @@ export default function ProfileScreen() {
         </View>
 
         {summary.data?.authenticated && summary.data.hasBusiness ? (
-          <Pressable onPress={() => void Linking.openURL(`${config.apiUrl}/business/dashboard`)} style={styles.businessBanner}>
-            <View><Text style={styles.businessTitle}>İşletme paneli</Text><Text style={styles.businessDetail}>İşletmeni yönetmek için web panelini aç</Text></View>
-            <Text style={styles.arrow}>›</Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/manage/[section]", params: { section: "dashboard" } })} style={styles.businessBanner}>
+            <Store size={24} color={theme.colors.primary} /><View style={{ flex: 1 }}><Text style={styles.businessTitle}>İşletme paneli</Text><Text style={styles.businessDetail}>İşletmeni uygulamadan yönet</Text></View>
+            <ChevronRight size={20} color={theme.colors.primary} />
           </Pressable>
         ) : null}
 
         <View style={styles.menuCard}>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/profile-edit")} style={styles.menuRow}><View style={styles.menuText}><Text style={styles.menuLabel}>Kişisel bilgiler</Text><Text style={styles.menuDetail}>Ad soyad, telefon ve şehir bilgilerini düzenle</Text></View><Text style={styles.arrow}>›</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.menuRow}><View style={styles.menuText}><Text style={styles.menuLabel}>Bildirimler</Text><Text style={styles.menuDetail}>{summary.data?.authenticated && summary.data.unreadCount ? `${summary.data.unreadCount} okunmamış bildirim` : "Randevu ve işletme güncellemeleri"}</Text></View><Text style={styles.arrow}>›</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/favorites")} style={styles.menuRow}><View style={styles.menuIcon}><Heart size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Favorilerim</Text><Text style={styles.menuDetail}>Kaydettiğin işletmeler</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/profile-edit")} style={styles.menuRow}><View style={styles.menuIcon}><UserRound size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Kişisel bilgiler</Text><Text style={styles.menuDetail}>Ad soyad, telefon ve şehir bilgilerini düzenle</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.menuRow}><View style={styles.menuIcon}><Bell size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Bildirimler</Text><Text style={styles.menuDetail}>{summary.data?.authenticated && summary.data.unreadCount ? `${summary.data.unreadCount} okunmamış bildirim` : "Randevu ve işletme güncellemeleri"}</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
           {menu.map((item) => (
             <Pressable key={item.path} onPress={() => void Linking.openURL(`${config.apiUrl}${item.path}`)} style={styles.menuRow}>
-              <View style={styles.menuIcon}><Text style={styles.menuIconText}>i</Text></View>
+              <View style={styles.menuIcon}>{item.path === "/privacy" ? <ShieldCheck size={19} color={theme.colors.primary} /> : <FileText size={19} color={theme.colors.primary} />}</View>
               <View style={styles.menuText}>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <Text style={styles.menuDetail}>{item.detail}</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <ChevronRight size={18} color={theme.colors.muted} />
             </Pressable>
           ))}
         </View>
@@ -116,7 +118,7 @@ const styles = StyleSheet.create({
   name: { color: "#fff", fontSize: 21, fontWeight: "900" },
   email: { color: "#E8E1FF", fontSize: 13, marginTop: 4 },
   city: { color: "#fff", fontSize: 12, fontWeight: "700", marginTop: 6 },
-  businessBanner: { alignItems: "center", backgroundColor: theme.colors.primarySoft, borderRadius: theme.radius.lg, flexDirection: "row", justifyContent: "space-between", padding: 18 },
+  businessBanner: { alignItems: "center", backgroundColor: theme.colors.primarySoft, borderRadius: theme.radius.lg, flexDirection: "row", justifyContent: "space-between", padding: 18, gap: 12 },
   businessTitle: { color: theme.colors.primaryDark, fontSize: 16, fontWeight: "800" },
   businessDetail: { color: theme.colors.muted, fontSize: 12, marginTop: 4 },
   menuCard: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.lg, borderWidth: 1, overflow: "hidden" },

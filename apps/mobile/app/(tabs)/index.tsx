@@ -16,23 +16,9 @@ import { BusinessCard } from "@/components/business-card";
 import { theme } from "@/constants/theme";
 import { useAuth } from "@/providers/auth-provider";
 import { useBusinessDirectory, useBusinessRail, useCategories } from "@/hooks/use-marketplace";
-
-const categoryGlyphs: Record<string, string> = {
-  activity: "🧘",
-  dog: "🐶",
-  dumbbell: "🏋️",
-  ellipsis: "•••",
-  flower: "🌸",
-  hand: "💅",
-  paw: "🐾",
-  razor: "🧔",
-  scissors: "✂️",
-  sparkles: "✨",
-};
-
-function categoryGlyph(icon: string) {
-  return categoryGlyphs[icon.trim().toLowerCase()] ?? "✦";
-}
+import { LinearGradient } from "expo-linear-gradient";
+import { Bell, Search, Clock3, Star, Sparkles, ChevronRight } from "lucide-react-native";
+import { CategoryIcon, categoryPalette } from "@/components/category-icon";
 
 function BusinessRail({ title, subtitle, businesses }: {
   title: string;
@@ -42,7 +28,7 @@ function BusinessRail({ title, subtitle, businesses }: {
   if (!businesses.length) return null;
   return (
     <View>
-      <SectionHeader title={title} subtitle={subtitle} />
+      <View style={styles.railHeading}><View style={{ flex: 1 }}><SectionHeader title={title} subtitle={subtitle} /></View><Pressable accessibilityLabel={`${title} tümünü gör`} onPress={() => router.push({ pathname: "/discover", params: { sort: title.includes("popüler") ? "rating" : title.includes("Yeni") ? "newest" : "recommended" } })} style={styles.seeAll}><Text style={styles.seeAllText}>Tümünü gör</Text><ChevronRight size={13} color={theme.colors.primary} /></Pressable></View>
       <FlatList
         horizontal
         data={businesses}
@@ -59,6 +45,7 @@ function BusinessRail({ title, subtitle, businesses }: {
 export default function HomeScreen() {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
+  const [heroQuery, setHeroQuery] = useState("");
   const [category, setCategory] = useState("");
   const [openNow, setOpenNow] = useState(false);
   const [sort, setSort] = useState<"recommended" | "rating" | "newest">("recommended");
@@ -90,24 +77,20 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={<>
         <BrandHeader right={(
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push(user ? "/profile" : "/auth")}
-            style={styles.accountButton}
-          >
-            <Text style={styles.accountButtonText}>{user ? "Profilim" : "Giriş yap"}</Text>
-          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Bildirimler" onPress={() => router.push(user ? "/notifications" : "/auth")} style={styles.accountButton}><Bell size={19} color={theme.colors.text} /></Pressable>
         )} />
 
-        <View style={styles.hero}>
-          <Text style={styles.eyebrow}>SALONNY MOBİL</Text>
-          <Text style={styles.heroTitle}>Kendine ayırdığın zaman şimdi daha yakın.</Text>
-          <Text style={styles.heroText}>Gerçek işletmeleri keşfet, uygun saati seç ve randevunu birkaç dokunuşta oluştur.</Text>
-          <Pressable onPress={() => router.push("/discover")} style={styles.heroSearch}>
-            <Text style={styles.searchIcon}>⌕</Text>
-            <Text style={styles.heroSearchText}>İşletme veya hizmet ara</Text>
-          </Pressable>
-        </View>
+        <Text style={styles.greeting}>Merhaba{user ? `, ${String(user.user_metadata.full_name ?? "").split(" ")[0] || "hoş geldin"}` : ""} 👋</Text>
+        <LinearGradient colors={["#FFFFFF", "#FBFAFF"]} style={styles.hero}>
+          <Text style={styles.heroTitle}>Bugün neye ihtiyacın var?</Text>
+          <Text style={styles.heroText}>Kuaför, berber, güzellik, veteriner ve daha fazlasını keşfet; sana uygun randevuyu kolayca oluştur.</Text>
+          <View style={styles.heroSearch}>
+            <Search size={18} color={theme.colors.muted} />
+            <TextInput accessibilityLabel="Hizmet, işletme veya kategori ara" value={heroQuery} onChangeText={setHeroQuery} placeholder="Hizmet, işletme veya kategori ara..." placeholderTextColor={theme.colors.muted} style={styles.heroSearchText} returnKeyType="search" onSubmitEditing={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} />
+            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} style={styles.searchButton}><Text style={styles.searchButtonText}>Ara</Text></Pressable>
+          </View>
+          <View style={styles.shortcuts}><Pressable onPress={() => router.push({ pathname: "/discover", params: { open: "1" } })} style={styles.shortcut}><Clock3 size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Şu an açık</Text></Pressable><Pressable onPress={() => router.push({ pathname: "/discover", params: { sort: "rating" } })} style={styles.shortcut}><Star size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>En yüksek puan</Text></Pressable><Pressable onPress={() => router.push({ pathname: "/discover", params: { sort: "newest" } })} style={styles.shortcut}><Sparkles size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Yeni eklenenler</Text></Pressable><Pressable onPress={() => router.push("/discover")} style={styles.shortcut}><Search size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Tümünü keşfet</Text></Pressable></View>
+        </LinearGradient>
 
         <SectionHeader title="Kategoriler" subtitle="Aradığın hizmete hızlıca ulaş" />
         {categories.isLoading ? <LoadingState label="Kategoriler hazırlanıyor..." /> : (
@@ -124,7 +107,7 @@ export default function HomeScreen() {
                 }}
                 style={styles.categoryCard}
               >
-                <Text style={styles.categoryIcon}>{categoryGlyph(item.icon)}</Text>
+                <View style={[styles.categoryIcon, { backgroundColor: categoryPalette(item.icon)[0] }]}><CategoryIcon icon={item.icon} /></View>
                 <Text numberOfLines={2} style={styles.categoryName}>{item.name}</Text>
               </Pressable>
             )}
@@ -183,19 +166,23 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 28 },
-  accountButton: { backgroundColor: theme.colors.text, borderRadius: theme.radius.pill, paddingHorizontal: 16, paddingVertical: 10 },
+  accountButton: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   accountButtonText: { color: "#fff", fontSize: 12, fontWeight: "800" },
-  hero: { backgroundColor: theme.colors.primary, borderRadius: 28, gap: 10, marginHorizontal: 16, marginTop: 6, padding: 24 },
+  greeting: { color: theme.colors.text, fontSize: 16, fontWeight: "600", marginHorizontal: 20, marginTop: 8, marginBottom: 18 },
+  hero: { gap: 10, paddingHorizontal: 20, paddingBottom: 16 },
   eyebrow: { color: "#DED5FF", fontSize: 11, fontWeight: "900", letterSpacing: 1.4 },
-  heroTitle: { color: "#fff", fontSize: 29, fontWeight: "900", letterSpacing: -0.8, lineHeight: 34 },
-  heroText: { color: "#EFEAFF", fontSize: 14, lineHeight: 21 },
-  heroSearch: { alignItems: "center", backgroundColor: "#fff", borderRadius: theme.radius.md, flexDirection: "row", gap: 10, marginTop: 8, padding: 15 },
+  heroTitle: { color: theme.colors.text, fontSize: 26, fontWeight: "700", letterSpacing: -0.8, lineHeight: 34 },
+  heroText: { color: theme.colors.muted, fontSize: 13, lineHeight: 24 },
+  heroSearch: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DFDFE7", borderWidth: 1, borderRadius: 12, flexDirection: "row", gap: 8, marginTop: 8, paddingLeft: 12, paddingRight: 5, minHeight: 52 },
   searchIcon: { color: theme.colors.text, fontSize: 22 },
-  heroSearchText: { color: theme.colors.muted, fontSize: 14 },
+  heroSearchText: { color: theme.colors.text, fontSize: 11, flex: 1, paddingVertical: 12 },
+  searchButton: { backgroundColor: theme.colors.primary, paddingHorizontal: 15, paddingVertical: 11, borderRadius: 8 }, searchButtonText: { color: "#fff", fontWeight: "600", fontSize: 12 },
+  shortcuts: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 }, shortcut: { width: "48%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, borderWidth: 1, borderColor: "#E8E2F6", backgroundColor: "#fff", borderRadius: 10 }, shortcutText: { color: theme.colors.text, fontSize: 11, fontWeight: "500" },
   categoryRail: { paddingHorizontal: 20, paddingBottom: 4 },
-  categoryCard: { alignItems: "center", backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: 18, borderWidth: 1, gap: 8, padding: 14, width: 102 },
-  categoryIcon: { fontSize: 26 },
-  categoryName: { color: theme.colors.text, fontSize: 12, fontWeight: "700", textAlign: "center" },
+  categoryCard: { alignItems: "center", gap: 8, width: 70 },
+  categoryIcon: { width: 58, height: 58, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  categoryName: { color: theme.colors.text, fontSize: 11, fontWeight: "500", textAlign: "center" },
+  railHeading: { flexDirection: "row", alignItems: "center" }, seeAll: { flexDirection: "row", alignItems: "center", paddingRight: 20, paddingTop: 10, gap: 3 }, seeAllText: { color: theme.colors.primary, fontSize: 11, fontWeight: "600" },
   rail: { paddingHorizontal: 20, paddingBottom: 8 },
   directoryHeader: { marginTop: 10 },
   input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.md, borderWidth: 1, color: theme.colors.text, fontSize: 15, marginHorizontal: 20, paddingHorizontal: 16, paddingVertical: 14 },

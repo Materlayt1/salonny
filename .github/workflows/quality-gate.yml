@@ -32,6 +32,8 @@ jobs:
   mobile-flows:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      MOBILE_STATIC_PREVIEW: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -43,4 +45,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm mobile:export:preview
       - run: pnpm mobile:test:e2e

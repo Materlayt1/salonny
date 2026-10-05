@@ -15,11 +15,12 @@ export class ApiError extends Error {
   }
 }
 
-async function requestJson<T>(
+export async function requestJson<T>(
   path: string,
   init: RequestInit = {},
   accessToken?: string,
 ): Promise<T> {
+  if (!config.apiUrl) throw new ApiError("Uygulamanın API adresi yapılandırılmamış.", 503);
   const response = await fetch(`${config.apiUrl}${path}`, {
     ...init,
     headers: {

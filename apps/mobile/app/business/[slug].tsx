@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { Heart, Plus, BadgeCheck, Share2 } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Share } from "react-native";
+import { config } from "@/lib/config";
 import {
   FlatList,
   Image,
@@ -19,6 +23,10 @@ import { useAuth } from "@/providers/auth-provider";
 import { Alert } from "@/lib/alert";
 
 export default function BusinessDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const scroll = useRef<ScrollView>(null);
+  const sections = useRef<Record<string, number>>({});
+  const [activeTab, setActiveTab] = useState("services");
   const { slug = "" } = useLocalSearchParams<{ slug: string }>();
   const { session } = useAuth();
   const queryClient = useQueryClient();
@@ -65,32 +73,31 @@ export default function BusinessDetailScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scroll} contentContainerStyle={styles.content}>
         <View style={styles.heroWrap}>
           <Image alt={`${item.name} kapak fotoğrafı`} source={{ uri: item.image }} style={styles.hero} />
           <Pressable disabled={favoriteMutation.isPending} accessibilityRole="button" accessibilityLabel={favorite ? "Favorilerden çıkar" : "Favorilere ekle"} onPress={toggleFavorite} style={styles.favorite}>
-            <Text style={styles.favoriteText}>{favorite ? "♥" : "♡"}</Text>
+            <Heart size={22} color={theme.colors.primary} fill={favorite ? theme.colors.primary : "transparent"} />
           </Pressable>
+        </View>
           <View style={styles.heroOverlay}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>{item.name}</Text>
-              {item.verified ? <Text style={styles.verified}>✓ Onaylı</Text> : null}
+              {item.verified ? <BadgeCheck size={22} color={theme.colors.primary} /> : null}
             </View>
             <Text style={styles.heroMeta}>{item.category} · {item.district}, {item.city}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="İşletmeyi paylaş" style={styles.share} onPress={() => void Share.share({ message: `${item.name} — ${config.apiUrl}/business/${item.slug}` }).catch(() => Alert.alert("Paylaşılamadı", "Yeniden deneyebilirsin."))}><Share2 size={17} color={theme.colors.primary} /><Text style={styles.shareText}>Paylaş</Text></Pressable>
           </View>
-        </View>
 
         <View style={styles.quickFacts}>
-          <View style={styles.fact}><Text style={styles.factValue}>★ {item.rating.toFixed(1)}</Text><Text style={styles.factLabel}>{item.reviews} yorum</Text></View>
+          <View style={styles.fact}><Text style={styles.factValue}>{item.reviews ? `★ ${item.rating.toFixed(1)}` : "Yeni"}</Text><Text style={styles.factLabel}>{item.reviews} yorum</Text></View>
           <View style={styles.divider} />
           <View style={styles.fact}><Text style={item.open ? styles.openValue : styles.closedValue}>{item.open ? "Açık" : "Kapalı"}</Text><Text style={styles.factLabel}>{item.nextAvailable}</Text></View>
           <View style={styles.divider} />
-          <View style={styles.fact}><Text style={styles.factValue}>{item.startingPrice.toLocaleString("tr-TR")} ₺+</Text><Text style={styles.factLabel}>Başlangıç</Text></View>
+          <View style={styles.fact}><Text style={styles.factValue}>{item.startingPrice > 0 ? `${item.startingPrice.toLocaleString("tr-TR")} ₺+` : "Fiyatı gör"}</Text><Text style={styles.factLabel}>Başlangıç</Text></View>
         </View>
 
-        {item.description ? (
-          <View style={styles.section}><Text style={styles.sectionTitle}>Hakkında</Text><Text style={styles.description}>{item.description}</Text></View>
-        ) : null}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>{[{ id: "services", label: "Hizmetler" }, { id: "reviews", label: `Yorumlar (${item.reviews})` }, { id: "employees", label: "Çalışanlar" }, { id: "about", label: "Hakkında" }].map((tab) => <Pressable key={tab.id} accessibilityRole="button" accessibilityState={{ selected: activeTab === tab.id }} onPress={() => { setActiveTab(tab.id); scroll.current?.scrollTo({ y: sections.current[tab.id] ?? 0, animated: true }); }} style={[styles.tab, activeTab === tab.id && styles.activeTab]}><Text style={[styles.tabText, activeTab === tab.id && { color: theme.colors.primary }]}>{tab.label}</Text></Pressable>)}</ScrollView>
 
         {item.gallery.length > 1 ? (
           <View>
@@ -99,17 +106,20 @@ export default function BusinessDetailScreen() {
           </View>
         ) : null}
 
-        <View style={styles.section}>
+        <View onLayout={(event) => { sections.current.services = event.nativeEvent.layout.y; }} style={styles.section}>
           <Text style={styles.sectionTitle}>Hizmetler</Text>
           <View style={styles.serviceList}>
             {item.services.map((service) => (
               <View key={service.id} style={styles.serviceRow}>
                 <View style={styles.serviceText}><Text style={styles.serviceName}>{service.name}</Text><Text numberOfLines={2} style={styles.serviceDetail}>{service.duration} dk{service.description ? ` · ${service.description}` : ""}</Text></View>
                 <Text style={styles.servicePrice}>{service.price.toLocaleString("tr-TR")} ₺</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={`${service.name} seç`} style={styles.selectService} onPress={() => router.push({ pathname: "/booking/[slug]", params: { slug: item.slug, service: service.id } })}><Plus size={18} color="#fff" /></Pressable>
               </View>
             ))}
           </View>
         </View>
+
+        <View onLayout={(event) => { sections.current.employees = event.nativeEvent.layout.y; }} style={styles.section}><Text style={styles.sectionTitle}>Uzmanlar</Text>{item.employees.length ? item.employees.map((employee) => <View key={employee.id} style={styles.employee}><Image alt={`${employee.name} profil fotoğrafı`} source={{ uri: employee.avatar || item.image }} style={styles.employeeAvatar} /><View style={{ flex: 1 }}><Text style={styles.serviceName}>{employee.name}</Text><Text style={styles.serviceDetail}>{employee.role}</Text><Text style={styles.serviceDetail}>{employee.services.length} hizmet</Text></View></View>) : <Text style={styles.description}>Ekip bilgileri yakında eklenecek.</Text>}</View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>İletişim ve konum</Text>
@@ -120,18 +130,16 @@ export default function BusinessDetailScreen() {
           </View>
         </View>
 
-        {item.reviewItems?.length ? (
-          <View style={styles.section}>
+        <View onLayout={(event) => { sections.current.reviews = event.nativeEvent.layout.y; }} style={styles.section}>
             <Text style={styles.sectionTitle}>Değerlendirmeler</Text>
-            {item.reviewItems.slice(0, 5).map((review) => (
+            {item.reviewItems?.length ? item.reviewItems.slice(0, 20).map((review) => (
               <View key={review.id} style={styles.review}><Text style={styles.reviewRating}>{"★".repeat(review.rating)}</Text><Text style={styles.reviewText}>{review.comment || "Değerlendirme bırakıldı."}</Text>{review.businessReply ? <Text style={styles.reply}>İşletme: {review.businessReply}</Text> : null}</View>
-            ))}
+            )) : <Text style={styles.description}>Henüz doğrulanmış değerlendirme yok. Yorumlar yalnız tamamlanan randevulardan alınır.</Text>}
           </View>
-        ) : null}
+        <View onLayout={(event) => { sections.current.about = event.nativeEvent.layout.y; }} style={styles.section}><Text style={styles.sectionTitle}>Hakkında</Text><Text style={styles.description}>{item.description || `${item.name}, ${item.district} bölgesinde ${item.category.toLocaleLowerCase("tr-TR")} hizmetleri sunar.`}</Text><Text style={styles.sectionTitle}>Çalışma saatleri</Text>{["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"].map((day, weekday) => { const hours = item.hours?.find((hour) => hour.weekday === weekday); return <View key={day} style={styles.hoursRow}><Text style={styles.description}>{day}</Text><Text style={styles.serviceName}>{!hours || hours.closed ? "Kapalı" : `${hours.opensAt?.slice(0, 5)}–${hours.closesAt?.slice(0, 5)}`}</Text></View>; })}</View>
       </ScrollView>
-      <View style={styles.bookingBar}>
-        <View><Text style={styles.bookingFrom}>Başlangıç</Text><Text style={styles.bookingPrice}>{item.startingPrice.toLocaleString("tr-TR")} ₺</Text></View>
-        <View style={styles.bookingButton}><AppButton label="Randevu al" onPress={() => router.push(`/booking/${item.slug}`)} /></View>
+      <View style={[styles.bookingBar, { paddingBottom: Math.max(insets.bottom, 18) }]}>
+        <View style={styles.bookingButton}>{item.services.length && item.employees.length && item.branchId ? <AppButton label="Randevu al" onPress={() => router.push(`/booking/${item.slug}`)} /> : <Text style={styles.description}>Online randevu henüz hazır değil</Text>}</View>
       </View>
     </Screen>
   );
@@ -139,13 +147,16 @@ export default function BusinessDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 106 },
-  heroWrap: { height: 310, position: "relative" },
+  heroWrap: { height: 240, position: "relative", marginHorizontal: 16, borderRadius: 20, overflow: "hidden", marginTop: 8 },
   hero: { height: "100%", width: "100%" },
-  heroOverlay: { backgroundColor: theme.colors.overlay, bottom: 0, left: 0, padding: 20, position: "absolute", right: 0 },
+  heroOverlay: { padding: 20, backgroundColor: "#fff", gap: 4 },
   titleRow: { alignItems: "center", flexDirection: "row", gap: 8 },
-  title: { color: "#fff", flex: 1, fontSize: 26, fontWeight: "900", letterSpacing: -0.6 },
+  title: { color: theme.colors.text, flex: 1, fontSize: 26, fontWeight: "700", letterSpacing: -0.6 },
   verified: { backgroundColor: "#fff", borderRadius: 10, color: theme.colors.primary, fontSize: 10, fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 5 },
-  heroMeta: { color: "#EEEAFB", fontSize: 13, marginTop: 5 },
+  heroMeta: { color: theme.colors.muted, fontSize: 13, marginTop: 5 },
+  share: { flexDirection: "row", gap: 6, alignItems: "center", marginTop: 10 }, shareText: { color: theme.colors.primary, fontSize: 12, fontWeight: "600" },
+  tabs: { paddingHorizontal: 20, gap: 24, borderBottomWidth: 1, borderBottomColor: theme.colors.border }, tab: { paddingVertical: 16, borderBottomWidth: 2, borderBottomColor: "transparent" }, activeTab: { borderBottomColor: theme.colors.primary }, tabText: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
+  employee: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 8 }, employeeAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.primarySoft }, hoursRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 3 }, selectService: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
   favorite: { alignItems: "center", backgroundColor: "#fff", borderRadius: 24, height: 48, justifyContent: "center", position: "absolute", right: 16, top: 16, width: 48, ...theme.shadow },
   favoriteText: { color: theme.colors.primary, fontSize: 27, lineHeight: 29 },
   quickFacts: { alignItems: "center", backgroundColor: "#fff", borderBottomColor: theme.colors.border, borderBottomWidth: 1, flexDirection: "row", paddingVertical: 18 },
@@ -156,7 +167,7 @@ const styles = StyleSheet.create({
   factLabel: { color: theme.colors.muted, fontSize: 10 },
   divider: { backgroundColor: theme.colors.border, height: 30, width: 1 },
   section: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.lg, borderWidth: 1, gap: 12, marginHorizontal: 20, marginTop: 18, padding: 18 },
-  sectionTitle: { color: theme.colors.text, fontSize: 18, fontWeight: "900" },
+  sectionTitle: { color: theme.colors.text, fontSize: 20, fontWeight: "700" },
   description: { color: theme.colors.muted, fontSize: 14, lineHeight: 22 },
   gallery: { paddingHorizontal: 20 },
   galleryImage: { backgroundColor: theme.colors.primarySoft, borderRadius: 18, height: 150, width: 220 },

@@ -12,7 +12,7 @@ import { dateKey, formatDate, formatTime, upcomingDates } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
 
 export default function BookingScreen() {
-  const { slug = "" } = useLocalSearchParams<{ slug: string }>();
+  const { slug = "", service: initialService } = useLocalSearchParams<{ slug: string; service?: string }>();
   const { session, user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const bookingDates = useMemo(() => upcomingDates(), []);
@@ -25,7 +25,7 @@ export default function BookingScreen() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState<string | null>(null);
   const profile = useQuery({ queryKey: ["customer-profile", user?.id], queryFn: () => getCustomerProfile(session!.access_token), enabled: Boolean(session) });
-  const serviceId = selectedServiceId || business.data?.services[0]?.id || "";
+  const serviceId = selectedServiceId || business.data?.services.find((service) => service.id === initialService)?.id || business.data?.services[0]?.id || "";
 
   const employees = useMemo(() => {
     if (!business.data) return [];

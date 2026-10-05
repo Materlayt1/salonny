@@ -1,0 +1,5 @@
+import { Scissors, Sparkles, Hand, Flower2, PawPrint, Dog, Dumbbell, PersonStanding, Ellipsis, Brush, type LucideIcon } from "lucide-react-native";
+const icons: Record<string, LucideIcon> = { scissors: Scissors, razor: Brush, sparkles: Sparkles, hand: Hand, flower: Flower2, paw: PawPrint, dog: Dog, dumbbell: Dumbbell, activity: PersonStanding, ellipsis: Ellipsis };
+const colors: Record<string, [string, string]> = { scissors: ["#EEE6FF", "#7137E8"], razor: ["#F2E5FF", "#9639DD"], sparkles: ["#FFE4EF", "#E83E88"], hand: ["#EFE5FF", "#8338D8"], flower: ["#FFEBDD", "#DF741B"], paw: ["#DFF7EC", "#14A66B"], dog: ["#DFF1FF", "#278BD8"], dumbbell: ["#E2F7F1", "#159D83"], activity: ["#E7ECFF", "#446BE0"], ellipsis: ["#F1F1F4", "#34343B"] };
+export function categoryPalette(icon: string) { return colors[icon.toLowerCase()] ?? colors.scissors; }
+export function CategoryIcon({ icon, size = 28 }: { icon: string; size?: number }) { const Icon = icons[icon.toLowerCase()] ?? Scissors; return <Icon size={size} strokeWidth={1.8} color={categoryPalette(icon)[1]} />; }

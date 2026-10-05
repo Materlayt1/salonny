@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { AppButton, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/providers/auth-provider";
 
 export default function AuthScreen() {
@@ -73,7 +74,7 @@ export default function AuthScreen() {
     <Screen>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          <View style={styles.logo}><Text style={styles.logoText}>S</Text></View>
+          <View style={{ marginTop: 18 }}><BrandLogo size={56} /></View>
           <Text style={styles.title}>{mode === "login" ? "Tekrar hoş geldin" : "Salonny’ye katıl"}</Text>
           <Text style={styles.subtitle}>{mode === "login" ? "Randevularına ve favorilerine devam et." : "En iyi işletmeleri keşfetmeye başla."}</Text>
           <View style={styles.modeRow}>

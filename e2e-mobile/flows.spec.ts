@@ -31,9 +31,11 @@ test("completed appointments accept a verified review", async ({ page }) => {
   await signIn(page); await page.goto(`/appointment/${appointmentId}`);
   await expect(page.getByRole("button", { name: "Randevuyu iptal et" })).toHaveCount(0);
   await page.getByLabel("Değerlendirmen").fill("İyi bir deneyimdi.");
-  page.on("dialog", (dialog) => dialog.accept());
+  const accepted = page.waitForEvent("dialog").then((dialog) => dialog.accept());
   await page.getByRole("button", { name: "Değerlendirmeyi gönder" }).click();
+  await accepted;
   await expect.poll(() => writes.some((write) => write.path === "/api/reviews")).toBeTruthy();
+  await expect(page.getByText("Değerlendirmen · 5 ★")).toBeVisible();
 });
 
 test("profile changes and notifications use the authenticated API", async ({ page }) => {

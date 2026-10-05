@@ -30,6 +30,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="manage" options={{ headerShown: false }} />
         <Stack.Screen name="business/[slug]" options={{ title: "İşletme" }} />
         <Stack.Screen name="booking/[slug]" options={{ title: "Randevu al" }} />
         <Stack.Screen name="appointment/[id]" options={{ title: "Randevun" }} />

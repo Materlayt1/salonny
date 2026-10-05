@@ -15,15 +15,18 @@ import { theme } from "@/constants/theme";
 import { useBusinessDirectory, useCategories } from "@/hooks/use-marketplace";
 
 export default function DiscoverScreen() {
-  const params = useLocalSearchParams<{ category?: string }>();
-  const [query, setQuery] = useState("");
+  const params = useLocalSearchParams<{ category?: string; q?: string; open?: string; sort?: string }>();
+  return <DiscoverContent key={JSON.stringify(params)} params={params} />;
+}
+function DiscoverContent({ params }: { params: { category?: string; q?: string; open?: string; sort?: string } }) {
+  const [query, setQuery] = useState(params.q ?? "");
   const [city, setCity] = useState("");
   const [categorySelection, setCategorySelection] = useState<{ source: string; value: string } | null>(null);
   const categorySource = params.category ?? "";
   const category = categorySelection?.source === categorySource ? categorySelection.value : categorySource;
   const setCategory = (value: string) => setCategorySelection({ source: categorySource, value });
-  const [openNow, setOpenNow] = useState(false);
-  const [sort, setSort] = useState<"recommended" | "rating" | "newest" | "name">("recommended");
+  const [openNow, setOpenNow] = useState(params.open === "1");
+  const [sort, setSort] = useState<"recommended" | "rating" | "newest" | "name">(params.sort === "rating" || params.sort === "newest" || params.sort === "name" ? params.sort : "recommended");
   const categories = useCategories();
   const directory = useBusinessDirectory({ q: query, city, category, open: openNow, sort });
   const businesses = useMemo(
@@ -102,7 +105,7 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: 28 },
   intro: { paddingHorizontal: 20, paddingBottom: 14, paddingTop: 8 },
-  title: { color: theme.colors.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.8 },
+  title: { color: theme.colors.text, fontSize: 26, fontWeight: "700", letterSpacing: -0.8 },
   subtitle: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 },
   searchGroup: { flexDirection: "row", gap: 9, paddingHorizontal: 20 },
   input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.md, borderWidth: 1, color: theme.colors.text, flex: 1, paddingHorizontal: 15, paddingVertical: 14 },
@@ -111,6 +114,6 @@ const styles = StyleSheet.create({
   resultHeader: { alignItems: "baseline", flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12, paddingTop: 24 },
   resultTitle: { color: theme.colors.text, fontSize: 20, fontWeight: "800" },
   resultCount: { color: theme.colors.muted, fontSize: 13 },
-  list: { paddingHorizontal: 20 },
+  list: { paddingHorizontal: 20, paddingBottom: 14 },
   loadMore: { paddingHorizontal: 20 },
 });

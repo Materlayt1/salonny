@@ -2,6 +2,8 @@
 
 Son güncelleme: 5 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Bu turda 47 birim/yetki testi ve 13 mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
+
 ## Tamamlanan P0 işleri
 
 - [x] Next.js ve MapLibre kritik güvenlik güncellemeleri uygulandı; yeni bağımlılık advisory'leri için aşağıdaki doğrulanmış yerel yama kapısı eklendi.

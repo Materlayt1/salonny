@@ -2,7 +2,6 @@ import type { PropsWithChildren, ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
@@ -10,19 +9,18 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { BrandLogo } from "@/components/brand-logo";
 import { theme } from "@/constants/theme";
 
 export function Screen({ children, style }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
-  return <SafeAreaView style={[styles.screen, style]}>{children}</SafeAreaView>;
+  return <SafeAreaView edges={["top", "left", "right"]} style={[styles.screen, style]}>{children}</SafeAreaView>;
 }
 
 export function BrandHeader({ right }: { right?: ReactNode }) {
   return (
     <View style={styles.brandHeader}>
-      <View>
-        <Text style={styles.brand}>Salonny</Text>
-        <Text style={styles.tagline}>Hizmetin yeni adresi</Text>
-      </View>
+      <BrandLogo />
       {right}
     </View>
   );
@@ -133,7 +131,7 @@ const styles = StyleSheet.create({
   brand: { color: theme.colors.primary, fontSize: 24, fontWeight: "900", letterSpacing: -0.8 },
   tagline: { color: theme.colors.muted, fontSize: 11, marginTop: 1 },
   sectionHeader: { gap: 3, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 12 },
-  sectionTitle: { color: theme.colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.4 },
+  sectionTitle: { color: theme.colors.text, fontSize: 20, fontWeight: "700", letterSpacing: -0.4 },
   sectionSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 19 },
   button: {
     alignItems: "center",

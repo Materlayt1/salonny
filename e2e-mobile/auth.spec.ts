@@ -10,6 +10,7 @@ test("mobile login bootstraps public configuration, persists a session and signs
   await expect(page.getByText("Test Müşteri", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText("Test Müşteri", { exact: true })).toBeVisible();
+  await expect(page.getByText("İzmir", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Oturumu kapat" }).click();
   await expect(page.getByRole("button", { name: "Giriş yap veya kayıt ol" })).toBeVisible();
   expect(errors).toEqual([]);
