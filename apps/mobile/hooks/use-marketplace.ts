@@ -17,10 +17,12 @@ export function useBusinessRail(
   key: string,
   query: Omit<BusinessQuery, "limit">,
   limit = 10,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: ["business-rail", key, query, limit],
     queryFn: () => listBusinesses({ ...query, limit }),
+    enabled,
   });
 }
 

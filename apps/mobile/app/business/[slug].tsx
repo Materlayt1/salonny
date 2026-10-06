@@ -33,7 +33,7 @@ export default function BusinessDetailScreen() {
   const business = useBusiness(slug);
   const summary = useQuery({
     queryKey: ["session-summary", session?.user.id],
-    queryFn: () => getSessionSummary(session!.access_token),
+    queryFn: ({ signal }) => getSessionSummary(session!.access_token, signal),
     enabled: Boolean(session?.access_token),
   });
   const [favoriteOverride, setFavoriteOverride] = useState<boolean | null>(null);

@@ -128,7 +128,7 @@ export async function listMarketplaceBusinesses(limit = 50) {
   return pending;
 }
 
-export type MarketplacePageSort = "recommended" | "rating" | "newest" | "name";
+export type MarketplacePageSort = "recommended" | "rating" | "newest" | "name" | "price" | "nearest";
 
 export type MarketplacePageOptions = {
   offset?: number;
@@ -138,7 +138,11 @@ export type MarketplacePageOptions = {
   city?: string;
   openNow?: boolean;
   sort?: MarketplacePageSort;
+  latitude?: number;
+  longitude?: number;
 };
+
+export class MarketplaceSearchUnavailableError extends Error {}
 
 export type MarketplaceBusinessPage = {
   businesses: Business[];
@@ -181,7 +185,25 @@ async function queryMarketplaceBusinessPage(
   options: MarketplacePageOptions = {},
 ): Promise<MarketplaceBusinessPage> {
   const supabase = createPublicSupabaseClientOptional();
-  if (!supabase) return fallbackMarketplaceBusinessPage(options);
+  const advanced = options.sort === "price" || options.sort === "nearest" || Boolean(options.query?.trim());
+  if (!supabase) {
+    if (advanced) throw new MarketplaceSearchUnavailableError();
+    return fallbackMarketplaceBusinessPage(options);
+  }
+
+  if (advanced) {
+    const result = await awaitPublicRequest(supabase.rpc("marketplace_search_page", {
+      p_offset: options.offset ?? 0, p_limit: options.limit ?? 12,
+      p_query: options.query?.replace(/[%_\\]/g, "") || null,
+      p_category: options.category || null, p_city: options.city || null,
+      p_open_now: Boolean(options.openNow), p_sort: options.sort ?? "recommended",
+      p_latitude: options.latitude ?? null, p_longitude: options.longitude ?? null,
+    }));
+    if (!result || result.error || !result.data) throw new MarketplaceSearchUnavailableError();
+    const data = result.data as { ids: string[]; total: number; distances: Record<string, number> };
+    const businesses = await getMarketplaceBusinessSummaries(supabase, data.ids);
+    return { businesses: businesses.map((business) => ({ ...business, distance: Number.isFinite(data.distances?.[business.id]) ? Math.round(data.distances[business.id] * 10) / 10 : null })), total: Number(data.total), hasMore: (options.offset ?? 0) + (options.limit ?? 12) < Number(data.total) };
+  }
 
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 12)));
@@ -271,13 +293,15 @@ export async function listMarketplaceBusinessPage(
   options: MarketplacePageOptions = {},
 ): Promise<MarketplaceBusinessPage> {
   const normalized: MarketplacePageOptions = {
-    offset: Math.max(0, Math.floor(options.offset ?? 0)),
+    offset: Math.min(100_000, Math.max(0, Math.floor(options.offset ?? 0) || 0)),
     limit: Math.min(100, Math.max(1, Math.floor(options.limit ?? 12))),
     query: options.query?.trim().slice(0, 80) || undefined,
     category: options.category?.trim().slice(0, 80) || undefined,
     city: options.city?.trim().slice(0, 80) || undefined,
     openNow: Boolean(options.openNow),
     sort: options.sort ?? "recommended",
+    latitude: options.latitude === undefined ? undefined : Math.round(options.latitude * 100) / 100,
+    longitude: options.longitude === undefined ? undefined : Math.round(options.longitude * 100) / 100,
   };
   const key = JSON.stringify(normalized);
   const now = Date.now();

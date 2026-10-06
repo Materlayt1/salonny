@@ -27,6 +27,8 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
   const writes: Array<{ path: string; method: string; body: unknown; key?: string; authorization?: string; url: string }> = [];
   let cancelled = false;
   let reviewed = false;
+  // Controlled tests must not scrape community tile infrastructure.
+  await page.route("https://tile.openstreetmap.org/**", (route) => route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jNogAAAAASUVORK5CYII=", "base64") }));
   await page.route("http://localhost:3001/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -48,6 +50,8 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       return respond({ saved: true, id: appointmentId, status: "pending" }, 201);
     }
     if (path === "/api/categories") return respond({ categories: [{ id: "kuafor", name: "Kuaför", icon: "scissors", color: "#EEEAFE" }] });
+    if (path === "/api/home-highlights") return respond({ services: [{ name: "Saç kesimi", price: 400 }], reviews: [{ id: appointmentId, rating: 5, comment: "Test değerlendirmesi", createdAt: new Date().toISOString(), businessName: business.name, businessSlug: business.slug }] });
+    if (path.startsWith("/api/legal/")) return respond({ title: path.endsWith("terms") ? "Kullanım Koşulları" : path.endsWith("kvkk") ? "KVKK Aydınlatma Metni" : "Gizlilik Politikası", updated: "18 Ağustos 2026", sections: [{ title: "Platformun rolü", paragraphs: ["Test hukuki metin içeriği."] }] });
     if (path === "/api/businesses") return respond({ businesses: [business], hasMore: false, total: 1 });
     if (path === `/api/businesses/${business.slug}`) return respond({ business });
     if (path === "/api/session-summary") return respond({ authenticated: true, displayName: "Test Müşteri", city: "İzmir", hasBusiness: options.businessAccount ?? false, isAdmin: false, unreadCount: 1, favoriteBusinessIds: [] });
@@ -75,6 +79,8 @@ export async function signIn(page: Page) {
   await page.goto("/auth");
   await page.getByLabel("E-posta", { exact: true }).fill("customer@example.com");
   await page.getByLabel("Şifre", { exact: true }).fill("test-password");
+  const summary = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/session-summary" && response.status() === 200);
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await page.waitForURL("http://localhost:8082/");
+  await (await summary).finished();
 }

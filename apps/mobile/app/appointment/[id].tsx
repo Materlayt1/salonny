@@ -19,7 +19,7 @@ export default function AppointmentDetailScreen() {
   const [selection, setSelection] = useState({ date: "", slot: "" });
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
-  const appointments = useQuery({ queryKey: ["appointments", session?.user.id], queryFn: () => listAppointments(session!.access_token), enabled: Boolean(session) });
+  const appointments = useQuery({ queryKey: ["appointments", session?.user.id], queryFn: ({ signal }) => listAppointments(session!.access_token, signal), enabled: Boolean(session) });
   const item = appointments.data?.find((appointment) => appointment.id === id);
   const slots = useQuery({
     queryKey: ["reschedule-slots", id, date, session?.user.id],

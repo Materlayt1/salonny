@@ -1,8 +1,8 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 5 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 6 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Bu turda 47 birim/yetki testi ve 13 mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Bu turda 54 birim/yetki testi ve 18 kontrollü mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -31,6 +31,8 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [x] Çakışan SELECT/ALL RLS politikaları ayrıştırıldı ve yinelenen yorum indeksi kaldırıldı; Supabase Performance Advisor 0 hata/0 uyarı verdi.
 - [x] Expo/React Native iOS ve Android müşteri uygulaması; ortak tip sözleşmeleri, SecureStore oturumu, Bearer API yetkilendirmesi, keşfet/detay/rezervasyon/favori/randevu/profil akışlarıyla eklendi.
 - [x] Mobil uygulama için EAS build profilleri, mağaza kimlikleri, uygulama içi hesap silme talebi, CORS allowlist'i ve ayrı CI typecheck/export kapısı eklendi.
+- [x] Native harita/konum, hizmet ve yorum vitrinleri, ortak kaynaklı native yasal metinler; Supabase'de sayfalama öncesi fiyat/yakınlık/hizmet araması eklendi. `202610060025_public_marketplace_search.sql` canlı projeye uygulandı; anonim rol ve invoker hakları kontrol edildi.
+- [x] 6 Ekim source-map-js DoS ve sharp/librsvg RCE advisory'leri düzeltilmiş upstream sürümlerine yükseltilerek kapatıldı; mevcut iki dar kapsamlı yerel yamanın regresyon kapısı korundu.
 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 
@@ -45,9 +47,12 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [ ] Gerçekçi anonimleştirilmiş staging verisiyle k6/Artillery üzerinde kademeli 1k, 10k ve hedef eşzamanlılık testleri yap. “Milyon trafik” garantisi ancak bu test, kota ve altyapı ölçümleriyle verilebilir.
 - [ ] Supabase RLS ve `SECURITY DEFINER` fonksiyonları için ayrı bir penetrasyon testi çalıştır.
 - [ ] Mobil uygulamayı fiziksel iPhone/Android cihazlarda ve TestFlight/Play Internal Testing kanallarında kabul testinden geçir; mağaza hesapları, imzalama ve hukuki formlar tamamlanmadan public rollout açma.
+- [ ] Mobil harita için özel native build ve yüksek trafik tile sağlayıcısını doğrula; public OSM tile servisi SLA/sınırsız kapasite sağlamaz.
 - [x] Gizli anahtar rotasyonu, olay müdahale planı, SLO, kapasite/yük testi ve geri yükleme runbook'unu yazılı hale getir.
 
 ## Son yerel doğrulama sonuçları
+
+6 Ekim native eşleşme kapısı: 54 birim/yetki ve 18 kontrollü mobil E2E testi geçti; Next.js production build, Expo Doctor 21/21 ve tüm platform export'u doğrulandı. Canlı public API'de aktif hizmet araması (`kesim`), fiyat sıralaması ve yuvarlanmış test koordinatlarıyla gerçek mesafe sıralaması çalıştı; konumlu yanıt `private, no-store`. İki gerçek işletme üzerinden doğrulama yüksek trafik/veri kapasite testi değildir. Fiziksel cihaz ve production operasyon kapıları açık kalır.
 
 5 Ekim mobil düzeltmeleri: giriş public ayarlarının API'den yüklenmesi, ortak kimlik geçidi, boşta kalan form hata yönetimi, mobil CORS ve kaynak doğrulaması düzeltildi. Randevu iptal/değişiklik, yorum, kişisel bilgi ve bildirim ekranları eklendi. İşletme listeleri sanallaştırıldı, arama istekleri geciktirildi, favori kartları tek toplu sorguya taşındı. 32 birim/güvenlik testi ve 8 kontrollü mobil E2E senaryosu geçti.
 

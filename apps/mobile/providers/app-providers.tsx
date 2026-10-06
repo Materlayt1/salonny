@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type PropsWithChildren } from "react";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ApiError } from "@/lib/api";
+import { LocationProvider } from "@/providers/location-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(() => new QueryClient({
@@ -16,7 +17,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   }));
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider><LocationProvider>{children}</LocationProvider></AuthProvider>
     </QueryClientProvider>
   );
 }

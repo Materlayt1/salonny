@@ -21,6 +21,12 @@ export async function requestJson<T>(
   accessToken?: string,
 ): Promise<T> {
   if (!config.apiUrl) throw new ApiError("Uygulamanın API adresi yapılandırılmamış.", 503);
+  const cancellation = new AbortController();
+  const abort = () => cancellation.abort();
+  const timeout = setTimeout(abort, 12_000);
+  init.signal?.addEventListener("abort", abort, { once: true });
+  if (init.signal?.aborted) abort();
+  try {
   const response = await fetch(`${config.apiUrl}${path}`, {
     ...init,
     headers: {
@@ -29,13 +35,14 @@ export async function requestJson<T>(
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init.headers,
     },
-    signal: AbortSignal.timeout(12_000),
+    signal: cancellation.signal,
   });
   const payload = await response.json().catch(() => ({})) as T & ApiErrorPayload;
   if (!response.ok) {
     throw new ApiError(payload.error ?? "İşlem tamamlanamadı.", response.status);
   }
   return payload;
+  } finally { clearTimeout(timeout); init.signal?.removeEventListener("abort", abort); }
 }
 
 function normalizeBusiness(business: Business): Business {
@@ -58,7 +65,9 @@ export type BusinessQuery = {
   category?: string;
   city?: string;
   open?: boolean;
-  sort?: "recommended" | "rating" | "newest" | "name";
+  sort?: "recommended" | "rating" | "newest" | "name" | "price" | "nearest";
+  lat?: number;
+  lng?: number;
 };
 
 export async function listBusinesses(query: BusinessQuery = {}) {
@@ -82,14 +91,14 @@ export async function listCategories() {
   return requestJson<{ categories: Category[] }>("/api/categories");
 }
 
-export async function getSessionSummary(accessToken: string) {
-  return requestJson<SessionSummary>("/api/session-summary", {}, accessToken);
+export async function getSessionSummary(accessToken: string, signal?: AbortSignal) {
+  return requestJson<SessionSummary>("/api/session-summary", { signal }, accessToken);
 }
 
-export async function listAppointments(accessToken: string) {
+export async function listAppointments(accessToken: string, signal?: AbortSignal) {
   const data = await requestJson<{ appointments: CustomerAppointment[] }>(
     "/api/appointments",
-    {},
+    { signal },
     accessToken,
   );
   return data.appointments.map((appointment) => ({
@@ -166,3 +175,9 @@ export type NotificationItem = { id: string; title: string; body: string; readAt
 export const listNotifications = (token: string) => requestJson<{ notifications: NotificationItem[] }>("/api/notifications", {}, token);
 export const markNotificationsRead = (token: string, ids?: string[]) =>
   requestJson("/api/notifications", { method: "PATCH", body: JSON.stringify(ids ? { ids } : {}) }, token);
+
+export type HomeHighlights = { services: { name: string; price: number }[]; reviews: { id: string; rating: number; comment: string; createdAt: string; businessName: string; businessSlug: string }[] };
+export const getHomeHighlights = () => requestJson<HomeHighlights>("/api/home-highlights");
+export type LegalDocumentKey = "privacy" | "kvkk" | "terms";
+export type LegalDocument = { title: string; updated: string; sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] };
+export const getLegalDocument = (document: LegalDocumentKey) => requestJson<LegalDocument>(`/api/legal/${document}`);

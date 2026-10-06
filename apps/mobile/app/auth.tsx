@@ -14,6 +14,8 @@ import { AppButton, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/providers/auth-provider";
+import { LegalReader } from "@/components/legal-reader";
+import type { LegalDocumentKey } from "@/lib/api";
 
 export default function AuthScreen() {
   const { loading: authLoading, signIn, signUp, resetPassword, resendVerification } = useAuth();
@@ -26,6 +28,7 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [legalDocument, setLegalDocument] = useState<LegalDocumentKey | null>(null);
 
   const sendEmail = async (kind: "reset" | "verify") => {
     setError(""); setMessage("");
@@ -85,6 +88,7 @@ export default function AuthScreen() {
             {mode === "signup" ? (
               <TextInput accessibilityLabel="Ad soyad" autoCapitalize="words" placeholder="Ad soyad" placeholderTextColor={theme.colors.muted} style={styles.input} value={fullName} onChangeText={setFullName} />
             ) : null}
+            {mode === "signup" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 18 }}><Pressable accessibilityRole="button" onPress={() => setLegalDocument("terms")}><Text style={styles.linkText}>Kullanım koşullarını oku</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setLegalDocument("kvkk")}><Text style={styles.linkText}>KVKK metnini oku</Text></Pressable></View> : null}
             <TextInput accessibilityLabel="E-posta" autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="E-posta" placeholderTextColor={theme.colors.muted} style={styles.input} value={email} onChangeText={setEmail} />
             <View style={styles.passwordRow}><TextInput accessibilityLabel="Şifre" autoCapitalize="none" autoCorrect={false} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Şifre" placeholderTextColor={theme.colors.muted} secureTextEntry={!showPassword} style={[styles.input, styles.passwordInput]} value={password} onChangeText={setPassword} /><Pressable accessibilityRole="button" accessibilityLabel={showPassword ? "Şifreyi gizle" : "Şifreyi göster"} onPress={() => setShowPassword((old) => !old)} style={styles.passwordToggle}><Text style={styles.linkText}>{showPassword ? "Gizle" : "Göster"}</Text></Pressable></View>
             {mode === "login" ? <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sendEmail("reset")}><Text style={styles.linkText}>Şifremi unuttum</Text></Pressable> : null}
@@ -102,6 +106,7 @@ export default function AuthScreen() {
           <Text style={styles.security}>Hesabını ve randevularını tek yerden yönet.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+      <LegalReader document={legalDocument} onClose={() => setLegalDocument(null)} />
     </Screen>
   );
 }

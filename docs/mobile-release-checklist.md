@@ -9,12 +9,14 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [x] İşletme paneli dış tarayıcıdan native `/manage/[section]` ekranlarına taşındı; işletme/şube seçimi, randevu durumu, temel kayıt düzenleme, stok ve ayarlar ortak yetki kontrollü API'ye bağlandı.
 - [ ] Web ile kalan ekran/özellik eşleşmesini [native-interface-parity.md](native-interface-parity.md) listesinden tamamla; tüm sayfalar henüz pixel-perfect değil.
 - [x] Keşfet, işletme detayı, hizmet/çalışan/tarih/saat seçimi ve rezervasyon akışı hazır.
+- [x] Native harita, açık rızayla yaklaşık konum, veritabanında sayfalama öncesi fiyat/yakınlık sıralaması ve hizmet araması eklendi; RLS korunuyor.
+- [x] Gerçek hizmet/onaylı yorum vitrinleri ve ortak kaynaklı native yasal metin okuyucusu eklendi.
 - [x] Favoriler, randevular, profil ve uygulama içi hesap silme talebi hazır.
 - [x] Randevu iptal/değişiklik, tamamlanan randevuya yorum, kişisel bilgi düzenleme ve bildirimleri okuma/okundu işaretleme native ekranlara eklendi.
 - [x] Mobil Supabase public yapılandırması API'den alınabiliyor; giriş/yenileme/çıkış için sınırlı ve TLS doğrulamalı ortak geçit var.
 - [x] Web önizlemede çalışmayan Alert geri bildirimleri düzeltildi; kayıt/giriş, şifre gösterme, şifre yenileme ve e-posta tekrar gönderme akışları var.
 - [x] İşletme listeleri sanallaştırılıyor, arama 300 ms geciktiriliyor, tarih/saatler İstanbul saat diliminde gösteriliyor; aynı rezervasyon denemesinde işlem anahtarı korunuyor.
-- [x] 13 mobil akış E2E senaryosu kontrollü test API'siyle geçti; 47 birim/yetki testi ve gerçek işletmelerle salt-okunur görsel kontrol geçti. Gerçek Supabase kimlik servisine erişim ve hatalı parola yanıtı önceki turda doğrulandı.
+- [x] 18 mobil akış E2E senaryosu kontrollü test API'siyle ve 54 birim/yetki testi geçti. Gerçek Supabase kimlik servisine erişim ve hatalı parola yanıtı önceki turda doğrulandı.
 - [x] Mobil oturumlar işletim sistemi SecureStore alanında parçalı ve kalıcı saklanıyor.
 - [x] Next.js API rotaları web cookie oturumuna ek olarak doğrulanmış Bearer token kabul ediyor.
 - [x] Servis rolü anahtarı mobil pakete konmuyor; tenant sınırları Supabase RLS ve API yetkilendirmesiyle korunuyor.
@@ -22,6 +24,8 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [x] Development CORS yalnızca bilinen Expo origin'lerine açık; production web origin'leri `MOBILE_ALLOWED_ORIGINS` ile açıkça tanımlanıyor.
 - [x] `expo-doctor` 21/21 kontrolü geçti; TypeScript, Android/iOS Hermes paketleri ve static web export doğrulandı.
 - [ ] Fiziksel iPhone ve Android cihazda düşük ağ, çevrimdışı/geçiş, deep-link ve klavye testlerini tamamla.
+- [ ] MapLibre için Expo Go yerine özel development/preview build üret; native harita, foreground izin reddi, konumu kapatma ve pin seçimini fiziksel cihazda doğrula.
+- [ ] Yüksek trafik için tile sağlayıcısını/kapasitesini belirle; `EXPO_PUBLIC_MAP_TILE_URL` HTTPS public istemci adresini tanımla. Public OSM tile sunucusunu sınırsız production altyapısı sayma.
 - [ ] Ayrı müşteri, işletme ve admin hesaplarıyla RLS/IDOR mobil penetrasyon testini kayda al.
 
 ## EAS ve mağaza hazırlığı
@@ -33,7 +37,7 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [ ] Supabase Auth Redirect URLs listesine production `/auth/reset-password` adresini ekle; doğrulama/kurtarma e-postasını gerçek posta kutusuyla kabul testinden geçir.
 - [ ] Apple/Google imzalama kimliklerini EAS Credentials ile oluştur veya güvenli kasadan bağla.
 - [ ] `eas build --profile preview --platform all` ile iç dağıtım paketlerini üret ve cihaz kabul testini tamamla.
-- [ ] Kamera/konum/bildirim gibi ileride eklenecek izinleri sadece gerektiğinde ve açıklama metniyle iste.
+- [x] Foreground konum izni yalnız kullanıcının konum düğmesinden açıklama/onay sonrası istenir; arka plan konum izinleri kapalıdır. Gelecekteki kamera/bildirim izinlerini de yalnız gerekli anda iste.
 - [ ] App Store privacy nutrition label ve Play Data Safety yanıtlarını gerçek veri akışına göre doldur.
 - [ ] Yaş derecelendirmesi, destek URL'si, mağaza açıklaması, ekran görüntüleri ve 1024×1024 mağaza ikonunu tamamla.
 - [ ] Apple inceleme hesabı ve notlarında işletmede ödeme yapıldığını açıkça belirt; gerçek kişisel veri kullanma.

@@ -19,7 +19,7 @@ export default function AppointmentsScreen() {
   const { session, loading } = useAuth();
   const appointments = useQuery({
     queryKey: ["appointments", session?.user.id],
-    queryFn: () => listAppointments(session!.access_token),
+    queryFn: ({ signal }) => listAppointments(session!.access_token, signal),
     enabled: Boolean(session?.access_token),
   });
 

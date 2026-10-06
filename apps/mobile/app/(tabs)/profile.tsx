@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
 import { Alert } from "@/lib/alert";
 import { AppButton, BrandHeader, EmptyState, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
-import { getSessionSummary, requestAccountDeletion } from "@/lib/api";
-import { config } from "@/lib/config";
+import { getSessionSummary, requestAccountDeletion, type LegalDocumentKey } from "@/lib/api";
+import { LegalReader } from "@/components/legal-reader";
 import { useAuth } from "@/providers/auth-provider";
 import { Heart, UserRound, Bell, ShieldCheck, FileText, ChevronRight, Store } from "lucide-react-native";
 
@@ -17,9 +18,10 @@ const menu = [
 
 export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
+  const [legalDocument, setLegalDocument] = useState<LegalDocumentKey | null>(null);
   const summary = useQuery({
     queryKey: ["session-summary", user?.id],
-    queryFn: () => getSessionSummary(session!.access_token),
+    queryFn: ({ signal }) => getSessionSummary(session!.access_token, signal),
     enabled: Boolean(session?.access_token),
   });
 
@@ -90,7 +92,7 @@ export default function ProfileScreen() {
           <Pressable accessibilityRole="button" onPress={() => router.push("/profile-edit")} style={styles.menuRow}><View style={styles.menuIcon}><UserRound size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Kişisel bilgiler</Text><Text style={styles.menuDetail}>Ad soyad, telefon ve şehir bilgilerini düzenle</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.menuRow}><View style={styles.menuIcon}><Bell size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Bildirimler</Text><Text style={styles.menuDetail}>{summary.data?.authenticated && summary.data.unreadCount ? `${summary.data.unreadCount} okunmamış bildirim` : "Randevu ve işletme güncellemeleri"}</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
           {menu.map((item) => (
-            <Pressable key={item.path} onPress={() => void Linking.openURL(`${config.apiUrl}${item.path}`)} style={styles.menuRow}>
+            <Pressable accessibilityRole="button" key={item.path} onPress={() => setLegalDocument(item.path.slice(1) as LegalDocumentKey)} style={styles.menuRow}>
               <View style={styles.menuIcon}>{item.path === "/privacy" ? <ShieldCheck size={19} color={theme.colors.primary} /> : <FileText size={19} color={theme.colors.primary} />}</View>
               <View style={styles.menuText}>
                 <Text style={styles.menuLabel}>{item.label}</Text>
@@ -105,6 +107,7 @@ export default function ProfileScreen() {
           <AppButton label="Hesap silme talebi oluştur" variant="danger" onPress={requestDeletion} />
         </View>
       </ScrollView>
+      <LegalReader document={legalDocument} onClose={() => setLegalDocument(null)} />
     </Screen>
   );
 }

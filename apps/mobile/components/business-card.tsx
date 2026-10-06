@@ -13,7 +13,7 @@ export function BusinessCard({ business, compact = false }: { business: Business
   const { width } = useWindowDimensions();
   const { user, session } = useAuth();
   const queryClient = useQueryClient();
-  const summary = useQuery({ queryKey: ["session-summary", user?.id], queryFn: () => getSessionSummary(session!.access_token), enabled: Boolean(session) });
+  const summary = useQuery({ queryKey: ["session-summary", user?.id], queryFn: ({ signal }) => getSessionSummary(session!.access_token, signal), enabled: Boolean(session) });
   const favorite = Boolean(summary.data?.authenticated && summary.data.favoriteBusinessIds.includes(business.id));
   const mutation = useMutation({ mutationFn: () => setFavorite(business.id, !favorite, session!.access_token), onSuccess: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["session-summary"] }), queryClient.invalidateQueries({ queryKey: ["favorites"] })]); }, onError: (error) => Alert.alert("Kaydedilemedi", error.message) });
   return (
@@ -38,7 +38,7 @@ export function BusinessCard({ business, compact = false }: { business: Business
         </View>
         <Text numberOfLines={1} style={styles.category}>{business.category}</Text>
         <View style={styles.metaRow}><Star size={12} fill="#F5B426" color="#F5B426" /><Text style={styles.rating}>{business.reviews ? business.rating.toFixed(1) : "Yeni"}</Text><Text style={styles.meta}>{business.reviews ? `(${business.reviews} değerlendirme)` : "Henüz değerlendirme yok"}</Text></View>
-        <View style={styles.metaRow}><MapPin size={12} color={theme.colors.muted} /><Text numberOfLines={1} style={styles.meta}>{business.district}{business.distance !== null ? ` · ${business.distance.toFixed(1)} km` : ""}</Text></View>
+        <View style={styles.metaRow}><MapPin size={12} color={theme.colors.muted} /><Text numberOfLines={1} style={styles.meta}>{business.district}{business.distance !== null ? ` · ≈ ${business.distance.toFixed(1)} km` : ""}</Text></View>
         <View style={styles.footer}>
           <View style={styles.availability}><Clock3 size={11} color={theme.colors.primary} /><Text numberOfLines={1} style={styles.availabilityText}>{business.nextAvailable}</Text></View>
           <Text style={styles.price}>{business.startingPrice > 0 ? `${business.startingPrice.toLocaleString("tr-TR")} ₺+` : "Fiyatı gör"}</Text>

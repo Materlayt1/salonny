@@ -19,16 +19,22 @@ import { useBusinessDirectory, useBusinessRail, useCategories } from "@/hooks/us
 import { LinearGradient } from "expo-linear-gradient";
 import { Bell, Search, Clock3, Star, Sparkles, ChevronRight } from "lucide-react-native";
 import { CategoryIcon, categoryPalette } from "@/components/category-icon";
+import { useQuery } from "@tanstack/react-query";
+import { getHomeHighlights, type BusinessQuery } from "@/lib/api";
+import { BusinessMap } from "@/components/business-map";
+import { LocationAction } from "@/components/location-action";
+import { useLocation } from "@/providers/location-provider";
 
-function BusinessRail({ title, subtitle, businesses }: {
+function BusinessRail({ title, subtitle, businesses, sort = "recommended" }: {
   title: string;
   subtitle: string;
   businesses: Business[];
+  sort?: BusinessQuery["sort"];
 }) {
   if (!businesses.length) return null;
   return (
     <View>
-      <View style={styles.railHeading}><View style={{ flex: 1 }}><SectionHeader title={title} subtitle={subtitle} /></View><Pressable accessibilityLabel={`${title} tümünü gör`} onPress={() => router.push({ pathname: "/discover", params: { sort: title.includes("popüler") ? "rating" : title.includes("Yeni") ? "newest" : "recommended" } })} style={styles.seeAll}><Text style={styles.seeAllText}>Tümünü gör</Text><ChevronRight size={13} color={theme.colors.primary} /></Pressable></View>
+      <View style={styles.railHeading}><View style={{ flex: 1 }}><SectionHeader title={title} subtitle={subtitle} /></View><Pressable accessibilityRole="button" accessibilityLabel={`${title} tümünü gör`} onPress={() => router.push({ pathname: "/discover", params: { sort, ...(sort === "nearest" ? { nearby: "1" } : {}) } })} style={styles.seeAll}><Text style={styles.seeAllText}>Tümünü gör</Text><ChevronRight size={13} color={theme.colors.primary} /></Pressable></View>
       <FlatList
         horizontal
         data={businesses}
@@ -46,21 +52,27 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [heroQuery, setHeroQuery] = useState("");
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapSelectedId, setMapSelectedId] = useState("");
+  const location = useLocation();
+  const highlights = useQuery({ queryKey: ["home-highlights"], queryFn: getHomeHighlights });
   const [category, setCategory] = useState("");
+  const [city, setCity] = useState("");
   const [openNow, setOpenNow] = useState(false);
-  const [sort, setSort] = useState<"recommended" | "rating" | "newest">("recommended");
+  const [sort, setSort] = useState<"recommended" | "rating" | "newest" | "name" | "price">("recommended");
   const popular = useBusinessRail("popular", { sort: "rating" }, 10);
   const newest = useBusinessRail("newest", { sort: "newest" }, 10);
   const recommended = useBusinessRail("recommended", { sort: "recommended" }, 10);
+  const nearest = useBusinessRail("nearby", location.position ? { sort: "nearest", lat: location.position.latitude, lng: location.position.longitude } : { sort: "recommended" }, 10, Boolean(location.position));
   const categories = useCategories();
-  const directory = useBusinessDirectory({ q: query, category, open: openNow, sort });
+  const directory = useBusinessDirectory({ q: query, category, city, open: openNow, sort });
   const businesses = useMemo(
     () => directory.data?.pages.flatMap((page) => page.businesses) ?? [],
     [directory.data],
   );
   const refreshing = popular.isRefetching || newest.isRefetching || directory.isRefetching;
   const refresh = () => {
-    void Promise.all([popular.refetch(), newest.refetch(), recommended.refetch(), categories.refetch(), directory.refetch()]);
+    void Promise.all([popular.refetch(), newest.refetch(), recommended.refetch(), highlights.refetch(), ...(location.position ? [nearest.refetch()] : []), categories.refetch(), directory.refetch()]);
   };
 
   return (
@@ -89,7 +101,7 @@ export default function HomeScreen() {
             <TextInput accessibilityLabel="Hizmet, işletme veya kategori ara" value={heroQuery} onChangeText={setHeroQuery} placeholder="Hizmet, işletme veya kategori ara..." placeholderTextColor={theme.colors.muted} style={styles.heroSearchText} returnKeyType="search" onSubmitEditing={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} />
             <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} style={styles.searchButton}><Text style={styles.searchButtonText}>Ara</Text></Pressable>
           </View>
-          <View style={styles.shortcuts}><Pressable onPress={() => router.push({ pathname: "/discover", params: { open: "1" } })} style={styles.shortcut}><Clock3 size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Şu an açık</Text></Pressable><Pressable onPress={() => router.push({ pathname: "/discover", params: { sort: "rating" } })} style={styles.shortcut}><Star size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>En yüksek puan</Text></Pressable><Pressable onPress={() => router.push({ pathname: "/discover", params: { sort: "newest" } })} style={styles.shortcut}><Sparkles size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Yeni eklenenler</Text></Pressable><Pressable onPress={() => router.push("/discover")} style={styles.shortcut}><Search size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Tümünü keşfet</Text></Pressable></View>
+          <View style={styles.shortcuts}><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { nearby: "1" } })} style={styles.shortcut}><Search size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Yakınımdakiler</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { open: "1" } })} style={styles.shortcut}><Clock3 size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Şu an açık</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { sort: "rating" } })} style={styles.shortcut}><Star size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>En yüksek puan</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { sort: "price" } })} style={styles.shortcut}><Sparkles size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Uygun fiyat</Text></Pressable></View>
         </LinearGradient>
 
         <SectionHeader title="Kategoriler" subtitle="Aradığın hizmete hızlıca ulaş" />
@@ -116,9 +128,13 @@ export default function HomeScreen() {
           />
         )}
 
-        <BusinessRail title="En popüler işletmeler" subtitle="Yüksek puanlı ve çok tercih edilenler" businesses={popular.data?.businesses ?? []} />
-        <BusinessRail title="Öne çıkan işletmeler" subtitle="Salonny'de keşfetmeye değer işletmeler" businesses={recommended.data?.businesses ?? []} />
-        <BusinessRail title="Yeni eklenen işletmeler" subtitle="Platforma yeni katılanları keşfet" businesses={newest.data?.businesses ?? []} />
+        <BusinessRail title={location.position ? "Sana en yakın işletmeler" : "En popüler işletmeler"} subtitle={location.position ? "Yaklaşık konumuna göre sıralandı" : "Yüksek puanlı ve çok tercih edilenler"} businesses={(location.position ? nearest : popular).data?.businesses ?? []} sort={location.position ? "nearest" : "rating"} />
+        {location.error ? <Text style={styles.locationError}>{location.error}</Text> : null}
+        <View style={styles.mapBlock}><Text style={styles.mapEyebrow}>CANLI KEŞİF HARİTASI</Text><Text style={styles.mapTitle}>Çevrendeki seçenekleri tek bakışta gör.</Text><Text style={styles.heroText}>Gerçek işletme konumları. Bir noktaya dokun, işletmeyi seç ve ayrıntılara geç.</Text>{mapOpen ? <><BusinessMap items={recommended.data?.businesses ?? []} selectedId={mapSelectedId} onSelect={(business) => setMapSelectedId(business.id)} height={280} />{recommended.data?.businesses.find((business) => business.id === mapSelectedId) ? <BusinessCard compact business={recommended.data.businesses.find((business) => business.id === mapSelectedId)!} /> : null}<AppButton label="Haritada keşfet" variant="secondary" onPress={() => router.push({ pathname: "/discover", params: { map: "1" } })} /></> : <AppButton label="Haritayı aç" variant="secondary" onPress={() => setMapOpen(true)} />}<LocationAction label={location.position ? "Yakınındaki işletmeleri gör" : "Konumumu aç"} onGranted={() => router.push({ pathname: "/discover", params: { nearby: "1", map: "1" } })} /></View>
+        {highlights.data?.services.length ? <View><SectionHeader title="Popüler hizmet ve kategoriler" subtitle="Aradığın hizmete doğrudan ulaş" /><View style={styles.serviceGrid}>{highlights.data.services.map((service) => <Pressable accessibilityRole="button" key={service.name} style={styles.serviceTile} onPress={() => router.push({ pathname: "/discover", params: { q: service.name } })}><Text style={styles.serviceName}>{service.name}</Text><Text style={styles.servicePrice}>{service.price.toLocaleString("tr-TR")} TL&apos;den başlayan</Text><ChevronRight size={17} color={theme.colors.primary} /></Pressable>)}</View></View> : null}
+        <BusinessRail title="Yeni eklenen işletmeler" subtitle="Platforma yeni katılanları keşfet" businesses={newest.data?.businesses ?? []} sort="newest" />
+        <BusinessRail title="En yüksek puanlılar" subtitle="Doğrulanmış değerlendirmelerde öne çıkanlar" businesses={(popular.data?.businesses ?? []).filter((business) => business.reviews > 0)} sort="rating" />
+        {highlights.data?.reviews.length ? <View><SectionHeader title="Müşteriler ne diyor?" subtitle="Tamamlanan randevulardan gelen gerçek değerlendirmeler" /><FlatList horizontal data={highlights.data.reviews} keyExtractor={(review) => review.id} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} ItemSeparatorComponent={() => <View style={{ width: 12 }} />} renderItem={({ item: review }) => <Pressable accessibilityRole="button" onPress={() => router.push(`/business/${review.businessSlug}`)} style={styles.reviewCard}><Text style={styles.reviewVerified}>Doğrulanmış</Text><Text style={styles.reviewStars}>{"★".repeat(review.rating)}</Text><Text numberOfLines={4} style={styles.reviewComment}>{review.comment}</Text><Text style={styles.serviceName}>{review.businessName}</Text><Text style={styles.servicePrice}>İşletmeye git →</Text></Pressable>} /></View> : null}
 
         <View style={styles.directoryHeader}>
           <SectionHeader title="Tüm işletmeler" subtitle="Filtrele, sırala ve sayfa sayfa keşfet" />
@@ -131,6 +147,7 @@ export default function HomeScreen() {
             style={styles.input}
             value={query}
           />
+          <TextInput accessibilityLabel="Tüm işletmeler şehir filtresi" value={city} onChangeText={setCity} placeholder="Şehir" placeholderTextColor={theme.colors.muted} style={[styles.input, { marginTop: 10 }]} />
           <ScrollView horizontal contentContainerStyle={styles.filterRow} showsHorizontalScrollIndicator={false}>
             <Chip label="Tümü" selected={!category} onPress={() => setCategory("")} />
             {(categories.data?.categories ?? []).map((item) => (
@@ -141,6 +158,8 @@ export default function HomeScreen() {
             <Chip label="Önerilen" selected={sort === "recommended"} onPress={() => setSort("recommended")} />
             <Chip label="En yüksek puan" selected={sort === "rating"} onPress={() => setSort("rating")} />
             <Chip label="En yeniler" selected={sort === "newest"} onPress={() => setSort("newest")} />
+            <Chip label="A-Z" selected={sort === "name"} onPress={() => setSort("name")} />
+            <Chip label="Uygun fiyat" selected={sort === "price"} onPress={() => setSort("price")} />
             <Chip label="Şu an açık" selected={openNow} onPress={() => setOpenNow((value) => !value)} />
           </ScrollView>
         </View>
@@ -184,6 +203,8 @@ const styles = StyleSheet.create({
   categoryName: { color: theme.colors.text, fontSize: 11, fontWeight: "500", textAlign: "center" },
   railHeading: { flexDirection: "row", alignItems: "center" }, seeAll: { flexDirection: "row", alignItems: "center", paddingRight: 20, paddingTop: 10, gap: 3 }, seeAllText: { color: theme.colors.primary, fontSize: 11, fontWeight: "600" },
   rail: { paddingHorizontal: 20, paddingBottom: 8 },
+  mapBlock: { margin: 20, padding: 18, gap: 12, borderRadius: 24, backgroundColor: "#F7F5FF", borderWidth: 1, borderColor: "#E8E2F6" }, mapEyebrow: { color: theme.colors.primary, fontSize: 10, fontWeight: "700", letterSpacing: 1 }, mapTitle: { color: theme.colors.text, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 }, locationError: { color: theme.colors.danger, fontSize: 12, marginHorizontal: 20 },
+  serviceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginHorizontal: 20 }, serviceTile: { width: "48%", padding: 16, gap: 8, backgroundColor: "#FAF9FF", borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border }, serviceName: { color: theme.colors.text, fontSize: 13, fontWeight: "600" }, servicePrice: { color: theme.colors.muted, fontSize: 11 }, reviewCard: { width: 280, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, padding: 20, gap: 12, backgroundColor: "#fff" }, reviewVerified: { color: theme.colors.success, fontSize: 10, fontWeight: "600" }, reviewStars: { color: "#E5A100", fontSize: 14 }, reviewComment: { color: theme.colors.text, fontSize: 13, lineHeight: 21, minHeight: 42 },
   directoryHeader: { marginTop: 10 },
   input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.md, borderWidth: 1, color: theme.colors.text, fontSize: 15, marginHorizontal: 20, paddingHorizontal: 16, paddingVertical: 14 },
   filterRow: { gap: 8, paddingHorizontal: 20, paddingTop: 12 },
