@@ -2,7 +2,7 @@
 
 Son güncelleme: 6 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Bu turda 54 birim/yetki testi ve 18 kontrollü mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Son turda 67 birim/yetki testi ve 25 kontrollü mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -33,6 +33,7 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [x] Mobil uygulama için EAS build profilleri, mağaza kimlikleri, uygulama içi hesap silme talebi, CORS allowlist'i ve ayrı CI typecheck/export kapısı eklendi.
 - [x] Native harita/konum, hizmet ve yorum vitrinleri, ortak kaynaklı native yasal metinler; Supabase'de sayfalama öncesi fiyat/yakınlık/hizmet araması eklendi. `202610060025_public_marketplace_search.sql` canlı projeye uygulandı; anonim rol ve invoker hakları kontrol edildi.
 - [x] 6 Ekim source-map-js DoS ve sharp/librsvg RCE advisory'leri düzeltilmiş upstream sürümlerine yükseltilerek kapatıldı; mevcut iki dar kapsamlı yerel yamanın regresyon kapısı korundu.
+- [x] Native çalışan yetkinliği, haftalık vardiya ve izin/blok yönetimi ortak API'ye bağlandı. İşletme/şube sahipliği ve kayıt sınırları kontrol edilir; mevcut tarihli/çok parçalı vardiyalar basit editörle ezilmez. Gerçek işletmenin çalışma planı test amacıyla değiştirilmedi.
 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 
@@ -52,7 +53,9 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 
 ## Son yerel doğrulama sonuçları
 
-6 Ekim native eşleşme kapısı: 54 birim/yetki ve 18 kontrollü mobil E2E testi geçti; Next.js production build, Expo Doctor 21/21 ve tüm platform export'u doğrulandı. Canlı public API'de aktif hizmet araması (`kesim`), fiyat sıralaması ve yuvarlanmış test koordinatlarıyla gerçek mesafe sıralaması çalıştı; konumlu yanıt `private, no-store`. İki gerçek işletme üzerinden doğrulama yüksek trafik/veri kapasite testi değildir. Fiziksel cihaz ve production operasyon kapıları açık kalır.
+6 Ekim çalışan araçları kapısı: native hizmet yetkinliği, şubeye özel haftalık vardiya ve tüm şubelerde izin/blok yönetimi eklendi. 67 birim/yetki testi ve 25 kontrollü mobil E2E testi geçti; web/mobil TypeScript, lint, güvenlik regresyonları, Next.js production build ve Android/iOS Hermes export başarılı. Yeni ekip API'si oturumsuz erişimi, canlı vardiya/izin RPC'leri anonim çalıştırmayı reddetti. Gerçek çalışan kayıtları değiştirilmedi; gerçek hesapla yazma kabulü hâlâ gereklidir. İlk açılışta erken arama yazımının kaybolması düzeltildi. İki isteğe bağlı canlı görsel test bu turda yeniden çalıştırılmadı.
+
+6 Ekim önceki native eşleşme kapısı: 54 birim/yetki ve 18 kontrollü mobil E2E testi geçti; Next.js production build, Expo Doctor 21/21 ve tüm platform export'u doğrulandı. Canlı public API'de aktif hizmet araması (`kesim`), fiyat sıralaması ve yuvarlanmış test koordinatlarıyla gerçek mesafe sıralaması çalıştı; konumlu yanıt `private, no-store`. İki gerçek işletme üzerinden doğrulama yüksek trafik/veri kapasite testi değildir. Fiziksel cihaz ve production operasyon kapıları açık kalır.
 
 5 Ekim mobil düzeltmeleri: giriş public ayarlarının API'den yüklenmesi, ortak kimlik geçidi, boşta kalan form hata yönetimi, mobil CORS ve kaynak doğrulaması düzeltildi. Randevu iptal/değişiklik, yorum, kişisel bilgi ve bildirim ekranları eklendi. İşletme listeleri sanallaştırıldı, arama istekleri geciktirildi, favori kartları tek toplu sorguya taşındı. 32 birim/güvenlik testi ve 8 kontrollü mobil E2E senaryosu geçti.
 

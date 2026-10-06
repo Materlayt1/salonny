@@ -8,6 +8,7 @@ import { useManagement } from "@/providers/management-provider";
 import { panelSections, getPanelPage, savePanelRecord, canViewSection, type PanelRow, type PanelSection, type PanelSettings } from "@/lib/management";
 import { theme } from "@/constants/theme";
 import { Alert } from "@/lib/alert";
+import { TeamManager } from "@/components/team-manager";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif gönderildi" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -70,6 +71,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const [settledSearch, setSettledSearch] = useState("");
   const [status, setStatus] = useState("");
   const [editor, setEditor] = useState<{ row?: PanelRow } | null>(null);
+  const [teamEmployee, setTeamEmployee] = useState<PanelRow | null>(null);
   useEffect(() => { const timer = setTimeout(() => setSettledSearch(search), 300); return () => clearTimeout(timer); }, [search]);
   const allowed = Boolean(context.data && canViewSection(context.data, section));
   const canWrite = context.data?.role !== "EMPLOYEE";
@@ -108,6 +110,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {row.startsAt ? <Text style={styles.label}>{new Date(row.startsAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "Europe/Istanbul" })} · {new Date(row.startsAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" })}{row.endsAt ? ` – ${new Date(row.endsAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" })}` : ""}</Text> : null}
         {row.amountMinor !== undefined ? <Text style={styles.price}>{money(row.amountMinor)}</Text> : null}
         {row.price_minor !== undefined ? <Text style={styles.price}>{money(row.price_minor)}</Text> : null}
+        {section === "employees" && canWrite ? <AppButton label="Hizmetler ve müsaitlik" variant="secondary" onPress={() => setTeamEmployee(row)} /> : null}
         {section === "inventory" ? <View style={styles.stock}><Package size={18} color={theme.colors.primary} /><Text style={styles.label}>Stok: {row.stock_quantity ?? 0} · Minimum: {row.minimum_stock ?? 0}</Text></View> : null}
         {(section === "appointments" || section === "calendar" || section === "dashboard") && context.data?.permissions.calendar && ["pending", "confirmed"].includes(row.status ?? "") ? <View style={styles.actions}>{row.status === "pending" ? <Chip label="Onayla" onPress={() => { if (!mutation.isPending) confirmStatus(row, "confirmed"); }} /> : <><Chip label="Tamamlandı" onPress={() => { if (!mutation.isPending) confirmStatus(row, "completed"); }} /><Chip label="Gelmedi" onPress={() => { if (!mutation.isPending) confirmStatus(row, "no_show"); }} /></>}<Chip label="İptal et" onPress={() => { if (!mutation.isPending) confirmStatus(row, "cancelled"); }} /></View> : null}
         {editable.includes(section) && canWrite ? <View style={styles.actions}><Chip label="Düzenle" onPress={() => { mutation.reset(); setEditor({ row }); }} />{section === "inventory" ? <><Chip label="Stok +1" onPress={() => { if (!mutation.isPending) execute({ id: row.id, quantity: 1, note: "Mobil stok girişi" }); }} /><Chip label="Stok −1" onPress={() => { if (!mutation.isPending) execute({ id: row.id, quantity: -1, note: "Mobil stok çıkışı" }); }} /></> : null}</View> : null}
@@ -117,6 +120,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
       ListFooterComponent={page.hasNextPage ? <AppButton label="Daha fazla kayıt" variant="secondary" busy={page.isFetchingNextPage} onPress={() => void page.fetchNextPage()} /> : null}
     />
     {editor ? <RecordForm key={`${section}-${editor.row?.id ?? "new"}`} section={section} row={editor.row} settings={first?.settings} busy={mutation.isPending} error={mutation.error?.message} onClose={() => setEditor(null)} onSave={(values) => mutation.mutate(values)} /> : null}
+    {teamEmployee ? <TeamManager key={teamEmployee.id} employee={teamEmployee} onClose={() => setTeamEmployee(null)} /> : null}
   </View>;
 }
 const styles = StyleSheet.create({

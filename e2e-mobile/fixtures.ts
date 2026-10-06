@@ -23,10 +23,13 @@ export const appointment = {
   canCancel: true, canReschedule: true, cancellationNoticeMinutes: 60, minimumNoticeMinutes: 30,
 };
 
-export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean } = {}) {
+export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean; advancedSchedule?: boolean; teamWriteFailure?: boolean } = {}) {
   const writes: Array<{ path: string; method: string; body: unknown; key?: string; authorization?: string; url: string }> = [];
   let cancelled = false;
   let reviewed = false;
+  let assigned = true;
+  let periods = [{ weekday: 0, startsAt: "09:00", endsAt: "18:00" }];
+  const timeOff: Array<{ id: string; startsAt: string; endsAt: string; kind: string; note: string }> = [];
   // Controlled tests must not scrape community tile infrastructure.
   await page.route("https://tile.openstreetmap.org/**", (route) => route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jNogAAAAASUVORK5CYII=", "base64") }));
   await page.route("http://localhost:3001/api/**", async (route) => {
@@ -47,6 +50,14 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       writes.push({ path, method: req.method(), body: req.postDataJSON(), key: req.headers()["idempotency-key"], authorization: req.headers()["authorization"], url: req.url() });
       if (path === `/api/appointments/${appointmentId}` && req.postDataJSON().action === "cancel") cancelled = true;
       if (path === "/api/reviews") reviewed = true;
+      if (path === "/api/business-management/team") {
+        if (options.teamWriteFailure) return respond({ error: "Çalışan planı kaydedilemedi. Yeniden dene." }, 503);
+        const body = req.postDataJSON();
+        if (body.action === "service") assigned = body.assigned;
+        if (body.action === "schedule") periods = body.periods;
+        if (body.action === "timeOff") timeOff.push({ id: appointmentId, startsAt: body.startsAt, endsAt: body.endsAt, kind: body.kind, note: body.note });
+        if (body.action === "removeTimeOff") timeOff.splice(0, timeOff.length);
+      }
       return respond({ saved: true, id: appointmentId, status: "pending" }, 201);
     }
     if (path === "/api/categories") return respond({ categories: [{ id: "kuafor", name: "Kuaför", icon: "scissors", color: "#EEEAFE" }] });
@@ -61,6 +72,8 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       if (section === "context") return respond({ business, businesses: [{ id: business.id, name: business.name }], branch: { id: branchId, name: branchId === business.branchId ? "Merkez" : "İkinci şube" }, branches: [{ id: business.branchId, name: "Merkez" }, { id: appointmentId, name: "İkinci şube" }], role: options.employee ? "EMPLOYEE" : "OWNER", permissions: { calendar: true, customers: true, campaigns: !options.employee, inventory: !options.employee, reports: !options.employee, operations: !options.employee }, financialVisibility: !options.employee, customerVisibility: options.employee ? "assigned" : "all", person: "Test Yönetici" });
       if (section === "dashboard") return respond({ rows: [], metrics: [{ label: "Bugünkü randevular", value: "2", icon: "calendar" }, { label: "Aktif hizmetler", value: "1", icon: "scissors" }], hasMore: false });
       if (section === "services") return respond({ rows: [{ id: business.services[0].id, title: branchId === business.branchId ? "Saç kesimi" : "İkinci şube hizmeti", subtitle: "30 dk", duration_minutes: 30, price_minor: 40000, active: true }], total: 1, hasMore: false });
+      if (section === "employees") return respond({ rows: [{ id: business.employees[0].id, title: "Test uzmanı", subtitle: "Uzman", roleTitle: "Uzman", active: true }], total: 1, hasMore: false });
+      if (section === "team") return respond({ employee: { id: business.employees[0].id, name: "Test uzmanı" }, services: [{ id: business.services[0].id, name: "Saç kesimi", active: true, assigned }], periods, hasAdvancedSchedule: options.advancedSchedule ?? false, timeOff, hasMore: false });
       if (section === "appointments" || section === "calendar") return respond({ rows: [{ id: appointmentId, title: "Test Müşteri", subtitle: "Saç kesimi · Test uzmanı", status: "confirmed", startsAt: appointment.startsAt, endsAt: appointment.endsAt, amountMinor: options.employee ? undefined : 40000 }], hasMore: false });
       if (section === "settings") return respond({ rows: [], settings: { booking_window_days: 60, minimum_notice_minutes: 120, cancellation_notice_minutes: 1440, auto_confirm: true, allow_waitlist: false } });
       return respond({ rows: [], total: 0, hasMore: false });

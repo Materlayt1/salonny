@@ -21,9 +21,11 @@ test("a customer chooses an available reschedule slot", async ({ page }) => {
   await page.getByRole("button", { name: "Tarih ve saati değiştir" }).click();
   await expect(page.getByRole("button", { name: "Yeni saati kaydet" })).toBeDisabled();
   await page.getByRole("button", { name: /^\d{2}:\d{2}$/ }).click();
-  page.on("dialog", (dialog) => dialog.accept());
+  const accepted = page.waitForEvent("dialog").then((dialog) => dialog.accept());
   await page.getByRole("button", { name: "Yeni saati kaydet" }).click();
+  await accepted;
   await expect.poll(() => writes.some((write) => (write.body as { action?: string }).action === "reschedule")).toBeTruthy();
+  await expect(page.getByRole("button", { name: "Yeni saati kaydet" })).toHaveCount(0);
 });
 
 test("completed appointments accept a verified review", async ({ page }) => {
@@ -42,8 +44,9 @@ test("profile changes and notifications use the authenticated API", async ({ pag
   const writes = await mockApi(page);
   await signIn(page); await page.goto("/profile-edit");
   await page.getByLabel("Ad soyad").fill("Güncel Müşteri");
-  page.on("dialog", (dialog) => dialog.accept());
+  const accepted = page.waitForEvent("dialog").then((dialog) => dialog.accept());
   await page.getByRole("button", { name: "Bilgileri kaydet" }).click();
+  await accepted;
   await expect.poll(() => writes.some((write) => write.path === "/api/customer-profile" && write.method === "PATCH")).toBeTruthy();
   await page.goto("/notifications");
   await page.getByRole("button", { name: "Tümünü okundu işaretle" }).click();

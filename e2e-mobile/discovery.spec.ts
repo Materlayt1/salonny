@@ -1,6 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { mockApi, signIn } from "./fixtures";
 
+test("static home protects typed searches until event handlers are ready", async ({ page }) => {
+  const response = await page.request.get("/");
+  expect(await response.text()).toMatch(/<input(?=[^>]*aria-label="Hizmet, işletme veya kategori ara")(?=[^>]*readonly)[^>]*>/i);
+  await mockApi(page); await page.goto("/");
+  await page.getByLabel("Hizmet, işletme veya kategori ara").fill("Kesim");
+  await page.getByRole("button", { name: "Ara", exact: true }).click();
+  await expect(page).toHaveURL(/q=Kesim/);
+  await expect(page.getByLabel("İşletme veya hizmet ara")).toHaveValue("Kesim");
+});
+
 test("price shortcut selects the global price filter", async ({ page }) => {
   await mockApi(page); await page.goto("/");
   const priceRequest = page.waitForRequest((request) => request.url().includes("/api/businesses?") && new URL(request.url()).searchParams.get("sort") === "price");

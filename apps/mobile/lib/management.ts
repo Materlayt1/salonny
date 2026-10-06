@@ -43,6 +43,11 @@ function path(section: string, params: Record<string, string | number | undefine
 export const getPanelContext = (token: string, scope: PanelScope) => requestJson<PanelContext>(path("context", scope), {}, token);
 export const getPanelPage = (section: PanelSection, token: string, scope: PanelScope, filters: { date?: string; q?: string; offset?: number; status?: string }) => requestJson<PanelPage>(path(section, { ...scope, ...filters }), {}, token);
 export const savePanelRecord = (section: PanelSection, token: string, scope: PanelScope, values: Record<string, unknown>) => requestJson<{ saved: boolean }>(path(section, scope), { method: "POST", body: JSON.stringify(values) }, token);
+export type TeamPeriod = { weekday: number; startsAt: string; endsAt: string };
+export type TeamTimeOff = { id: string; startsAt: string; endsAt: string; kind: "leave" | "vacation" | "blocked" | "break"; note: string };
+export type TeamPage = { employee: { id: string; name: string }; services: { id: string; name: string; active: boolean; assigned: boolean }[]; periods: TeamPeriod[]; hasAdvancedSchedule: boolean; timeOff: TeamTimeOff[]; hasMore: boolean };
+export const getTeamPage = (token: string, scope: PanelScope, employeeId: string, offset: number, signal?: AbortSignal) => requestJson<TeamPage>(path("team", { ...scope, employeeId, offset }), { signal }, token);
+export const saveTeam = (token: string, scope: PanelScope, employeeId: string, values: Record<string, unknown>) => requestJson<{ saved: boolean }>(path("team", scope), { method: "POST", body: JSON.stringify({ ...values, employeeId }) }, token);
 export function canViewSection(context: PanelContext, section: PanelSection) {
   const permission: Partial<Record<PanelSection, string>> = { calendar: "calendar", appointments: "calendar", customers: "customers", operations: "operations", reports: "reports", inventory: "inventory", campaigns: "campaigns" };
   if (section === "settings") return context.role !== "EMPLOYEE";

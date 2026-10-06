@@ -24,6 +24,7 @@ import { getHomeHighlights, type BusinessQuery } from "@/lib/api";
 import { BusinessMap } from "@/components/business-map";
 import { LocationAction } from "@/components/location-action";
 import { useLocation } from "@/providers/location-provider";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 function BusinessRail({ title, subtitle, businesses, sort = "recommended" }: {
   title: string;
@@ -49,6 +50,7 @@ function BusinessRail({ title, subtitle, businesses, sort = "recommended" }: {
 }
 
 export default function HomeScreen() {
+  const hydrated = useHydrated();
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [heroQuery, setHeroQuery] = useState("");
@@ -98,8 +100,8 @@ export default function HomeScreen() {
           <Text style={styles.heroText}>Kuaför, berber, güzellik, veteriner ve daha fazlasını keşfet; sana uygun randevuyu kolayca oluştur.</Text>
           <View style={styles.heroSearch}>
             <Search size={18} color={theme.colors.muted} />
-            <TextInput accessibilityLabel="Hizmet, işletme veya kategori ara" value={heroQuery} onChangeText={setHeroQuery} placeholder="Hizmet, işletme veya kategori ara..." placeholderTextColor={theme.colors.muted} style={styles.heroSearchText} returnKeyType="search" onSubmitEditing={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} />
-            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} style={styles.searchButton}><Text style={styles.searchButtonText}>Ara</Text></Pressable>
+            <TextInput editable={hydrated} accessibilityLabel="Hizmet, işletme veya kategori ara" value={heroQuery} onChangeText={setHeroQuery} placeholder="Hizmet, işletme veya kategori ara..." placeholderTextColor={theme.colors.muted} style={styles.heroSearchText} returnKeyType="search" onSubmitEditing={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} />
+            <Pressable disabled={!hydrated} accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { q: heroQuery } })} style={styles.searchButton}><Text style={styles.searchButtonText}>Ara</Text></Pressable>
           </View>
           <View style={styles.shortcuts}><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { nearby: "1" } })} style={styles.shortcut}><Search size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Yakınımdakiler</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { open: "1" } })} style={styles.shortcut}><Clock3 size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Şu an açık</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { sort: "rating" } })} style={styles.shortcut}><Star size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>En yüksek puan</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/discover", params: { sort: "price" } })} style={styles.shortcut}><Sparkles size={16} color={theme.colors.primary} /><Text style={styles.shortcutText}>Uygun fiyat</Text></Pressable></View>
         </LinearGradient>
@@ -139,6 +141,7 @@ export default function HomeScreen() {
         <View style={styles.directoryHeader}>
           <SectionHeader title="Tüm işletmeler" subtitle="Filtrele, sırala ve sayfa sayfa keşfet" />
           <TextInput
+            editable={hydrated}
             accessibilityLabel="İşletme ara"
             autoCapitalize="none"
             onChangeText={setQuery}
@@ -147,7 +150,7 @@ export default function HomeScreen() {
             style={styles.input}
             value={query}
           />
-          <TextInput accessibilityLabel="Tüm işletmeler şehir filtresi" value={city} onChangeText={setCity} placeholder="Şehir" placeholderTextColor={theme.colors.muted} style={[styles.input, { marginTop: 10 }]} />
+          <TextInput editable={hydrated} accessibilityLabel="Tüm işletmeler şehir filtresi" value={city} onChangeText={setCity} placeholder="Şehir" placeholderTextColor={theme.colors.muted} style={[styles.input, { marginTop: 10 }]} />
           <ScrollView horizontal contentContainerStyle={styles.filterRow} showsHorizontalScrollIndicator={false}>
             <Chip label="Tümü" selected={!category} onPress={() => setCategory("")} />
             {(categories.data?.categories ?? []).map((item) => (

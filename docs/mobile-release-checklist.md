@@ -11,12 +11,13 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [x] Keşfet, işletme detayı, hizmet/çalışan/tarih/saat seçimi ve rezervasyon akışı hazır.
 - [x] Native harita, açık rızayla yaklaşık konum, veritabanında sayfalama öncesi fiyat/yakınlık sıralaması ve hizmet araması eklendi; RLS korunuyor.
 - [x] Gerçek hizmet/onaylı yorum vitrinleri ve ortak kaynaklı native yasal metin okuyucusu eklendi.
+- [x] Çalışan hizmet yetkinlikleri, haftalık şube vardiyası ve izin/blok kayıtları native olarak yönetilir; sahiplik/rol kontrolleri, İstanbul saat dönüşümü, ileri vardiyaları koruma ve hata geri bildirimi vardır.
 - [x] Favoriler, randevular, profil ve uygulama içi hesap silme talebi hazır.
 - [x] Randevu iptal/değişiklik, tamamlanan randevuya yorum, kişisel bilgi düzenleme ve bildirimleri okuma/okundu işaretleme native ekranlara eklendi.
 - [x] Mobil Supabase public yapılandırması API'den alınabiliyor; giriş/yenileme/çıkış için sınırlı ve TLS doğrulamalı ortak geçit var.
 - [x] Web önizlemede çalışmayan Alert geri bildirimleri düzeltildi; kayıt/giriş, şifre gösterme, şifre yenileme ve e-posta tekrar gönderme akışları var.
 - [x] İşletme listeleri sanallaştırılıyor, arama 300 ms geciktiriliyor, tarih/saatler İstanbul saat diliminde gösteriliyor; aynı rezervasyon denemesinde işlem anahtarı korunuyor.
-- [x] 18 mobil akış E2E senaryosu kontrollü test API'siyle ve 54 birim/yetki testi geçti. Gerçek Supabase kimlik servisine erişim ve hatalı parola yanıtı önceki turda doğrulandı.
+- [x] 25 mobil akış E2E senaryosu kontrollü test API'siyle ve 67 birim/yetki testi geçti. İlk açılışta arama hydration koruması da doğrulandı. Gerçek Supabase kimlik servisine erişim ve hatalı parola yanıtı önceki turda doğrulandı; iki isteğe bağlı canlı görsel senaryosu son turda yeniden çalıştırılmadı.
 - [x] Mobil oturumlar işletim sistemi SecureStore alanında parçalı ve kalıcı saklanıyor.
 - [x] Next.js API rotaları web cookie oturumuna ek olarak doğrulanmış Bearer token kabul ediyor.
 - [x] Servis rolü anahtarı mobil pakete konmuyor; tenant sınırları Supabase RLS ve API yetkilendirmesiyle korunuyor.

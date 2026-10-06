@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
 import {
   RefreshControl,
   FlatList,
@@ -17,14 +17,12 @@ import type { BusinessQuery } from "@/lib/api";
 import { BusinessMap } from "@/components/business-map";
 import { LocationAction } from "@/components/location-action";
 import { useLocation } from "@/providers/location-provider";
-const subscribe = () => () => {};
-const clientSnapshot = () => true;
-const serverSnapshot = () => false;
+import { useHydrated } from "@/hooks/use-hydrated";
 
 export default function DiscoverScreen() {
   const params = useLocalSearchParams<{ category?: string; q?: string; open?: string; sort?: string; nearby?: string; map?: string }>();
   // Expo's static HTML has no URL query params. Match it on first hydration.
-  const hydrated = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
+  const hydrated = useHydrated();
   const hydratedParams = hydrated ? params : {};
   return <DiscoverContent key={JSON.stringify(hydratedParams)} params={hydratedParams} />;
 }
