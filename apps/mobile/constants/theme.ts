@@ -8,7 +8,7 @@ export const theme = {
     secondary: "#A78BFA",
     background: "#FFFFFF",
     surface: "#FFFFFF",
-    text: "#15151A",
+    text: "#30313B",
     muted: "#686872",
     border: "#E8E8EE",
     success: "#15803D",
@@ -16,6 +16,13 @@ export const theme = {
     warning: "#B45309",
     danger: "#B42318",
     overlay: "rgba(21,21,26,0.52)",
+  },
+  typography: {
+    weight: {
+      regular: "400",
+      medium: "500",
+      semibold: "600",
+    },
   },
   radius: {
     sm: 10,

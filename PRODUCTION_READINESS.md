@@ -2,7 +2,7 @@
 
 Son güncelleme: 6 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Son turda 67 birim/yetki testi ve 25 kontrollü mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Son turda 67 birim/yetki testi ve 28 kontrollü mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -52,6 +52,8 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [x] Gizli anahtar rotasyonu, olay müdahale planı, SLO, kapasite/yük testi ve geri yükleme runbook'unu yazılı hale getir.
 
 ## Son yerel doğrulama sonuçları
+
+6 Ekim tipografi kontrolü: mobil başlık/düğme kalınlıkları 600, filtre/menü etiketleri 500 olacak şekilde yumuşatıldı; ana metin rengi `#30313B`. Giriş metin kontrastı ve 320/390/768 px form yerleşimi, ana sayfa başlıkları ve profil etiketleri için üç ek E2E senaryosu geçti. Toplam 28 kontrollü mobil test, 67 birim/yetki testi, lint ve mobil TypeScript başarılı. İki isteğe bağlı canlı görsel senaryo yeniden çalıştırılmadı. Web ve backend davranışları değiştirilmedi.
 
 6 Ekim çalışan araçları kapısı: native hizmet yetkinliği, şubeye özel haftalık vardiya ve tüm şubelerde izin/blok yönetimi eklendi. 67 birim/yetki testi ve 25 kontrollü mobil E2E testi geçti; web/mobil TypeScript, lint, güvenlik regresyonları, Next.js production build ve Android/iOS Hermes export başarılı. Yeni ekip API'si oturumsuz erişimi, canlı vardiya/izin RPC'leri anonim çalıştırmayı reddetti. Gerçek çalışan kayıtları değiştirilmedi; gerçek hesapla yazma kabulü hâlâ gereklidir. İlk açılışta erken arama yazımının kaybolması düzeltildi. İki isteğe bağlı canlı görsel test bu turda yeniden çalıştırılmadı.
 

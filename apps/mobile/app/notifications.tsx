@@ -33,7 +33,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 40 }, header: { gap: 16, marginBottom: 20 }, title: { color: theme.colors.text, fontSize: 28, fontWeight: "900" },
+  content: { padding: 20, paddingBottom: 40 }, header: { gap: 16, marginBottom: 20 }, title: { color: theme.colors.text, fontSize: 28, fontWeight: theme.typography.weight.semibold },
   card: { backgroundColor: "#fff", borderColor: theme.colors.border, borderWidth: 1, borderRadius: 18, gap: 8, marginBottom: 12, padding: 18 }, unread: { borderColor: theme.colors.primary, backgroundColor: "#F5F2FF" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 }, heading: { color: theme.colors.text, fontWeight: "800", fontSize: 15, flex: 1 }, body: { color: theme.colors.muted, fontSize: 13, lineHeight: 20 }, date: { color: theme.colors.muted, fontSize: 11 }, dot: { backgroundColor: theme.colors.primary, width: 8, height: 8, borderRadius: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8 }, heading: { color: theme.colors.text, fontWeight: theme.typography.weight.semibold, fontSize: 15, flex: 1 }, body: { color: theme.colors.muted, fontSize: 13, lineHeight: 20 }, date: { color: theme.colors.muted, fontSize: 11 }, dot: { backgroundColor: theme.colors.primary, width: 8, height: 8, borderRadius: 4 },
 });

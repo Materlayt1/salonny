@@ -62,7 +62,7 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: 28 },
   intro: { paddingHorizontal: 20, paddingVertical: 10 },
-  title: { color: theme.colors.text, fontSize: 26, fontWeight: "700", letterSpacing: -0.8 },
+  title: { color: theme.colors.text, fontSize: 26, fontWeight: theme.typography.weight.semibold, letterSpacing: -0.8 },
   subtitle: { color: theme.colors.muted, fontSize: 14, marginTop: 4 },
   list: { padding: 20, gap: 12 },
 });

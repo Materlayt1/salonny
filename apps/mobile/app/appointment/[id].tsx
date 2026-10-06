@@ -89,9 +89,9 @@ export default function AppointmentDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 32 }, hero: { backgroundColor: theme.colors.primary, gap: 8, padding: 24 },
-  title: { color: "#fff", fontSize: 25, fontWeight: "900" }, heroDetail: { color: "#EEEAFE", fontSize: 14 }, heroDate: { color: "#fff", fontSize: 19, fontWeight: "800", marginVertical: 6 },
+  title: { color: "#fff", fontSize: 25, fontWeight: theme.typography.weight.semibold }, heroDetail: { color: "#EEEAFE", fontSize: 14 }, heroDate: { color: "#fff", fontSize: 19, fontWeight: theme.typography.weight.semibold, marginVertical: 6 },
   card: { backgroundColor: "#fff", borderRadius: 20, gap: 14, marginHorizontal: 20, marginTop: 16, padding: 18 },
-  heading: { color: theme.colors.text, fontSize: 17, fontWeight: "800" }, detail: { color: theme.colors.muted, fontSize: 13, lineHeight: 20 },
+  heading: { color: theme.colors.text, fontSize: 17, fontWeight: theme.typography.weight.semibold }, detail: { color: theme.colors.muted, fontSize: 13, lineHeight: 20 },
   dates: { gap: 8, paddingHorizontal: 20 }, grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   input: { backgroundColor: theme.colors.background, borderRadius: 12, minHeight: 100, padding: 14, color: theme.colors.text, textAlignVertical: "top" },
 });

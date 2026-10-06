@@ -35,7 +35,7 @@ export default function ProfileEditScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 24, paddingBottom: 40 }, title: { color: theme.colors.text, fontSize: 28, fontWeight: "900" }, subtitle: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
-  form: { gap: 12, marginTop: 24 }, label: { color: theme.colors.text, fontSize: 13, fontWeight: "700" },
+  content: { padding: 24, paddingBottom: 40 }, title: { color: theme.colors.text, fontSize: 28, fontWeight: theme.typography.weight.semibold }, subtitle: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  form: { gap: 12, marginTop: 24 }, label: { color: theme.colors.text, fontSize: 13, fontWeight: theme.typography.weight.semibold },
   input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderWidth: 1, borderRadius: 14, padding: 15, color: theme.colors.text }, email: { color: theme.colors.muted, padding: 12, marginBottom: 12 },
 });
