@@ -12,12 +12,14 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [x] Native harita, açık rızayla yaklaşık konum, veritabanında sayfalama öncesi fiyat/yakınlık sıralaması ve hizmet araması eklendi; RLS korunuyor.
 - [x] Gerçek hizmet/onaylı yorum vitrinleri ve ortak kaynaklı native yasal metin okuyucusu eklendi.
 - [x] Çalışan hizmet yetkinlikleri, haftalık şube vardiyası ve izin/blok kayıtları native olarak yönetilir; sahiplik/rol kontrolleri, İstanbul saat dönüşümü, ileri vardiyaları koruma ve hata geri bildirimi vardır.
+- [x] Native profil/mevcut adres/haftalık işletme saatleri ve temel kampanya editörü eklendi; kapsam sınırları native eşleşme listesinde kayıtlıdır. Gerçek işletme kaydı test amacıyla değiştirilmedi.
+- [x] Filtre paneli, sabit keşif araması, dört adımlı sabit özetli randevu, büyük dokunma hedefleri, alan bazlı form geri bildirimi ve tam ekran gerçek fotoğraf galerisi eklendi.
 - [x] Favoriler, randevular, profil ve uygulama içi hesap silme talebi hazır.
 - [x] Randevu iptal/değişiklik, tamamlanan randevuya yorum, kişisel bilgi düzenleme ve bildirimleri okuma/okundu işaretleme native ekranlara eklendi.
 - [x] Mobil Supabase public yapılandırması API'den alınabiliyor; giriş/yenileme/çıkış için sınırlı ve TLS doğrulamalı ortak geçit var.
 - [x] Web önizlemede çalışmayan Alert geri bildirimleri düzeltildi; kayıt/giriş, şifre gösterme, şifre yenileme ve e-posta tekrar gönderme akışları var.
 - [x] İşletme listeleri sanallaştırılıyor, arama 300 ms geciktiriliyor, tarih/saatler İstanbul saat diliminde gösteriliyor; aynı rezervasyon denemesinde işlem anahtarı korunuyor.
-- [x] 28 mobil akış E2E senaryosu kontrollü test API'siyle ve 67 birim/yetki testi geçti. İlk açılışta arama hydration koruması da doğrulandı. Gerçek Supabase kimlik servisine erişim ve hatalı parola yanıtı önceki turda doğrulandı; iki isteğe bağlı canlı görsel senaryosu son turda yeniden çalıştırılmadı.
+- [x] 62 kontrollü mobil akış + 2 salt-okunur canlı public görsel senaryosu (64 toplam) ve 103 birim/yetki testi geçti. Form odağı 15/15 ve sekme kaydırması 5/5 tekrar ile doğrulandı. Gerçek Supabase kimlik servisine erişim/hatalı parola yanıtı önceki turda kontrol edildi; bu turda gerçek hesapla yazma kabulü yapılmadı.
 - [x] Mobil oturumlar işletim sistemi SecureStore alanında parçalı ve kalıcı saklanıyor.
 - [x] Next.js API rotaları web cookie oturumuna ek olarak doğrulanmış Bearer token kabul ediyor.
 - [x] Servis rolü anahtarı mobil pakete konmuyor; tenant sınırları Supabase RLS ve API yetkilendirmesiyle korunuyor.
@@ -30,6 +32,8 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [ ] Ayrı müşteri, işletme ve admin hesaplarıyla RLS/IDOR mobil penetrasyon testini kayda al.
 
 ## EAS ve mağaza hazırlığı
+
+7 Ekim: kullanıcı Expo/EAS, Apple Developer ve Play Console hesaplarının henüz hazır olmadığını belirtti; bu tur yalnız kod/test çalışmasıdır. İmzalı APK/IPA, mağaza gönderimi veya fiziksel kabul tamamlandı sayılmaz. [Cihaz kabul planı](mobile-device-acceptance.md) henüz uygulanmamış senaryoları kaydeder.
 
 - [ ] Expo hesabında projeyi oluştur ve oluşan `extra.eas.projectId` değerini `app.json` içine ekle.
 - [ ] EAS ortamına `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` ekle.

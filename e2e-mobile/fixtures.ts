@@ -23,11 +23,18 @@ export const appointment = {
   canCancel: true, canReschedule: true, cancellationNoticeMinutes: 60, minimumNoticeMinutes: 30,
 };
 
-export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean; advancedSchedule?: boolean; teamWriteFailure?: boolean } = {}) {
+export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean; advancedSchedule?: boolean; teamWriteFailure?: boolean; gallery?: boolean; campaignWriteFailure?: boolean; campaignWrongScope?: boolean; profileWriteFailure?: boolean; advancedBusinessHours?: boolean; bookingError?: "retry" | "conflict"; extraBookingChoices?: boolean; emptyAvailability?: boolean; emptyDirectory?: boolean; delayedDirectory?: boolean } = {}) {
   const writes: Array<{ path: string; method: string; body: unknown; key?: string; authorization?: string; url: string }> = [];
   let cancelled = false;
   let reviewed = false;
   let assigned = true;
+  let bookingAttempts = 0;
+  let availabilitySlot = new Date(Date.now() + 4 * 86_400_000).toISOString();
+  const detailBusiness = options.extraBookingChoices ? { ...business, services: [...business.services, { ...business.services[0], id: "10000000-0000-4000-8000-000000000007", name: "Saç bakımı", price: 600 }], employees: [...business.employees, { ...business.employees[0], id: "10000000-0000-4000-8000-000000000008", name: "İkinci uzman" }] } : business;
+  let campaign = { id: appointmentId, name: "Test kampanyası", audience: "all", status: "active", discount: { code: "TEST20", kind: "percentage", value: 20, startsAt: null as string | null, endsAt: null as string | null } };
+  let profile = { name: business.name, phone: "05555555555", description: "Test işletmesi açıklaması" };
+  let location = { id: appointmentId, addressLine: business.address, district: business.district, city: business.city };
+  let hours = Array.from({ length: 7 }, (_, weekday) => ({ weekday, opensAt: "09:00", closesAt: "19:00", closed: false }));
   let periods = [{ weekday: 0, startsAt: "09:00", endsAt: "18:00" }];
   const timeOff: Array<{ id: string; startsAt: string; endsAt: string; kind: string; note: string }> = [];
   // Controlled tests must not scrape community tile infrastructure.
@@ -48,6 +55,22 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
     if (path.endsWith("/user")) return respond(session.user);
     if (req.method() !== "GET") {
       writes.push({ path, method: req.method(), body: req.postDataJSON(), key: req.headers()["idempotency-key"], authorization: req.headers()["authorization"], url: req.url() });
+      if (path === "/api/bookings" && bookingAttempts++ === 0 && options.bookingError) {
+        if (options.bookingError === "conflict") availabilitySlot = new Date(Date.parse(availabilitySlot) + 3_600_000).toISOString();
+        return respond({ error: options.bookingError === "retry" ? "İşlem tamamlanamadı. Yeniden dene." : "Bu saat başka bir randevuya ayrıldı." }, options.bookingError === "retry" ? 503 : 409);
+      }
+      if (path === "/api/business-management/campaign-editor") {
+        if (options.campaignWriteFailure) return respond({ error: "Kampanya kaydedilemedi. Yeniden dene." }, 503);
+        const body = req.postDataJSON();
+        campaign = { ...campaign, name: body.name, audience: body.audience, ...(body.action === "create" ? { status: body.startsAt && Date.parse(body.startsAt) > Date.now() ? "scheduled" : "active", discount: { code: body.code, kind: body.kind, value: body.value, startsAt: body.startsAt, endsAt: body.endsAt } } : {}) };
+      }
+      if (path === "/api/business-management/business-profile") {
+        if (options.profileWriteFailure) return respond({ error: "İşletme bilgileri kaydedilemedi. Yeniden dene." }, 503);
+        const body = req.postDataJSON();
+        if (body.action === "profile") profile = { name: body.name, phone: body.phone, description: body.description };
+        if (body.action === "address") location = { ...location, addressLine: body.addressLine, district: body.district, city: body.city };
+        if (body.action === "hours") hours = body.hours;
+      }
       if (path === `/api/appointments/${appointmentId}` && req.postDataJSON().action === "cancel") cancelled = true;
       if (path === "/api/reviews") reviewed = true;
       if (path === "/api/business-management/team") {
@@ -63,8 +86,8 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
     if (path === "/api/categories") return respond({ categories: [{ id: "kuafor", name: "Kuaför", icon: "scissors", color: "#EEEAFE" }] });
     if (path === "/api/home-highlights") return respond({ services: [{ name: "Saç kesimi", price: 400 }], reviews: [{ id: appointmentId, rating: 5, comment: "Test değerlendirmesi", createdAt: new Date().toISOString(), businessName: business.name, businessSlug: business.slug }] });
     if (path.startsWith("/api/legal/")) return respond({ title: path.endsWith("terms") ? "Kullanım Koşulları" : path.endsWith("kvkk") ? "KVKK Aydınlatma Metni" : "Gizlilik Politikası", updated: "18 Ağustos 2026", sections: [{ title: "Platformun rolü", paragraphs: ["Test hukuki metin içeriği."] }] });
-    if (path === "/api/businesses") return respond({ businesses: [business], hasMore: false, total: 1 });
-    if (path === `/api/businesses/${business.slug}`) return respond({ business });
+    if (path === "/api/businesses") { if (options.delayedDirectory) await new Promise((resolve) => setTimeout(resolve, 800)); return respond({ businesses: options.emptyDirectory && new URL(req.url()).searchParams.get("city") ? [] : [business], hasMore: false, total: options.emptyDirectory && new URL(req.url()).searchParams.get("city") ? 0 : 1 }); }
+    if (path === `/api/businesses/${business.slug}`) return respond({ business: options.gallery ? { ...detailBusiness, gallery: [business.image, "http://localhost:3001/recovered/gogo-varol.webp"], reviewItems: [{ id: appointmentId, rating: 5, comment: "Kontrollü test değerlendirmesi", businessReply: "", createdAt: "2026-10-01T09:00:00Z" }] } : detailBusiness });
     if (path === "/api/session-summary") return respond({ authenticated: true, displayName: "Test Müşteri", city: "İzmir", hasBusiness: options.businessAccount ?? false, isAdmin: false, unreadCount: 1, favoriteBusinessIds: [] });
     if (path.startsWith("/api/business-management/")) {
       const section = path.split("/").pop();
@@ -76,11 +99,14 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       if (section === "team") return respond({ employee: { id: business.employees[0].id, name: "Test uzmanı" }, services: [{ id: business.services[0].id, name: "Saç kesimi", active: true, assigned }], periods, hasAdvancedSchedule: options.advancedSchedule ?? false, timeOff, hasMore: false });
       if (section === "appointments" || section === "calendar") return respond({ rows: [{ id: appointmentId, title: "Test Müşteri", subtitle: "Saç kesimi · Test uzmanı", status: "confirmed", startsAt: appointment.startsAt, endsAt: appointment.endsAt, amountMinor: options.employee ? undefined : 40000 }], hasMore: false });
       if (section === "settings") return respond({ rows: [], settings: { booking_window_days: 60, minimum_notice_minutes: 120, cancellation_notice_minutes: 1440, auto_confirm: true, allow_waitlist: false } });
+      if (section === "campaigns") return respond({ rows: [{ id: campaign.id, title: campaign.name, status: campaign.status, subtitle: campaign.audience }], total: 1, hasMore: false });
+      if (section === "campaign-editor") return respond({ createAllowed: !options.campaignWrongScope, campaign: new URL(req.url()).searchParams.get("campaignId") ? campaign : undefined });
+      if (section === "business-profile") return respond({ profile, location, hours, hasAdvancedHours: options.advancedBusinessHours ?? false, timezone: "Europe/Istanbul", branchName: "Merkez" });
       return respond({ rows: [], total: 0, hasMore: false });
     }
     if (path === "/api/customer-profile") return respond({ fullName: "Test Müşteri", phone: "05555555555", city: "İzmir", email: "customer@example.com" });
     if (path === "/api/appointments") return respond({ appointments: [{ ...appointment, status: options.completed ? "completed" : cancelled ? "cancelled" : "confirmed", canCancel: !options.completed && !cancelled, canReschedule: !options.completed && !cancelled, ...(reviewed ? { reviewId: "test-review", reviewRating: 5 } : {}) }] });
-    if (path === `/api/appointments/${appointmentId}` || path === "/api/availability") return respond({ slots: [new Date(Date.now() + 4 * 86_400_000).toISOString()] });
+    if (path === `/api/appointments/${appointmentId}` || path === "/api/availability") return respond({ slots: options.emptyAvailability ? [] : [availabilitySlot] });
     if (path === "/api/favorites") return respond({ businesses: [] });
     if (path === "/api/notifications") return respond({ notifications: [{ id: appointmentId, title: "Randevun onaylandı", body: "Test bildirimi", readAt: null, createdAt: new Date().toISOString() }] });
     return respond({ error: "Unexpected test request" }, 404);

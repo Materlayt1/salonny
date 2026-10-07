@@ -1,6 +1,7 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  type TextInputProps,
 } from "react-native";
 import { AppButton, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
@@ -16,10 +18,12 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/providers/auth-provider";
 import { LegalReader } from "@/components/legal-reader";
 import type { LegalDocumentKey } from "@/lib/api";
+import { FormField } from "@/components/form-field";
+import { signupPasswordMinimum, validateAuthEmail, validateAuthForm, type AuthFormErrors, type AuthFormField, type AuthFormMode } from "@/lib/auth-form";
 
 export default function AuthScreen() {
   const { loading: authLoading, signIn, signUp, resetPassword, resendVerification } = useAuth();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<AuthFormMode>("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,11 +32,53 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<AuthFormErrors>({});
   const [legalDocument, setLegalDocument] = useState<LegalDocumentKey | null>(null);
+  const fullNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const clearFieldError = (field: AuthFormField) => {
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    setError("");
+    setMessage("");
+  };
+  const validateField = (field: AuthFormField, event: Parameters<NonNullable<TextInputProps["onBlur"]>>[0]) => {
+    if (Platform.OS === "web") {
+      // A web pointer focuses the button before its click fires. Inserting an
+      // inline error here can move that button out from under the pointer and
+      // swallow the click. Form actions validate themselves after activation.
+      const nextTarget = (event.nativeEvent as unknown as { relatedTarget?: { closest?: (selector: string) => unknown } }).relatedTarget;
+      if (nextTarget?.closest?.("button, [role='button'], [role='tab'], [role='checkbox']")) return;
+    }
+    const next = validateAuthForm(mode, { fullName, email, password, accepted });
+    setFieldErrors((current) => ({ ...current, [field]: next[field] }));
+  };
+  const focusError = (errors: AuthFormErrors) => {
+    // Let inline errors commit and a web button's default focus finish first.
+    requestAnimationFrame(() => {
+      if (errors.fullName) fullNameRef.current?.focus();
+      else if (errors.email) emailRef.current?.focus();
+      else if (errors.password) passwordRef.current?.focus();
+      else if (errors.consent) { Keyboard.dismiss(); scrollRef.current?.scrollToEnd({ animated: true }); }
+    });
+  };
+  const changeMode = (next: AuthFormMode) => {
+    setMode(next); setFieldErrors({}); setError(""); setMessage("");
+  };
 
   const sendEmail = async (kind: "reset" | "verify") => {
+    if (busy) return;
     setError(""); setMessage("");
-    if (!email.trim().includes("@")) { setError("Önce e-posta adresini gir."); return; }
+    const emailError = validateAuthEmail(email);
+    if (emailError) {
+      setFieldErrors((current) => ({ ...current, email: emailError }));
+      focusError({ email: emailError });
+      return;
+    }
+    clearFieldError("email");
+    Keyboard.dismiss();
     setBusy(true);
     try {
       if (kind === "reset") await resetPassword(email.trim());
@@ -43,16 +89,16 @@ export default function AuthScreen() {
   };
 
   const submit = async () => {
+    if (busy) return;
     setError("");
     setMessage("");
-    if (!email.includes("@") || !password || (mode === "signup" && password.length < 8)) {
-      setError(mode === "signup" ? "Geçerli bir e-posta ve en az 8 karakterli şifre gir." : "E-posta ve şifreni gir.");
+    const errors = validateAuthForm(mode, { fullName, email, password, accepted });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      focusError(errors);
       return;
     }
-    if (mode === "signup" && (fullName.trim().length < 2 || !accepted)) {
-      setError("Adını girip kullanım koşulları ile KVKK metnini onayla.");
-      return;
-    }
+    Keyboard.dismiss();
     setBusy(true);
     try {
       if (mode === "login") {
@@ -76,27 +122,33 @@ export default function AuthScreen() {
   return (
     <Screen>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View style={{ marginTop: 18 }}><BrandLogo size={56} /></View>
           <Text style={styles.title}>{mode === "login" ? "Tekrar hoş geldin" : "Salonny’ye katıl"}</Text>
           <Text style={styles.subtitle}>{mode === "login" ? "Randevularına ve favorilerine devam et." : "En iyi işletmeleri keşfetmeye başla."}</Text>
           <View style={styles.modeRow}>
-            <Pressable onPress={() => setMode("login")} style={[styles.modeButton, mode === "login" && styles.modeActive]}><Text style={[styles.modeText, mode === "login" && styles.modeTextActive]}>Giriş yap</Text></Pressable>
-            <Pressable onPress={() => setMode("signup")} style={[styles.modeButton, mode === "signup" && styles.modeActive]}><Text style={[styles.modeText, mode === "signup" && styles.modeTextActive]}>Kayıt ol</Text></Pressable>
+            <Pressable accessibilityRole="tab" aria-selected={mode === "login"} accessibilityState={{ selected: mode === "login", disabled: busy }} disabled={busy} onPress={() => changeMode("login")} style={[styles.modeButton, mode === "login" && styles.modeActive]}><Text style={[styles.modeText, mode === "login" && styles.modeTextActive]}>Giriş yap</Text></Pressable>
+            <Pressable accessibilityRole="tab" aria-selected={mode === "signup"} accessibilityState={{ selected: mode === "signup", disabled: busy }} disabled={busy} onPress={() => changeMode("signup")} style={[styles.modeButton, mode === "signup" && styles.modeActive]}><Text style={[styles.modeText, mode === "signup" && styles.modeTextActive]}>Kayıt ol</Text></Pressable>
           </View>
           <View style={styles.form}>
             {mode === "signup" ? (
-              <TextInput accessibilityLabel="Ad soyad" autoCapitalize="words" placeholder="Ad soyad" placeholderTextColor={theme.colors.muted} style={styles.input} value={fullName} onChangeText={setFullName} />
+              <FormField ref={fullNameRef} label="Ad soyad" autoCapitalize="words" autoComplete="name" placeholder="Adın ve soyadın" editable={!busy} value={fullName} error={fieldErrors.fullName} onChangeText={(value) => { setFullName(value); clearFieldError("fullName"); }} onBlur={(event) => validateField("fullName", event)} returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => emailRef.current?.focus()} />
             ) : null}
-            {mode === "signup" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 18 }}><Pressable accessibilityRole="button" onPress={() => setLegalDocument("terms")}><Text style={styles.linkText}>Kullanım koşullarını oku</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setLegalDocument("kvkk")}><Text style={styles.linkText}>KVKK metnini oku</Text></Pressable></View> : null}
-            <TextInput accessibilityLabel="E-posta" autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="E-posta" placeholderTextColor={theme.colors.muted} style={styles.input} value={email} onChangeText={setEmail} />
-            <View style={styles.passwordRow}><TextInput accessibilityLabel="Şifre" autoCapitalize="none" autoCorrect={false} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Şifre" placeholderTextColor={theme.colors.muted} secureTextEntry={!showPassword} style={[styles.input, styles.passwordInput]} value={password} onChangeText={setPassword} /><Pressable accessibilityRole="button" accessibilityLabel={showPassword ? "Şifreyi gizle" : "Şifreyi göster"} onPress={() => setShowPassword((old) => !old)} style={styles.passwordToggle}><Text style={styles.linkText}>{showPassword ? "Gizle" : "Göster"}</Text></Pressable></View>
+            <FormField ref={emailRef} label="E-posta" autoCapitalize="none" autoComplete="email" autoCorrect={false} keyboardType="email-address" placeholder="ad@ornek.com" editable={!busy} value={email} error={fieldErrors.email} onChangeText={(value) => { setEmail(value); clearFieldError("email"); }} onBlur={(event) => validateField("email", event)} returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => passwordRef.current?.focus()} />
+            <View style={styles.passwordRow}>
+              <FormField ref={passwordRef} label="Şifre" autoCapitalize="none" autoCorrect={false} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "signup" ? "Yeni bir şifre oluştur" : "Şifreni gir"} editable={!busy} secureTextEntry={!showPassword} inputStyle={styles.passwordInput} value={password} error={fieldErrors.password} hint={mode === "signup" ? `En az ${signupPasswordMinimum} karakter kullan. Daha güçlü olması için harf, sayı ve simge ekleyebilirsin.` : undefined} onChangeText={(value) => { setPassword(value); clearFieldError("password"); }} onBlur={(event) => validateField("password", event)} returnKeyType="go" submitBehavior="submit" onSubmitEditing={() => void submit()} />
+              <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={showPassword ? "Şifreyi gizle" : "Şifreyi göster"} onPress={() => setShowPassword((old) => !old)} style={styles.passwordToggle}><Text style={styles.linkText}>{showPassword ? "Gizle" : "Göster"}</Text></Pressable>
+            </View>
             {mode === "login" ? <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sendEmail("reset")}><Text style={styles.linkText}>Şifremi unuttum</Text></Pressable> : null}
             {mode === "signup" ? (
-              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accepted }} onPress={() => setAccepted((value) => !value)} style={styles.checkRow}>
-                <View style={[styles.checkbox, accepted && styles.checkboxChecked]}><Text style={styles.checkmark}>{accepted ? "✓" : ""}</Text></View>
-                <Text style={styles.checkText}>Kullanım koşulları ve KVKK Aydınlatma Metni’ni kabul ediyorum.</Text>
-              </Pressable>
+              <View style={{ gap: 7 }}>
+                <View style={styles.legalLinks}><Pressable accessibilityRole="button" onPress={() => setLegalDocument("terms")}><Text style={styles.linkText}>Kullanım koşullarını oku</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setLegalDocument("kvkk")}><Text style={styles.linkText}>KVKK metnini oku</Text></Pressable></View>
+                <Pressable disabled={busy} accessibilityRole="checkbox" accessibilityState={{ checked: accepted, disabled: busy }} onPress={() => { setAccepted((value) => !value); clearFieldError("consent"); }} style={styles.checkRow}>
+                  <View style={[styles.checkbox, accepted && styles.checkboxChecked]}><Text style={styles.checkmark}>{accepted ? "✓" : ""}</Text></View>
+                  <Text style={styles.checkText}>Kullanım koşulları ve KVKK Aydınlatma Metni’ni kabul ediyorum.</Text>
+                </Pressable>
+                {fieldErrors.consent ? <Text accessibilityRole="alert" style={styles.fieldError}>{fieldErrors.consent}</Text> : null}
+              </View>
             ) : null}
             {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
             {message ? <Text style={styles.success}>{message}</Text> : null}
@@ -124,13 +176,14 @@ const styles = StyleSheet.create({
   modeText: { color: theme.colors.muted, fontSize: 13, fontWeight: theme.typography.weight.medium },
   modeTextActive: { color: theme.colors.primaryDark, fontWeight: theme.typography.weight.semibold },
   form: { gap: 12, marginTop: 20, width: "100%" },
-  input: { backgroundColor: "#fff", borderColor: theme.colors.border, borderRadius: theme.radius.md, borderWidth: 1, color: theme.colors.text, fontSize: 15, paddingHorizontal: 16, paddingVertical: 15 },
-  passwordRow: { flexDirection: "row", alignItems: "center", gap: 10 }, passwordInput: { flex: 1, minWidth: 0 }, passwordToggle: { padding: 8 }, linkText: { color: theme.colors.primaryDark, fontSize: 12, fontWeight: theme.typography.weight.medium, textAlign: "center", paddingVertical: 6 },
-  checkRow: { alignItems: "flex-start", flexDirection: "row", gap: 10, paddingVertical: 4 },
+  passwordRow: { position: "relative" }, passwordInput: { paddingRight: 82 }, passwordToggle: { position: "absolute", right: 4, top: 27, minWidth: 72, height: 52, justifyContent: "center", alignItems: "center", paddingHorizontal: 10 }, linkText: { color: theme.colors.primaryDark, fontSize: 13, lineHeight: 20, fontWeight: theme.typography.weight.medium, textAlign: "center", paddingVertical: 12 },
+  legalLinks: { flexDirection: "row", flexWrap: "wrap", columnGap: 18 },
+  checkRow: { alignItems: "flex-start", flexDirection: "row", gap: 10, minHeight: 44, paddingVertical: 8 },
   checkbox: { alignItems: "center", borderColor: theme.colors.border, borderRadius: 6, borderWidth: 1, height: 22, justifyContent: "center", width: 22 },
   checkboxChecked: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
   checkmark: { color: "#fff", fontSize: 13, fontWeight: theme.typography.weight.semibold },
-  checkText: { color: theme.colors.muted, flex: 1, fontSize: 12, lineHeight: 18 },
+  checkText: { color: theme.colors.muted, flex: 1, fontSize: 13, lineHeight: 20 },
+  fieldError: { color: theme.colors.danger, fontSize: 13, lineHeight: 19 },
   error: { backgroundColor: "#FEF3F2", borderRadius: 12, color: theme.colors.danger, fontSize: 12, padding: 12 },
   success: { backgroundColor: theme.colors.successSoft, borderRadius: 12, color: theme.colors.success, fontSize: 12, padding: 12 },
   security: { color: theme.colors.muted, fontSize: 11, lineHeight: 17, marginTop: 18, textAlign: "center" },

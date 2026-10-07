@@ -27,7 +27,8 @@ export function useBusinessRail(
 }
 
 export function useBusinessDirectory(query: Omit<BusinessQuery, "offset" | "limit">) {
-  const settled = { ...query, q: useDebounced(query.q), city: useDebounced(query.city) };
+  // Typed search is debounced; sheet filters apply together, without an old-city request.
+  const settled = { ...query, q: useDebounced(query.q) };
   return useInfiniteQuery({
     queryKey: ["business-directory", settled],
     initialPageParam: 0,

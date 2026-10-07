@@ -6,10 +6,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  Pressable,
   View,
 } from "react-native";
-import { AppButton, BrandHeader, Chip, EmptyState, ErrorState, LoadingState, Screen } from "@/components/app-ui";
+import { AppButton, BrandHeader, Chip, EmptyState, ErrorState, Screen } from "@/components/app-ui";
 import { BusinessCard } from "@/components/business-card";
 import { theme } from "@/constants/theme";
 import { useBusinessDirectory, useCategories } from "@/hooks/use-marketplace";
@@ -18,6 +18,9 @@ import { BusinessMap } from "@/components/business-map";
 import { LocationAction } from "@/components/location-action";
 import { useLocation } from "@/providers/location-provider";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { BusinessFilterSheet, DirectorySearch } from "@/components/business-filters";
+import { defaultBusinessFilters, filterCount, filterSummary, type BusinessFilters } from "@/lib/business-filters";
+import { BusinessListSkeleton } from "@/components/business-list-skeleton";
 
 export default function DiscoverScreen() {
   const params = useLocalSearchParams<{ category?: string; q?: string; open?: string; sort?: string; nearby?: string; map?: string }>();
@@ -27,11 +30,13 @@ export default function DiscoverScreen() {
   return <DiscoverContent key={JSON.stringify(hydratedParams)} params={hydratedParams} />;
 }
 function DiscoverContent({ params }: { params: { category?: string; q?: string; open?: string; sort?: string; nearby?: string; map?: string } }) {
+  const ready = useHydrated();
   const location = useLocation();
   const [mapVisible, setMapVisible] = useState(params.map === "1");
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState(params.q ?? "");
   const [city, setCity] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [categorySelection, setCategorySelection] = useState<{ source: string; value: string } | null>(null);
   const categorySource = params.category ?? "";
   const category = categorySelection?.source === categorySource ? categorySelection.value : categorySource;
@@ -45,10 +50,15 @@ function DiscoverContent({ params }: { params: { category?: string; q?: string; 
     [directory.data],
   );
   const selected = businesses.find((business) => business.id === selectedId);
+  const filters: BusinessFilters = { category, city, sort: sort ?? "recommended", open: openNow };
+  const applyFilters = (values: BusinessFilters) => { setCategory(values.category); setCity(values.city); setSort(values.sort); setOpenNow(values.open); setFiltersOpen(false); setSelectedId(""); };
+  const resetFilters = () => { setQuery(""); applyFilters({ ...defaultBusinessFilters }); };
 
   return (
     <Screen>
       <BrandHeader />
+      <DirectorySearch ready={ready} value={query} onChange={setQuery} onFilters={() => setFiltersOpen(true)} count={filterCount(filters)} />
+      {filterCount(filters) ? <View style={styles.activeFilters}><Text style={styles.activeSummary} numberOfLines={2}>{filterSummary(filters, categories.data?.categories ?? [])}</Text><Pressable accessibilityRole="button" onPress={resetFilters} style={styles.reset}><Text style={styles.resetText}>Temizle</Text></Pressable></View> : null}
       <FlatList
         data={businesses} keyExtractor={(item) => item.id}
         renderItem={({ item }) => <View style={styles.list}><BusinessCard business={item} /></View>}
@@ -63,40 +73,6 @@ function DiscoverContent({ params }: { params: { category?: string; q?: string; 
         </View>
         {(params.nearby === "1" || sort === "nearest") && !location.position ? <View style={styles.location}><Text style={styles.subtitle}>Yakınlık sıralaması için konumunu paylaşabilir veya şehir seçebilirsin.</Text><LocationAction onGranted={() => setSort("nearest")} /></View> : null}
         {location.error ? <Text accessibilityRole="alert" style={styles.locationError}>{location.error}</Text> : null}
-        <View style={styles.searchGroup}>
-          <TextInput
-            accessibilityLabel="İşletme veya hizmet ara"
-            onChangeText={setQuery}
-            placeholder="İşletme veya hizmet ara"
-            placeholderTextColor={theme.colors.muted}
-            style={styles.input}
-            value={query}
-          />
-          <TextInput
-            accessibilityLabel="Şehir"
-            autoCapitalize="words"
-            onChangeText={setCity}
-            placeholder="Şehir"
-            placeholderTextColor={theme.colors.muted}
-            style={styles.cityInput}
-            value={city}
-          />
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="Tümü" selected={!category} onPress={() => setCategory("")} />
-          {(categories.data?.categories ?? []).map((item) => (
-            <Chip key={item.id} label={item.name} selected={category === item.id} onPress={() => setCategory(item.id)} />
-          ))}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="Önerilen" selected={sort === "recommended"} onPress={() => setSort("recommended")} />
-          <Chip label="Puana göre" selected={sort === "rating"} onPress={() => setSort("rating")} />
-          <Chip label="En yeniler" selected={sort === "newest"} onPress={() => setSort("newest")} />
-          <Chip label="A-Z" selected={sort === "name"} onPress={() => setSort("name")} />
-          <Chip label="Uygun fiyat" selected={sort === "price"} onPress={() => setSort("price")} />
-          {location.position ? <Chip label="En yakın" selected={sort === "nearest"} onPress={() => setSort("nearest")} /> : null}
-          <Chip label="Şu an açık" selected={openNow} onPress={() => setOpenNow((value) => !value)} />
-        </ScrollView>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}><Chip label="Liste" selected={!mapVisible} onPress={() => setMapVisible(false)} /><Chip label="Harita" selected={mapVisible} onPress={() => setMapVisible(true)} />{location.position ? <Chip label="Konumu kapat" onPress={() => { location.clearPosition(); if (sort === "nearest") setSort("recommended"); }} /> : <Chip label="Yakınımdakiler" onPress={() => router.push({ pathname: "/discover", params: { nearby: "1" } })} />}</ScrollView>
         {mapVisible ? <View style={styles.map}><BusinessMap items={businesses} selectedId={selectedId} onSelect={(business) => setSelectedId(business.id)} height={320} /><Text style={styles.mapNote}>Harita, yüklenen {businesses.length} işletmeyi gösterir. Diğer sonuçlar için aşağıdaki sayfaları yükle.</Text>{selected ? <BusinessCard business={selected} compact /> : null}</View> : null}
 
@@ -104,11 +80,11 @@ function DiscoverContent({ params }: { params: { category?: string; q?: string; 
           <Text style={styles.resultTitle}>İşletmeler</Text>
           <Text style={styles.resultCount}>{directory.data?.pages[0]?.total ?? 0} sonuç</Text>
         </View>
-        {directory.isLoading ? <LoadingState label="Sonuçlar hazırlanıyor..." /> : null}
+        {directory.isLoading ? <BusinessListSkeleton /> : null}
         {directory.isError ? <ErrorState onRetry={() => void directory.refetch()} /> : null}
         </>}
         ListEmptyComponent={!directory.isLoading && !directory.isError && !businesses.length ? (
-          <EmptyState icon="⌕" title="Sonuç bulunamadı" detail="Filtrelerini değiştirerek yeniden deneyebilirsin." />
+          <EmptyState icon="⌕" title="Sonuç bulunamadı" detail="Aramanı genişletebilir veya seçili filtrelerini temizleyebilirsin." action={<AppButton label="Filtreleri temizle" variant="secondary" onPress={resetFilters} />} />
         ) : null}
         ListFooterComponent={directory.hasNextPage ? (
           <View style={styles.loadMore}>
@@ -116,12 +92,14 @@ function DiscoverContent({ params }: { params: { category?: string; q?: string; 
           </View>
         ) : null}
       />
+      {filtersOpen ? <BusinessFilterSheet value={filters} categories={categories.data?.categories ?? []} allowNearest={Boolean(location.position)} onApply={applyFilters} onClose={() => setFiltersOpen(false)} /> : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 28 },
+  activeFilters: { flexDirection: "row", gap: 10, alignItems: "center", paddingLeft: 20, paddingRight: 12, backgroundColor: "#FBFAFF", borderBottomWidth: 1, borderBottomColor: theme.colors.border }, activeSummary: { flex: 1, color: theme.colors.muted, fontSize: 12, lineHeight: 18 }, reset: { minHeight: 48, paddingHorizontal: 8, justifyContent: "center" }, resetText: { color: theme.colors.primaryDark, fontSize: 12, fontWeight: theme.typography.weight.medium },
   intro: { paddingHorizontal: 20, paddingBottom: 14, paddingTop: 8 },
   title: { color: theme.colors.text, fontSize: 26, fontWeight: theme.typography.weight.semibold, letterSpacing: -0.8 },
   subtitle: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 },

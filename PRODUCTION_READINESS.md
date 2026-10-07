@@ -1,8 +1,8 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 6 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 7 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Son turda 67 birim/yetki testi ve 28 kontrollü mobil E2E senaryosu geçti; bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Son turda 103 birim/yetki testi ve 64 mobil E2E senaryosu geçti (62 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -52,6 +52,10 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [x] Gizli anahtar rotasyonu, olay müdahale planı, SLO, kapasite/yük testi ve geri yükleme runbook'unu yazılı hale getir.
 
 ## Son yerel doğrulama sonuçları
+
+7 Ekim geliştirme sunucusu readiness 200: veritabanı `ok`, dağıtık rate limiter `optional_in_development`. Bu yanıt production Redis/altyapı kapısının geçtiğini göstermez.
+
+7 Ekim native UX ve panel kapısı: filtre paneli/sabit arama, dört adımlı sabit özetli rezervasyon, kalıcı form etiketleri, büyük dokunma hedefleri, sticky işletme sekmeleri ve gerçek fotoğraf galerisi tamamlandı. Native işletme profil/mevcut adres/haftalık saatler ve temel kampanya editörü eklendi; kapsam sınırları native eşleşme listesinde açıkça kayıtlıdır. 103 birim/yetki ve 64 mobil E2E testi geçti (62 kontrollü + 2 canlı public görsel); form odağı ayrıca 15, sekme kaydırması 5 tekrarda geçti. Web/mobil TypeScript, lint, Next.js production build, güvenlik kapısı, Expo Doctor 21/21 ve Android/iOS Hermes export başarılı. Oturumsuz yeni panel API'leri 401 döndü. Gerçek işletme planı, kampanya veya randevu test için değiştirilmedi. İmzalı APK/IPA ya da fiziksel cihaz kabulü yapılmadı; kullanıcı mağaza hesaplarının hazır olmadığını belirterek kod/test aşamasını seçti.
 
 6 Ekim tipografi kontrolü: mobil başlık/düğme kalınlıkları 600, filtre/menü etiketleri 500 olacak şekilde yumuşatıldı; ana metin rengi `#30313B`. Giriş metin kontrastı ve 320/390/768 px form yerleşimi, ana sayfa başlıkları ve profil etiketleri için üç ek E2E senaryosu geçti. Toplam 28 kontrollü mobil test, 67 birim/yetki testi, lint ve mobil TypeScript başarılı. İki isteğe bağlı canlı görsel senaryo yeniden çalıştırılmadı. Web ve backend davranışları değiştirilmedi.
 

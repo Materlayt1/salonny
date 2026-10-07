@@ -1,6 +1,7 @@
 import type { PropsWithChildren, ReactNode } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -75,6 +76,7 @@ export function Chip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      {...(Platform.OS === "web" ? { "aria-pressed": selected } : {})}
       onPress={onPress}
       style={[styles.chip, selected && styles.chipSelected]}
     >
@@ -152,6 +154,8 @@ const styles = StyleSheet.create({
   ghostLabel: { color: theme.colors.text },
   dangerLabel: { color: theme.colors.danger },
   chip: {
+    minHeight: 48,
+    justifyContent: "center",
     backgroundColor: theme.colors.surface,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.pill,

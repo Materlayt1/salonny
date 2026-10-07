@@ -9,6 +9,8 @@ import { panelSections, getPanelPage, savePanelRecord, canViewSection, type Pane
 import { theme } from "@/constants/theme";
 import { Alert } from "@/lib/alert";
 import { TeamManager } from "@/components/team-manager";
+import { BusinessProfileEditor } from "@/components/business-profile-editor";
+import { CampaignEditor } from "@/components/campaign-editor";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif gönderildi" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -72,6 +74,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const [status, setStatus] = useState("");
   const [editor, setEditor] = useState<{ row?: PanelRow } | null>(null);
   const [teamEmployee, setTeamEmployee] = useState<PanelRow | null>(null);
+  const [businessEditor, setBusinessEditor] = useState(false);
+  const [campaignEditor, setCampaignEditor] = useState<{ id?: string } | null>(null);
   useEffect(() => { const timer = setTimeout(() => setSettledSearch(search), 300); return () => clearTimeout(timer); }, [search]);
   const allowed = Boolean(context.data && canViewSection(context.data, section));
   const canWrite = context.data?.role !== "EMPLOYEE";
@@ -96,6 +100,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     <FlatList data={rows} keyExtractor={(row) => row.id} contentContainerStyle={styles.content} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={7} keyboardShouldPersistTaps="handled" refreshing={page.isRefetching} onRefresh={() => void page.refetch()}
       ListHeaderComponent={<>
         <View style={styles.titleRow}><View style={{ flex: 1 }}><Text style={styles.heading}>{definition.label}</Text><Text style={styles.description}>{definition.description}</Text></View>{editable.includes(section) && canWrite ? <Pressable accessibilityRole="button" accessibilityLabel="Yeni kayıt ekle" style={styles.addButton} onPress={() => { mutation.reset(); setEditor({}); }}><Plus size={22} color="#fff" /></Pressable> : null}</View>
+        {section === "settings" && canWrite ? <AppButton label="İşletme profili ve saatleri" variant="secondary" onPress={() => setBusinessEditor(true)} /> : null}
+        {section === "campaigns" && canWrite ? <AppButton label="Yeni kampanya" onPress={() => setCampaignEditor({})} /> : null}
         {section === "dashboard" && first?.metrics ? <View style={styles.metrics}>{first.metrics.map((metric) => { const Icon = metricIcons[metric.icon] ?? CalendarDays; return <View key={metric.label} style={styles.metric}><View style={styles.metricIcon}><Icon size={22} color={theme.colors.primary} /></View><Text style={styles.metricValue}>{metric.value}</Text><Text style={styles.description}>{metric.label}</Text></View>; })}</View> : null}
         {section === "calendar" ? <View style={styles.dateRow}><Pressable accessibilityLabel="Önceki gün" onPress={() => shiftDay(-1)} style={styles.dateButton}><ChevronLeft color={theme.colors.primary} size={22} /></Pressable><Text style={styles.label}>{new Date(`${date}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "short" })}</Text><Pressable accessibilityLabel="Sonraki gün" onPress={() => shiftDay(1)} style={styles.dateButton}><ChevronRight color={theme.colors.primary} size={22} /></Pressable><Chip label="Bugün" onPress={() => setDate(today())} /></View> : null}
         {editable.includes(section) || section === "campaigns" ? <View style={styles.search}><Search size={18} color={theme.colors.muted} /><TextInput accessibilityLabel="Panelde ara" placeholder="İsim veya ad ile ara..." value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.colors.text, paddingVertical: 12 }} /></View> : null}
@@ -111,6 +117,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {row.amountMinor !== undefined ? <Text style={styles.price}>{money(row.amountMinor)}</Text> : null}
         {row.price_minor !== undefined ? <Text style={styles.price}>{money(row.price_minor)}</Text> : null}
         {section === "employees" && canWrite ? <AppButton label="Hizmetler ve müsaitlik" variant="secondary" onPress={() => setTeamEmployee(row)} /> : null}
+        {section === "campaigns" && canWrite ? <AppButton label="Kampanya düzenle" variant="secondary" onPress={() => setCampaignEditor({ id: row.id })} /> : null}
         {section === "inventory" ? <View style={styles.stock}><Package size={18} color={theme.colors.primary} /><Text style={styles.label}>Stok: {row.stock_quantity ?? 0} · Minimum: {row.minimum_stock ?? 0}</Text></View> : null}
         {(section === "appointments" || section === "calendar" || section === "dashboard") && context.data?.permissions.calendar && ["pending", "confirmed"].includes(row.status ?? "") ? <View style={styles.actions}>{row.status === "pending" ? <Chip label="Onayla" onPress={() => { if (!mutation.isPending) confirmStatus(row, "confirmed"); }} /> : <><Chip label="Tamamlandı" onPress={() => { if (!mutation.isPending) confirmStatus(row, "completed"); }} /><Chip label="Gelmedi" onPress={() => { if (!mutation.isPending) confirmStatus(row, "no_show"); }} /></>}<Chip label="İptal et" onPress={() => { if (!mutation.isPending) confirmStatus(row, "cancelled"); }} /></View> : null}
         {editable.includes(section) && canWrite ? <View style={styles.actions}><Chip label="Düzenle" onPress={() => { mutation.reset(); setEditor({ row }); }} />{section === "inventory" ? <><Chip label="Stok +1" onPress={() => { if (!mutation.isPending) execute({ id: row.id, quantity: 1, note: "Mobil stok girişi" }); }} /><Chip label="Stok −1" onPress={() => { if (!mutation.isPending) execute({ id: row.id, quantity: -1, note: "Mobil stok çıkışı" }); }} /></> : null}</View> : null}
@@ -121,6 +128,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     />
     {editor ? <RecordForm key={`${section}-${editor.row?.id ?? "new"}`} section={section} row={editor.row} settings={first?.settings} busy={mutation.isPending} error={mutation.error?.message} onClose={() => setEditor(null)} onSave={(values) => mutation.mutate(values)} /> : null}
     {teamEmployee ? <TeamManager key={teamEmployee.id} employee={teamEmployee} onClose={() => setTeamEmployee(null)} /> : null}
+    {businessEditor ? <BusinessProfileEditor onClose={() => setBusinessEditor(false)} /> : null}
+    {campaignEditor ? <CampaignEditor key={campaignEditor.id ?? "new"} campaignId={campaignEditor.id} onClose={() => setCampaignEditor(null)} onSaved={() => { void queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}
   </View>;
 }
 const styles = StyleSheet.create({

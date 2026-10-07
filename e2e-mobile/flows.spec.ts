@@ -56,7 +56,11 @@ test("profile changes and notifications use the authenticated API", async ({ pag
 test("booking is submitted with a native-safe idempotency key", async ({ page }) => {
   const writes = await mockApi(page);
   await signIn(page); await page.goto(`/booking/${business.slug}`);
+  await page.getByRole("button", { name: "Uzman seçimine geç" }).click();
+  await page.getByRole("button", { name: "Tarih seçimine geç" }).click();
   await page.getByRole("button", { name: /^\d{2}:\d{2}$/ }).click();
+  await page.getByRole("button", { name: "Bilgileri kontrol et" }).click();
+  await expect(page.getByLabel("Telefon", { exact: true })).toHaveValue("05555555555");
   page.on("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Randevuyu oluştur" }).click();
   await expect.poll(() => writes.some((write) => write.path === "/api/bookings")).toBeTruthy();

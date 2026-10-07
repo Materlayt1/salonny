@@ -5,6 +5,9 @@ test("capture the native home with real public marketplace data", async ({ page 
   const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByText("En popüler işletmeler", { exact: true })).toBeVisible({ timeout: 25_000 });
+  // Rail headings also exist in skeletons; require actual public data before capture.
+  await expect(page.getByRole("button", { name: "Gogo işletmesini aç", exact: true }).first()).toBeAttached({ timeout: 25_000 });
+  await expect(page.getByText("Kategoriler hazırlanıyor...", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Tüm işletmeler", { exact: true })).toBeAttached();
   expect(errors).toEqual([]);
   await page.screenshot({ path: "artifacts/mobile-native-home.jpg", type: "jpeg", quality: 95 });
