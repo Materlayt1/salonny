@@ -13,7 +13,7 @@ import {
   Wrench,
 } from "lucide-react";
 import Image from "next/image";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   assignServicePackage,
   createBookingLink,
@@ -31,6 +31,7 @@ import { formatDate } from "@/lib/format";
 
 type Named = { id: string; name: string };
 export type OperationsData = {
+  scopeKey: string;
   businessSlug: string;
   customers: (Named & { phone: string })[];
   services: Named[];
@@ -43,6 +44,8 @@ export type OperationsData = {
     party_size: number;
     notes: string | null;
     offer_expires_at: string | null;
+    offered_starts_at: string | null;
+    updated_at: string;
     customers:
       | { full_name: string; phone: string }
       | { full_name: string; phone: string }[]
@@ -116,9 +119,13 @@ export function BusinessOperationsManager({
   const [section, setSection] = useState("appointments");
   const run = (job: () => Promise<{ ok: boolean; message: string }>) =>
     startTransition(async () => {
-      const result = await job();
-      setMessage(result.message);
-      if (result.ok) window.location.reload();
+      try {
+        const result = await job();
+        setMessage(result.message);
+        if (result.ok) window.location.reload();
+      } catch {
+        setMessage("İşlem yanıtı doğrulanamadı. Bilgileri değiştirmeden tekrar deneyin; listeyi yenileyerek sonucu da kontrol edebilirsiniz.");
+      }
     });
   const tabs = [
     ["appointments", "Hızlı randevu"],
@@ -299,13 +306,33 @@ function Waitlist({
   pending: boolean;
   run: Runner;
 }) {
+  const request = useRef<{ fingerprint: string; key: string } | null>(null);
+  const statusKeys = useRef(new Map<string, string>());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const changeStatus = (item: OperationsData["waitlist"][number], status: "accepted" | "cancelled") => {
+    if (pending) return;
+    if (status === "cancelled" && !window.confirm("Bu bekleme talebini iptal etmek istiyor musunuz?")) return;
+    const fingerprint = JSON.stringify([initial.scopeKey, item.id, status, item.updated_at]);
+    let key = statusKeys.current.get(fingerprint);
+    if (!key) {
+      key = crypto.randomUUID();
+      statusKeys.current.set(fingerprint, key);
+    }
+    run(() => setWaitlistStatus(item.id, status, item.updated_at, key));
+  };
   return (
     <div className="mt-4 grid gap-4 xl:grid-cols-[.7fr_1.3fr]">
       <form
         className="surface p-5"
-        action={(form) =>
-          run(() =>
-            createWaitlistEntry({
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (pending) return;
+          const form = new FormData(event.currentTarget);
+          const payload = {
               customerId: String(form.get("customer")),
               serviceId: String(form.get("service")),
               employeeId: String(form.get("employee") || "") || undefined,
@@ -313,9 +340,17 @@ function Waitlist({
               desiredTo: toIso(form.get("to")),
               partySize: Number(form.get("partySize")),
               notes: String(form.get("notes") ?? ""),
-            }),
-          )
-        }
+          };
+          const fingerprint = JSON.stringify([initial.scopeKey, payload]);
+          if (request.current?.fingerprint !== fingerprint)
+            request.current = { fingerprint, key: crypto.randomUUID() };
+          const key = request.current.key;
+          run(async () => {
+            const result = await createWaitlistEntry({ ...payload, idempotencyKey: key });
+            if (result.ok) request.current = null;
+            return result;
+          });
+        }}
       >
         <h2 className="font-semibold">Talep ekle</h2>
         <div className="mt-4 grid gap-4">
@@ -346,14 +381,14 @@ function Waitlist({
             defaultValue={1}
           />
           <Field label="Not" name="notes" />
-          <Button disabled={pending}>Bekleme listesine ekle</Button>
+          <Button disabled={pending || !initial.customers.length || !initial.services.length}>Bekleme listesine ekle</Button>
         </div>
       </form>
       <section className="surface overflow-hidden">
         <div className="border-b border-[#ECECF1] p-5">
           <h2 className="font-semibold">Aktif sıra</h2>
           <p className="text-xs text-[#686872]">
-            Boşluk oluştuğunda teklif süresi otomatik izlenir.
+            Teklif hazırlamak veya kabul etmek saat ayırmaz, randevu oluşturmaz ve ileti göndermez.
           </p>
         </div>
         <div className="divide-y divide-[#ECECF1]">
@@ -373,20 +408,18 @@ function Waitlist({
                 {formatDate(item.desired_from)} – {formatDate(item.desired_to)}
               </span>
               <span className="rounded-full bg-[#F0ECFF] px-2 py-1">
-                {item.status === "offered" ? "Teklif gönderildi" : "Bekliyor"}
+                {item.status === "offered" ? (new Date(item.offer_expires_at ?? "").getTime() > now ? "Teklif hazırlandı" : "Teklif süresi doldu") : "Bekliyor"}
               </span>
-              <button
-                onClick={() =>
-                  run(() => setWaitlistStatus(item.id, "accepted"))
-                }
+              {item.status === "offered" && new Date(item.offer_expires_at ?? "").getTime() > now && new Date(item.offered_starts_at ?? "").getTime() > now && <button
+                disabled={pending}
+                onClick={() => changeStatus(item, "accepted")}
                 className="font-semibold text-[#168A48]"
               >
                 Kabul
-              </button>
+              </button>}
               <button
-                onClick={() =>
-                  run(() => setWaitlistStatus(item.id, "cancelled"))
-                }
+                disabled={pending}
+                onClick={() => changeStatus(item, "cancelled")}
                 className="font-semibold text-red-600"
               >
                 İptal
@@ -409,13 +442,16 @@ function Resources({
   pending: boolean;
   run: Runner;
 }) {
+  const request = useRef<{ fingerprint: string; key: string } | null>(null);
   return (
     <div className="mt-4 grid gap-4 xl:grid-cols-[.7fr_1.3fr]">
       <form
         className="surface p-5"
-        action={(form) =>
-          run(() =>
-            saveBusinessResource({
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (pending) return;
+          const form = new FormData(event.currentTarget);
+          const payload = {
               name: String(form.get("name")),
               kind: String(form.get("kind")) as
                 | "room"
@@ -425,9 +461,17 @@ function Resources({
               capacity: Number(form.get("capacity")),
               serviceIds: form.getAll("services").map(String),
               active: true,
-            }),
-          )
-        }
+          };
+          const fingerprint = JSON.stringify([initial.scopeKey, payload]);
+          if (request.current?.fingerprint !== fingerprint)
+            request.current = { fingerprint, key: crypto.randomUUID() };
+          const key = request.current.key;
+          run(async () => {
+            const result = await saveBusinessResource({ ...payload, requestId: key });
+            if (result.ok) request.current = null;
+            return result;
+          });
+        }}
       >
         <h2 className="flex items-center gap-2 font-semibold">
           <Wrench className="h-4 w-4" /> Kaynak ekle

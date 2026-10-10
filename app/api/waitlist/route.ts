@@ -45,7 +45,9 @@ export async function POST(request: Request) {
   if (error) {
     const message = error.message.includes("phone_required")
       ? "Profilinize telefon numarası ekleyin."
-      : error.message.includes("already_waiting")
+      : error.message.includes("phone_already_associated")
+        ? "Telefon numaranız için doğrulama gerekiyor. Lütfen işletmeyle iletişime geçin."
+      : error.message.includes("already_waiting") || error.code === "23505"
         ? "Bu hizmet için zaten bekleme listesindesiniz."
         : "Bekleme listesine eklenemediniz.";
     return NextResponse.json({ error: message }, { status: 409 });

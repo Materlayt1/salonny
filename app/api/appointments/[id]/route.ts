@@ -14,6 +14,8 @@ function errorMessage(message: string) {
   if (message.includes("cancellation_window_closed")) return "İşletmenin iptal süresi dolduğu için bu randevu artık iptal edilemiyor.";
   if (message.includes("minimum_notice_required")) return "Seçtiğiniz saat işletmenin minimum bildirim süresine uymuyor.";
   if (message.includes("appointment_conflict")) return "Bu saat az önce doldu. Lütfen başka bir saat seçin.";
+  if (message.includes("resource_graph_changed")) return "Hizmetin kaynak ihtiyaçları değişmiş. Randevunu taşımak için işletmeyle iletişime geç; mevcut randevun korunuyor.";
+  if (message.includes("resource_conflict")) return "Seçtiğin saatte gerekli oda, koltuk veya cihaz dolu. Başka bir saat seç; mevcut randevun korunuyor.";
   if (message.includes("outside_working_hours")) return "Seçtiğiniz saat çalışma saatlerinin dışında.";
   if (message.includes("appointment_not_changeable")) return "Bu randevu artık değiştirilemiyor.";
   if (message.includes("appointment_not_found")) return "Randevu bulunamadı.";
@@ -62,6 +64,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const { data, error } = await supabase.rpc("reschedule_customer_appointment", { p_appointment_id: id, p_new_starts_at: parsed.data.startsAt });
-  if (error) return NextResponse.json({ error: errorMessage(error.message) }, { status: error.message.includes("appointment_conflict") ? 409 : 400 });
+  if (error) return NextResponse.json({ error: errorMessage(error.message) }, { status: ["appointment_conflict", "resource_conflict", "resource_graph_changed"].some((code) => error.message.includes(code)) ? 409 : 400 });
   return NextResponse.json({ id: data.id, status: data.status, startsAt: data.starts_at, endsAt: data.ends_at });
 }

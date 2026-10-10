@@ -7,7 +7,7 @@ import { requireBusinessPermission } from "@/lib/business-context";
 export default async function BusinessOperationsPage() {
   const { supabase, business, branch } = await requireBusinessPermission(
     "operations",
-    ["OWNER", "MANAGER", "EMPLOYEE"],
+    ["OWNER", "MANAGER"],
   );
   const [
     customers,
@@ -28,22 +28,26 @@ export default async function BusinessOperationsPage() {
       .limit(5000),
     supabase
       .from("services")
-      .select("id,name")
+      .select("id,name,branch_services!inner(branch_id,active)")
       .eq("business_id", business.id)
+      .eq("branch_services.branch_id", branch.id)
+      .eq("branch_services.active", true)
       .eq("active", true)
       .order("name"),
     supabase
       .from("employees")
-      .select("id,display_name")
+      .select("id,display_name,employee_branches!inner(branch_id)")
       .eq("business_id", business.id)
+      .eq("employee_branches.branch_id", branch.id)
       .eq("active", true)
       .order("display_name"),
     supabase
       .from("waitlist_entries")
       .select(
-        "id,status,desired_from,desired_to,party_size,notes,offer_expires_at,customers(full_name,phone),services(name)",
+        "id,status,desired_from,desired_to,party_size,notes,offered_starts_at,offer_expires_at,updated_at,customers(full_name,phone),services(name)",
       )
       .eq("business_id", business.id)
+      .eq("branch_id", branch.id)
       .in("status", ["waiting", "offered"])
       .order("priority")
       .order("created_at")
@@ -83,6 +87,7 @@ export default async function BusinessOperationsPage() {
       .order("created_at"),
   ]);
   const data: OperationsData = {
+    scopeKey: `${business.id}:${branch.id}`,
     businessSlug: business.slug,
     customers: (customers.data ?? []).map((row) => ({
       id: row.id,

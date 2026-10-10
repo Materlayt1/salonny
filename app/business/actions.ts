@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -99,6 +100,7 @@ const campaignSchema = z.object({
 
 const waitlistSchema = z
   .object({
+    idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).optional(),
     customerId: z.string().uuid(),
     serviceId: z.string().uuid(),
     employeeId: z.string().uuid().optional(),
@@ -112,6 +114,7 @@ const waitlistSchema = z
   });
 const resourceSchema = z.object({
   id: z.string().uuid().optional(),
+  requestId: z.string().uuid().optional(),
   name: z.string().trim().min(2).max(120),
   kind: z.enum(["room", "chair", "device", "other"]),
   capacity: z.number().int().min(1).max(100),
@@ -178,6 +181,32 @@ function failure(error: unknown, fallback: string): BusinessActionResult {
   if (message.includes("duplicate key") || message.includes("23505"))
     return { ok: false, message: "Bu kayıt zaten mevcut." };
   return { ok: false, message: fallback };
+}
+
+const waitlistResultSchema = z.object({
+  saved: z.literal(true),
+  id: idSchema,
+  status: z.enum(["waiting", "offered", "accepted", "expired", "cancelled"]),
+  updatedAt: z.string().datetime({ offset: true }),
+  notificationSent: z.literal(false),
+  appointmentCreated: z.literal(false),
+});
+
+function operationFailure(error: unknown, fallback: string): BusinessActionResult {
+  if (error instanceof z.ZodError)
+    return { ok: false, message: "Alanları ve tarih aralığını kontrol edin." };
+  if (error && typeof error === "object" && "code" in error) {
+    const code = String(error.code);
+    if (code === "40001")
+      return { ok: false, message: "Kayıt değişti. Sayfayı yenileyip güncel kaydı kontrol edin." };
+    if (code === "23505")
+      return { ok: false, message: "Bu talep veya kayıt zaten mevcut. Listeyi yenileyin." };
+    if (code === "23P01")
+      return { ok: false, message: "İşlem mevcut durum veya kaynak rezervasyonlarıyla çakışıyor. Güncel kaydı kontrol edin." };
+    if (code === "PGRST202" || code === "42883")
+      return { ok: false, message: "Güvenli operasyon güncellemesi henüz etkin değil. Lütfen daha sonra deneyin." };
+  }
+  return failure(error, fallback);
 }
 
 function refreshBusiness(paths: string[]) {
@@ -791,55 +820,69 @@ export async function createWaitlistEntry(
 ): Promise<BusinessActionResult> {
   try {
     const values = waitlistSchema.parse(input);
-    const { supabase, business, branch, user } =
-      await requireBusinessPermissionMutation("operations");
-    const { data, error } = await supabase
-      .from("waitlist_entries")
-      .insert({
-        business_id: business.id,
-        branch_id: branch.id,
-        customer_id: values.customerId,
-        service_id: values.serviceId,
-        employee_id: values.employeeId || null,
-        desired_from: values.desiredFrom,
-        desired_to: values.desiredTo,
-        party_size: values.partySize,
-        notes: values.notes || null,
-        created_by: user.id,
-      })
-      .select("id")
-      .single();
+    const { supabase, business, branch } =
+      await requireBusinessPermissionMutation("operations", ["OWNER", "MANAGER"]);
+    const { data, error } = await supabase.rpc("manage_native_waitlist", {
+      p_business_id: business.id,
+      p_branch_id: branch.id,
+      p_action: "create",
+      p_payload: {
+        customerId: values.customerId,
+        serviceId: values.serviceId,
+        employeeId: values.employeeId ?? null,
+        desiredFrom: values.desiredFrom,
+        desiredTo: values.desiredTo,
+        priority: 100,
+        partySize: values.partySize,
+        notes: values.notes,
+      },
+      p_idempotency_key: values.idempotencyKey ?? randomUUID(),
+    });
     if (error) throw error;
+    const saved = waitlistResultSchema.parse(data);
+    if (saved.status !== "waiting")
+      return { ok: false, message: "İşlem sonucu doğrulanamadı. Listeyi yenileyin." };
     revalidatePath("/business/operations");
     return {
       ok: true,
-      id: data.id,
+      id: saved.id,
       message: "Müşteri bekleme listesine eklendi.",
     };
   } catch (error) {
-    return failure(error, "Bekleme listesi kaydedilemedi.");
+    return operationFailure(error, "Bekleme listesi kaydedilemedi.");
   }
 }
 
 export async function setWaitlistStatus(
   id: string,
   status: "waiting" | "accepted" | "cancelled",
+  expectedUpdatedAt?: string,
+  idempotencyKey?: string,
 ): Promise<BusinessActionResult> {
   try {
     const entryId = idSchema.parse(id);
     const next = z.enum(["waiting", "accepted", "cancelled"]).parse(status);
-    const { supabase, business } =
-      await requireBusinessPermissionMutation("operations");
-    const { error } = await supabase
-      .from("waitlist_entries")
-      .update({ status: next, updated_at: new Date().toISOString() })
-      .eq("id", entryId)
-      .eq("business_id", business.id);
+    const expected = z.string().datetime({ offset: true }).parse(expectedUpdatedAt);
+    const key = z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).parse(idempotencyKey ?? randomUUID());
+    if (next === "waiting")
+      return { ok: false, message: "Kapanan talep yeniden açılamaz. Yeni bir talep ekleyin." };
+    const { supabase, business, branch } =
+      await requireBusinessPermissionMutation("operations", ["OWNER", "MANAGER"]);
+    const { data, error } = await supabase.rpc("manage_native_waitlist", {
+      p_business_id: business.id,
+      p_branch_id: branch.id,
+      p_action: next === "accepted" ? "accept" : "cancel",
+      p_payload: { id: entryId, expectedUpdatedAt: expected },
+      p_idempotency_key: key,
+    });
     if (error) throw error;
+    const saved = waitlistResultSchema.parse(data);
+    if (saved.id !== entryId || saved.status !== next)
+      return { ok: false, message: "İşlem sonucu doğrulanamadı. Listeyi yenileyin." };
     revalidatePath("/business/operations");
-    return { ok: true, message: "Bekleme listesi durumu güncellendi." };
+    return { ok: true, message: next === "accepted" ? "Teklif kabul edildi olarak işaretlendi; randevu oluşturulmadı." : "Bekleme talebi iptal edildi." };
   } catch (error) {
-    return failure(error, "Bekleme listesi güncellenemedi.");
+    return operationFailure(error, "Bekleme listesi güncellenemedi.");
   }
 }
 
@@ -848,51 +891,23 @@ export async function saveBusinessResource(
 ): Promise<BusinessActionResult> {
   try {
     const values = resourceSchema.parse(input);
+    if (values.id && input.serviceIds !== undefined)
+      return { ok: false, message: "Mevcut kaynak bağlantıları topluca değiştirilemez. Mobil kaynak yönetiminden hizmet bağlantılarını ayrı düzenleyin." };
     const { supabase, business, branch } =
-      await requireBusinessPermissionMutation("operations");
-    let resourceId = values.id;
-    const payload = {
-      business_id: business.id,
-      branch_id: branch.id,
-      name: values.name,
-      kind: values.kind,
-      capacity: values.capacity,
-      active: values.active,
-    };
-    if (resourceId) {
-      const { error } = await supabase
-        .from("business_resources")
-        .update(payload)
-        .eq("id", resourceId)
-        .eq("business_id", business.id);
-      if (error) throw error;
-    } else {
-      const { data, error } = await supabase
-        .from("business_resources")
-        .insert(payload)
-        .select("id")
-        .single();
-      if (error) throw error;
-      resourceId = data.id;
-    }
-    await supabase
-      .from("service_resources")
-      .delete()
-      .eq("resource_id", resourceId);
-    if (values.serviceIds.length) {
-      const { data: valid } = await supabase
-        .from("services")
-        .select("id")
-        .eq("business_id", business.id)
-        .in("id", values.serviceIds);
-      const { error } = await supabase.from("service_resources").insert(
-        (valid ?? []).map((service) => ({
-          resource_id: resourceId!,
-          service_id: service.id,
-        })),
-      );
-      if (error) throw error;
-    }
+      await requireBusinessPermissionMutation("operations", ["OWNER", "MANAGER"]);
+    const resourceId = values.id ?? values.requestId ?? randomUUID();
+    const { data, error } = await supabase.rpc("manage_business_resource", {
+      p_business_id: business.id,
+      p_branch_id: branch.id,
+      p_action: values.id ? "update" : "create",
+      p_resource_id: resourceId,
+      p_values: values.id
+        ? { name: values.name, capacity: values.capacity, active: values.active }
+        : { name: values.name, kind: values.kind, capacity: values.capacity, active: values.active, serviceIds: values.serviceIds },
+    });
+    if (error) throw error;
+    if (idSchema.parse(data) !== resourceId)
+      return { ok: false, message: "İşlem sonucu doğrulanamadı. Kaynak listesini yenileyin." };
     revalidatePath("/business/operations");
     return {
       ok: true,
@@ -900,7 +915,7 @@ export async function saveBusinessResource(
       message: "Kaynak ve hizmet bağlantıları kaydedildi.",
     };
   } catch (error) {
-    return failure(error, "Kaynak kaydedilemedi.");
+    return operationFailure(error, "Kaynak kaydedilemedi.");
   }
 }
 

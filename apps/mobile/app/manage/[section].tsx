@@ -13,8 +13,10 @@ import { BusinessProfileEditor } from "@/components/business-profile-editor";
 import { CampaignEditor } from "@/components/campaign-editor";
 import { BusinessBookingEditor } from "@/components/business-booking-editor";
 import { PackageManager } from "@/components/package-manager";
+import { WaitlistManager } from "@/components/waitlist-manager";
+import { ResourceManager } from "@/components/resource-manager";
 
-const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif gönderildi" };
+const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif hazırlandı" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date());
 const money = (minor: number) => `${(minor / 100).toLocaleString("tr-TR")} ₺`;
@@ -80,6 +82,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const [campaignEditor, setCampaignEditor] = useState<{ id?: string } | null>(null);
   const [bookingEditor, setBookingEditor] = useState(false);
   const [packageManager, setPackageManager] = useState(false);
+  const [waitlistManager, setWaitlistManager] = useState(false);
+  const [resourceManager, setResourceManager] = useState(false);
   useEffect(() => { const timer = setTimeout(() => setSettledSearch(search), 300); return () => clearTimeout(timer); }, [search]);
   const allowed = Boolean(context.data && canViewSection(context.data, section));
   const canWrite = context.data?.role === "OWNER" || context.data?.role === "MANAGER";
@@ -108,6 +112,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {section === "campaigns" && canWrite ? <AppButton label="Yeni kampanya" onPress={() => setCampaignEditor({})} /> : null}
         {["dashboard", "calendar", "appointments"].includes(section) && canWrite && context.data?.permissions.calendar ? <AppButton label="Müşteri adına randevu" onPress={() => setBookingEditor(true)} /> : null}
         {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Paketler ve seanslar" onPress={() => setPackageManager(true)} /> : null}
+        {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Bekleme listesi yönetimi" variant="secondary" onPress={() => setWaitlistManager(true)} /> : null}
+        {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Kaynak yönetimi" variant="secondary" onPress={() => setResourceManager(true)} /> : null}
         {section === "dashboard" && first?.metrics ? <View style={styles.metrics}>{first.metrics.map((metric) => { const Icon = metricIcons[metric.icon] ?? CalendarDays; return <View key={metric.label} style={styles.metric}><View style={styles.metricIcon}><Icon size={22} color={theme.colors.primary} /></View><Text style={styles.metricValue}>{metric.value}</Text><Text style={styles.description}>{metric.label}</Text></View>; })}</View> : null}
         {section === "calendar" ? <View style={styles.dateRow}><Pressable accessibilityLabel="Önceki gün" onPress={() => shiftDay(-1)} style={styles.dateButton}><ChevronLeft color={theme.colors.primary} size={22} /></Pressable><Text style={styles.label}>{new Date(`${date}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "short" })}</Text><Pressable accessibilityLabel="Sonraki gün" onPress={() => shiftDay(1)} style={styles.dateButton}><ChevronRight color={theme.colors.primary} size={22} /></Pressable><Chip label="Bugün" onPress={() => setDate(today())} /></View> : null}
         {editable.includes(section) || section === "campaigns" ? <View style={styles.search}><Search size={18} color={theme.colors.muted} /><TextInput accessibilityLabel="Panelde ara" placeholder="İsim veya ad ile ara..." value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.colors.text, paddingVertical: 12 }} /></View> : null}
@@ -138,6 +144,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     {campaignEditor ? <CampaignEditor key={campaignEditor.id ?? "new"} campaignId={campaignEditor.id} onClose={() => setCampaignEditor(null)} onSaved={() => { void queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}
     {bookingEditor ? <BusinessBookingEditor onClose={() => setBookingEditor(false)} onSaved={async () => { await queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}
     {packageManager ? <PackageManager onClose={() => setPackageManager(false)} /> : null}
+    {waitlistManager ? <WaitlistManager onClose={() => setWaitlistManager(false)} /> : null}
+    {resourceManager ? <ResourceManager onClose={() => setResourceManager(false)} /> : null}
   </View>;
 }
 const styles = StyleSheet.create({
