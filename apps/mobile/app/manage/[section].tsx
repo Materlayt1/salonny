@@ -11,6 +11,8 @@ import { Alert } from "@/lib/alert";
 import { TeamManager } from "@/components/team-manager";
 import { BusinessProfileEditor } from "@/components/business-profile-editor";
 import { CampaignEditor } from "@/components/campaign-editor";
+import { BusinessBookingEditor } from "@/components/business-booking-editor";
+import { PackageManager } from "@/components/package-manager";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif gönderildi" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -76,9 +78,11 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const [teamEmployee, setTeamEmployee] = useState<PanelRow | null>(null);
   const [businessEditor, setBusinessEditor] = useState(false);
   const [campaignEditor, setCampaignEditor] = useState<{ id?: string } | null>(null);
+  const [bookingEditor, setBookingEditor] = useState(false);
+  const [packageManager, setPackageManager] = useState(false);
   useEffect(() => { const timer = setTimeout(() => setSettledSearch(search), 300); return () => clearTimeout(timer); }, [search]);
   const allowed = Boolean(context.data && canViewSection(context.data, section));
-  const canWrite = context.data?.role !== "EMPLOYEE";
+  const canWrite = context.data?.role === "OWNER" || context.data?.role === "MANAGER";
   const page = useInfiniteQuery({
     queryKey: ["business-panel", section, user?.id, scope, settledSearch, status, section === "calendar" ? date : ""],
     initialPageParam: 0,
@@ -102,6 +106,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         <View style={styles.titleRow}><View style={{ flex: 1 }}><Text style={styles.heading}>{definition.label}</Text><Text style={styles.description}>{definition.description}</Text></View>{editable.includes(section) && canWrite ? <Pressable accessibilityRole="button" accessibilityLabel="Yeni kayıt ekle" style={styles.addButton} onPress={() => { mutation.reset(); setEditor({}); }}><Plus size={22} color="#fff" /></Pressable> : null}</View>
         {section === "settings" && canWrite ? <AppButton label="İşletme profili ve saatleri" variant="secondary" onPress={() => setBusinessEditor(true)} /> : null}
         {section === "campaigns" && canWrite ? <AppButton label="Yeni kampanya" onPress={() => setCampaignEditor({})} /> : null}
+        {["dashboard", "calendar", "appointments"].includes(section) && canWrite && context.data?.permissions.calendar ? <AppButton label="Müşteri adına randevu" onPress={() => setBookingEditor(true)} /> : null}
+        {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Paketler ve seanslar" onPress={() => setPackageManager(true)} /> : null}
         {section === "dashboard" && first?.metrics ? <View style={styles.metrics}>{first.metrics.map((metric) => { const Icon = metricIcons[metric.icon] ?? CalendarDays; return <View key={metric.label} style={styles.metric}><View style={styles.metricIcon}><Icon size={22} color={theme.colors.primary} /></View><Text style={styles.metricValue}>{metric.value}</Text><Text style={styles.description}>{metric.label}</Text></View>; })}</View> : null}
         {section === "calendar" ? <View style={styles.dateRow}><Pressable accessibilityLabel="Önceki gün" onPress={() => shiftDay(-1)} style={styles.dateButton}><ChevronLeft color={theme.colors.primary} size={22} /></Pressable><Text style={styles.label}>{new Date(`${date}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "short" })}</Text><Pressable accessibilityLabel="Sonraki gün" onPress={() => shiftDay(1)} style={styles.dateButton}><ChevronRight color={theme.colors.primary} size={22} /></Pressable><Chip label="Bugün" onPress={() => setDate(today())} /></View> : null}
         {editable.includes(section) || section === "campaigns" ? <View style={styles.search}><Search size={18} color={theme.colors.muted} /><TextInput accessibilityLabel="Panelde ara" placeholder="İsim veya ad ile ara..." value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.colors.text, paddingVertical: 12 }} /></View> : null}
@@ -130,6 +136,8 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     {teamEmployee ? <TeamManager key={teamEmployee.id} employee={teamEmployee} onClose={() => setTeamEmployee(null)} /> : null}
     {businessEditor ? <BusinessProfileEditor onClose={() => setBusinessEditor(false)} /> : null}
     {campaignEditor ? <CampaignEditor key={campaignEditor.id ?? "new"} campaignId={campaignEditor.id} onClose={() => setCampaignEditor(null)} onSaved={() => { void queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}
+    {bookingEditor ? <BusinessBookingEditor onClose={() => setBookingEditor(false)} onSaved={async () => { await queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}
+    {packageManager ? <PackageManager onClose={() => setPackageManager(false)} /> : null}
   </View>;
 }
 const styles = StyleSheet.create({

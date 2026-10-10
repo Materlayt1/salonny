@@ -13,6 +13,9 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 - [x] Gerçek hizmet/onaylı yorum vitrinleri ve ortak kaynaklı native yasal metin okuyucusu eklendi.
 - [x] Çalışan hizmet yetkinlikleri, haftalık şube vardiyası ve izin/blok kayıtları native olarak yönetilir; sahiplik/rol kontrolleri, İstanbul saat dönüşümü, ileri vardiyaları koruma ve hata geri bildirimi vardır.
 - [x] Native profil/mevcut adres/haftalık işletme saatleri ve temel kampanya editörü eklendi; kapsam sınırları native eşleşme listesinde kayıtlıdır. Gerçek işletme kaydı test amacıyla değiştirilmedi.
+- [x] Native müşteri adına tek hizmetlik randevu ve paket/seans yönetimi eklendi. Atomik, müşteri kimliğini koruyan, tekrar kayıt defterli randevu RPC'si ve paket tenant/RLS/entitlement güvenliği 10 Ekim'de açık onayla canlı veritabanına kuruldu. Gerçek müşteriye test randevusu/paketi yazılmadı.
+- [x] 10 Ekim: 159 birim testi, hedefli randevu 9/9, paket 8/8 ve kampanya 5/5 E2E; web/mobil tip, lint, Next.js 16.3.8 build ve Android/iOS Hermes export geçti. Son tam regresyon sonucu native eşleşme belgesinde tutulur; Hermes export imzalı cihaz paketi değildir.
+- [x] 10 Ekim son temiz preview export'uyla tam mobil regresyon 81/81 (79 kontrollü + 2 salt-okunur Gogo görsel kabulü) geçti; retry yok. Canlı şema/ACL denetimi ve SQL-repo eşleşmesi doğrulandı.
 - [x] Filtre paneli, sabit keşif araması, dört adımlı sabit özetli randevu, büyük dokunma hedefleri, alan bazlı form geri bildirimi ve tam ekran gerçek fotoğraf galerisi eklendi.
 - [x] Favoriler, randevular, profil ve uygulama içi hesap silme talebi hazır.
 - [x] Randevu iptal/değişiklik, tamamlanan randevuya yorum, kişisel bilgi düzenleme ve bildirimleri okuma/okundu işaretleme native ekranlara eklendi.

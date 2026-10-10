@@ -1,6 +1,8 @@
 # Native arayüz ve işletme paneli
 
-7 Ekim 2026. Kullanıcı tercihi: tamamen native ekranlar; WebView kullanılmaz. Ödeme kapsam dışıdır.
+10 Ekim 2026. Kullanıcı tercihi: tamamen native ekranlar; WebView kullanılmaz. Ödeme kapsam dışıdır.
+
+İleri panel için [tamamlananlar ve öncelikli yapılacaklar](advanced-panel-todo.md) ayrı listede tutulur.
 
 ## Bu turda uygulananlar
 
@@ -36,6 +38,10 @@
 - [x] İşletme detayı sekmeleri sabit ve kaydırmaya bağlı seçilidir. Gerçek fotoğraflar native tam ekran galeride açılır; 1–3× yakınlaştırma, gezinti, hata sonrası tekrar ve kapanış vardır. Koyu galeri native durum çubuğunu açık renge geçirir; fiziksel hareket testi hâlâ gereklidir.
 - [x] Native işletme adı/telefon/açıklama, mevcut şube adresinin metin düzeltmesi ve yedi günlük açılış-kapanış saatleri yönetimi. Sahip/yönetici ve kayıt sahipliği kontrol edilir; harita koordinatları değişmez. Tüm haftayı kapatma ve kaydedilmemiş değişiklikleri bırakma açık onay ister.
 - [x] Native kampanya oluşturma ve ad/hedef kitle düzenleme. Mevcut indirim koşulları ve durum korunur; otomatik iletişim gönderilmez. Mevcut oluşturma RPC'si ilk yetkili işletmeyi kullandığından diğer seçili işletmelerde oluşturma güvenle kapatılır; tam çoklu-işletme editörü tamamlandı sayılmaz.
+- [x] Özet/takvim/randevular bölümünden müşteri adına tek hizmetlik yeni randevu: müşteri, hizmet/uzman, işletme saat diliminde gün/saat ve son onay. Seçili işletme/şube ve aktif sahip/yönetici üyeliği doğrulanır. Müşteri kullanıcı kimliği yöneticiden alınmaz; müşterinin mevcut kaydından gelir. Tekrarlanan saatler birleştirilir, çakışma yeniden seçim ister; belirsiz yanıtta aynı işlem anahtarı korunur.
+- [x] Operasyon bölümünden native paket/seans araçları: paket oluşturma, ad/geçerlilik/aktiflik düzenleme, müşteriye onaylı tanımlama, kalan bakiye/son kullanma tarihi, arama ve 25'lik sayfalama. Paketler işletmenin tüm şubelerinde ortaktır. Kayıtlı başlangıç bakiyesi/işlem defteri olmadığı için kullanılan seans tahmin edilmez; ödeme ve elle bakiye düzeltmesi yoktur.
+- [x] `202610070026_native_staff_booking` ve `202610070027_native_package_security`, kullanıcının açık onayıyla canlı Supabase projesine kuruldu ve migration geçmişine işlendi. Randevu tekrar defteri istemcilere kapalı; RPC anonim rol için kapalıdır. Paketler işletmeler arası FK'ler ve yönetici RLS ile korunur; hizmet/seans içeriği değişmez. Doğrulanmış compound FK'ler eski tek kolon ilişkilerinin yerini aldı; PostgREST embed belirsizliği yaratılmadı. Paket tüketim kilidi yalnız müşteri paketini bekler; metadata düzenlemesi tüketimi sessizce atlatmaz. Altyapı işlevi olmadan native paket API'si 503 verir.
+- [x] Yerel static önizleme dinamik işletme/randevu/panel bağlantılarına ana sayfa HTML'si yerine doğru Expo route-template HTML'sini verir. Doğrudan panel açılışındaki React hydration hatası düzeltildi; bilinmeyen rotalar/eksik varlıklar HTML fallback almaz.
 
 Önceki turun canlı görsel kabulü: gerçek Gogo işletmeleriyle ana sayfa ve harita seçimi, iki salt-okunur senaryoda geçti (18 kontrollü + 2 canlı görsel = 20 mobil test). Son turda isteğe bağlı iki canlı görsel senaryosu yeniden çalıştırılmadı.
 
@@ -44,7 +50,8 @@
 - [ ] Fiziksel cihazda native harita, izin reddi ve kamera kabul testi. Harita yalnız yüklenen sonuç sayfalarını gösterir; tüm ülkenin sınırsız işletmelerini tek seferde indirmez.
 - [ ] Yüksek trafik öncesinde sözleşmeli/kendi barındırılan tile sağlayıcısı ve kapasite doğrulaması. `EXPO_PUBLIC_MAP_TILE_URL` değiştirilebilir; public OSM tile servisi SLA veya sınırsız kapasite sağlamaz.
 - [ ] Native işletme onboarding, görsel yükleme, yeni konum/harita üzerinde taşınma; tarihe özel/çok parçalı ileri vardiya ve çalışma saati düzenleyicisi, çalışanı farklı şubelere atama. Temel işletme saatleri ve çalışan vardiya/izin/hizmet yönetimi tamamlandı. İleri plan koruması ön kontroldür; eşzamanlı dış DB değişikliğine karşı atomik kilit garantisi değildir.
-- [ ] İşletmenin müşteri adına yeni randevu oluşturması; ileri operasyon/package/care/communication araçları.
+- [ ] Tekrarlanan/grup/çok hizmetli işletme randevuları; ileri bekleme listesi/kaynak/bakım/iletişim araçları. Tek müşteri/tek hizmet randevusu ve temel paket yönetimi tamamlandı.
+- [ ] Paket kullanım işlem defteri ve başlangıç bakiye snapshot'ı; tanımlamada paket metadata okuması ve insert'i tek transaction'a alma. Şu an eşzamanlı aktiflik/geçerlilik değişiminde okunan anın değerleri kullanılabilir; hizmet/seans sayısı değişmez. Pakete bağlı hizmetler silinmez, pasife alınır. Mevcut kaynak motorunda çoklu kaynak kilit sırası transient deadlock oluşturabilir; işlem rollback olur ve tekrar denenmelidir.
 - [ ] İşletme seçimini transaction içinde alan kampanya oluşturma RPC'si, indirim kodu/tutar/tarihlerini atomik düzenleme ve ayrıntılı rapor grafikleri. Şu an ilk yetkili işletmede kampanya oluşturma, metadata ve durum yönetimi vardır.
 - [ ] Fiziksel iOS/Android cihaz kabul testi; mağaza imzalama, gerçek production HTTPS API adresi ve yayın hesapları.
 
@@ -59,5 +66,9 @@ Yerel optimize önizleme: `pnpm mobile:export:preview` ardından `pnpm mobile:pr
 `pnpm mobile:test:e2e` ortak akışları test eder. `MOBILE_LIVE_VISUAL=1` ile salt-okunur canlı görsel testi gerçek public işletmeleri kullanır. İmzalı APK/IPA yerine Hermes JavaScript export kontrolü ayrı bir build doğrulamasıdır.
 
 Son turun doğrulaması (7 Ekim): 103 birim/yetki testi ve 64 mobil E2E senaryosu geçti (62 kontrollü akış + 2 salt-okunur canlı görsel). Auth/form senaryoları ayrıca 15/15, sekme kaydırması 5/5 tekrarda geçti; retry kullanılmadı. Next.js production build, web/mobil TypeScript, lint, güvenlik regresyon kapısı, Expo Doctor 21/21 ve Android/iOS Hermes export başarılı. Yeni işletme API'leri oturumsuz erişimi 401 ile reddetti. Gerçek çalışan/işletme/randevu kaydına test yazımı yapılmadı. Gerçek yetkili hesapla yazma kabulü, fiziksel cihaz ve mağaza kapıları hâlâ gereklidir.
+
+10 Ekim ek doğrulama: 159 birim/yetki/preview-routing testi, web ve mobil TypeScript, lint, Next.js 16.3.8 production build ve Android/iOS Hermes + web export geçti. Next.js'in altı yeni advisory'si uyumlu 16.3.8 patch sürümüyle kapatıldı; yerel transitive yamaların davranış testleri korunarak güvenlik kapısı `unresolved: []` verdi (ham dependency audit sıfır anlamına gelmez). Müşteri adına randevu 9/9, paket 8/8, kampanya 5/5 hedefli E2E geçti; giriş 9/9 ve kampanya oluşturma 5/5 tekrar kontrolünden geçti. Canlı şemada iki migration, üç doğrulanmış tenant FK, dört yönetici paket politikası, kapalı anonim RPC/özel defter ve seans kilidi doğrulandı. Geçerli biçimdeki oturumsuz yeni API çağrıları 401 ile reddedildi. Gerçek müşteri/randevuya yazma ve canlı eşzamanlı DB kapasite testleri yapılmadı; fiziksel cihaz/mağaza kabulü hâlâ gereklidir.
+
+Son temiz export üzerindeki tam mobil regresyon: **81/81 geçti** (79 kontrollü + 2 salt-okunur gerçek Gogo ana sayfa/harita kabulü), retry kullanılmadı. Uygulanan SQL iki repo migration'ıyla, yalnız yorum/boşluk ve migration-geçmişi kayıtları hariç birebir karşılaştırılıp doğrulandı. Anonim Supabase RPC çağrısı da 401 ile reddedildi. İlk turda çıkan preview hydration ve görünmeyen form alanı test sorunları giderilerek tüm tur yeniden çalıştırıldı.
 
 MapLibre Native [Expo Go içinde çalışmaz](https://maplibre.org/maplibre-react-native/docs/setup/expo/); `eas build --profile development` veya `preview` ile özel native build gerekir. Hermes export imzalı APK/IPA değildir. [OSM tile kullanım politikası](https://operations.osmfoundation.org/policies/tiles/) doğrultusunda atıf korunur, native istemci uygulama User-Agent'i gönderir, ön indirme/offline harita yapılmaz.

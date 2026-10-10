@@ -1,8 +1,8 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 7 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 10 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md). Son turda 103 birim/yetki testi ve 64 mobil E2E senaryosu geçti (62 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 10 Ekim son turda 159 birim/yetki testi ve 81 mobil E2E senaryosu geçti (79 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -34,6 +34,8 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [x] Native harita/konum, hizmet ve yorum vitrinleri, ortak kaynaklı native yasal metinler; Supabase'de sayfalama öncesi fiyat/yakınlık/hizmet araması eklendi. `202610060025_public_marketplace_search.sql` canlı projeye uygulandı; anonim rol ve invoker hakları kontrol edildi.
 - [x] 6 Ekim source-map-js DoS ve sharp/librsvg RCE advisory'leri düzeltilmiş upstream sürümlerine yükseltilerek kapatıldı; mevcut iki dar kapsamlı yerel yamanın regresyon kapısı korundu.
 - [x] Native çalışan yetkinliği, haftalık vardiya ve izin/blok yönetimi ortak API'ye bağlandı. İşletme/şube sahipliği ve kayıt sınırları kontrol edilir; mevcut tarihli/çok parçalı vardiyalar basit editörle ezilmez. Gerçek işletmenin çalışma planı test amacıyla değiştirilmedi.
+- [x] 10 Ekim: native müşteri adına randevu ve paket/seans yönetimi; `202610070026`/`202610070027` canlı migration'ları onayla kuruldu. Anon RPC, özel tekrar defteri, tenant FK'leri ve yönetici paket RLS doğrulandı; gerçek müşteri/randevu test yazımı yapılmadı. Ayrıntılı kapsam/kalanlar native eşleşme belgesindedir.
+- [x] 10 Ekim: altı yeni Next.js advisory'si 16.3.8 patch güncellemesiyle düzeltildi; eşleşen ESLint config, 159 birim testi, production build ve mevcut transitive yama regresyon kapısı doğrulandı. Güvenlik kapısı `unresolved: []`; ham audit'teki yerel olarak yamalanmış iki kayıt bastırılmadı.
 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 

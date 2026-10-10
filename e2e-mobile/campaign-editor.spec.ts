@@ -9,17 +9,30 @@ test("native campaign creation validates fields and writes scoped atomic input w
   await page.getByRole("button", { name: "Kampanyayı oluştur", exact: true }).click();
   await expect(page.getByText("Kampanya adı 2–140 karakter olmalı.", { exact: true })).toBeVisible();
   expect(writes).toHaveLength(0);
-  await page.getByLabel("Kampanya adı", { exact: true }).fill("Sonbahar fırsatı");
+  // The first validation click scrolls the long native form to its footer.
+  // Return to the name field before editing, as a user would: iOS WebKit
+  // can ignore fill on an offscreen input inside the native ScrollView.
+  const campaignName = page.getByLabel("Kampanya adı", { exact: true });
+  await campaignName.scrollIntoViewIfNeeded();
+  await expect(campaignName).toBeVisible();
+  await campaignName.fill("Sonbahar fırsatı");
+  await expect(campaignName).toHaveValue("Sonbahar fırsatı");
   await page.getByLabel("Kampanya kodu", { exact: true }).fill("sonbahar20");
+  await expect(page.getByLabel("Kampanya kodu", { exact: true })).toHaveValue("sonbahar20");
   await page.getByLabel("Kampanya indirim değeri", { exact: true }).fill("120");
   await page.getByRole("button", { name: "Kampanyayı oluştur", exact: true }).click();
   await expect(page.getByText("Yüzde 1–100 arasında tam sayı olmalı.", { exact: true })).toBeVisible();
+  await expect(campaignName).toHaveValue("Sonbahar fırsatı");
   expect(writes).toHaveLength(0);
-  await page.getByLabel("Kampanya indirim değeri", { exact: true }).fill("20");
+  const discountValue = page.getByLabel("Kampanya indirim değeri", { exact: true });
+  await discountValue.scrollIntoViewIfNeeded();
+  await discountValue.fill("20");
+  await expect(discountValue).toHaveValue("20");
   await page.getByLabel("Kampanya başlangıcı", { exact: true }).fill("2026-10-15 09:00");
   await page.getByLabel("Kampanya bitişi", { exact: true }).fill("2026-10-14 18:00");
   await page.getByRole("button", { name: "Kampanyayı oluştur", exact: true }).click();
   await expect(page.getByText("Bitiş başlangıçtan sonra olmalı.", { exact: true })).toBeVisible();
+  await expect(campaignName).toHaveValue("Sonbahar fırsatı");
   expect(writes).toHaveLength(0);
   await page.getByLabel("Kampanya bitişi", { exact: true }).fill("2026-10-31 18:00");
   await page.getByRole("button", { name: "Kampanyayı oluştur", exact: true }).click();
