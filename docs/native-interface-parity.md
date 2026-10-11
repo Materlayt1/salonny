@@ -1,6 +1,6 @@
 # Native arayüz ve işletme paneli
 
-10 Ekim 2026. Kullanıcı tercihi: tamamen native ekranlar; WebView kullanılmaz. Ödeme kapsam dışıdır.
+11 Ekim 2026. Kullanıcı tercihi: tamamen native ekranlar; WebView kullanılmaz. Ödeme kapsam dışıdır.
 
 İleri panel için [tamamlananlar ve öncelikli yapılacaklar](advanced-panel-todo.md) ayrı listede tutulur.
 
@@ -53,18 +53,20 @@
 - [ ] Fiziksel cihazda native harita, izin reddi ve kamera kabul testi. Harita yalnız yüklenen sonuç sayfalarını gösterir; tüm ülkenin sınırsız işletmelerini tek seferde indirmez.
 - [ ] Yüksek trafik öncesinde sözleşmeli/kendi barındırılan tile sağlayıcısı ve kapasite doğrulaması. `EXPO_PUBLIC_MAP_TILE_URL` değiştirilebilir; public OSM tile servisi SLA veya sınırsız kapasite sağlamaz.
 - [ ] Native işletme onboarding, görsel yükleme, yeni konum/harita üzerinde taşınma; tarihe özel/çok parçalı ileri vardiya ve çalışma saati düzenleyicisi, çalışanı farklı şubelere atama. Temel işletme saatleri ve çalışan vardiya/izin/hizmet yönetimi tamamlandı. İleri plan koruması ön kontroldür; eşzamanlı dış DB değişikliğine karşı atomik kilit garantisi değildir.
-- [ ] Tekrarlanan/grup/çok hizmetli native işletme randevuları ve bakım/iletişim araçları. Bekleme/kaynak ekranlarının kodu tamamlandı, 028/029 canlı etkinleştirmesi güncel onayı bekliyor; bu iki migration henüz uygulanmadı. Gerçek iletişim provider'ı/teslimatı ayrıca kabul edilir.
+- [ ] Tekrarlanan/grup/çok hizmetli native işletme randevuları ve bakım/iletişim araçları. Bekleme/kaynak ekranları ve 028/029 canlı etkinleştirmesi tamamlandı; gerçek iletişim provider'ı/teslimatı ayrıca kabul edilir.
 - [ ] Paket kullanım işlem defteri ve başlangıç bakiye snapshot'ı; tanımlamada paket metadata okuması ve insert'i tek transaction'a alma. Şu an eşzamanlı aktiflik/geçerlilik değişiminde okunan anın değerleri kullanılabilir; hizmet/seans sayısı değişmez. Pakete bağlı hizmetler silinmez, pasife alınır. Mevcut kaynak motorunda çoklu kaynak kilit sırası transient deadlock oluşturabilir; işlem rollback olur ve tekrar denenmelidir.
 - [ ] İşletme seçimini transaction içinde alan kampanya oluşturma RPC'si, indirim kodu/tutar/tarihlerini atomik düzenleme ve ayrıntılı rapor grafikleri. Şu an ilk yetkili işletmede kampanya oluşturma, metadata ve durum yönetimi vardır.
 - [ ] Fiziksel iOS/Android cihaz kabul testi; mağaza imzalama, gerçek production HTTPS API adresi ve yayın hesapları.
 
 Bu değişiklik bütün web sayfalarının pixel-perfect taşınması veya App Store/Play Store yayın onayı anlamına gelmez. Native ekranlar aynı Supabase veritabanını kullanır; sahte işletme/kimlik verisi eklenmez. Kontrollü E2E fixture verileri sadece test ortamına aittir.
 
-Kaynak kurulum sınırları: 029 tenant/servis-şube/açık rezervasyon zaman uyuşmazlığı ve fazla kapasitede veri silmeden durur. Yeni erteleme tetikleyicisi mevcut birim grafiği aynıysa rezervasyonları taşır; farklıysa yönetici incelemesi ister ve eski kayıtlar korunur. Fiziksel kaynak silme/cascade engellenir, aktiflik yönetimi kullanılır. Oluşturma UUID'si mevcut içerikle karşılaştırılır; sonraki değişiklikler için kalıcı replay garantisi değildir. Seri SQL motor testi hazır, henüz çalıştırılmadı; gerçek DB yarış/staging kapasite kabulü yapılmadı.
+Kaynak kurulum sınırları: 029 tenant/servis-şube/açık rezervasyon zaman uyuşmazlığı ve fazla kapasitede veri silmeden durur. Yeni erteleme tetikleyicisi mevcut birim grafiği aynıysa rezervasyonları taşır; farklıysa yönetici incelemesi ister ve eski kayıtlar korunur. Fiziksel kaynak silme/cascade engellenir, aktiflik yönetimi kullanılır. Oluşturma UUID'si mevcut içerikle karşılaştırılır; sonraki değişiklikler için kalıcı replay garantisi değildir. Seri SQL motor testi 8/8 geçti; gerçek DB yarış/staging kapasite kabulü yapılmadı.
 
 ## Yeniden doğrulama
 
-10 Ekim devam turunun son kapısı: **263 birim/yetki testi + 104/104 mobil E2E** (102 kontrollü + 2 salt-okunur canlı görsel), retry yok. Bekleme listesi 14 ve kaynak 9 yeni senaryo dahil; web/mobil tip, lint, güvenlik regresyon kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. Geçerli biçimdeki oturumsuz iki yeni API 401 verdi. SQL kaynakları bağımsız incelendi; gerçek müşteri/randevu/kaynak test yazımı yapılmadı. 028/029 için güncel onay ve canlı kurulum, izole SQL motor smoke'u, gerçek DB yarış/staging ve cihaz kabulü açık kalır.
+11 Ekim canlı kapısı: kullanıcı onayıyla 028/029 ve varsayılan yetkileri kapatan 030 kuruldu. İki özellik güncellemesi editöre aktarılırken repo + geçmiş kaydı eşleşmesi, sonrasında 11/11 canlı fonksiyon gövdesi eşleşmesi doğrulandı. `native_operations_deployment_verify.sql` 12/12 geçti: 14 işlev ACL, dokuz FK, dört tetikleyici, beş RLS tablosu ve kapalı tablo/kolon/bakım/defter hakları. İzole geçici tablo SQL motor testi 8/8, tüm nesneler rollback; dört yeni ACL regresyonuyla 267 birim testi geçti. Anonim RPC/tablo ve oturumsuz API erişimi 401, public iki işletmeli dizin 200. Gerçek müşteri/randevu/kaynak test yazımı yapılmadı; gerçek yetkili hesapla yazma, JWT/RLS, yarış/staging ve fiziksel cihaz kapıları açık kalır.
+
+10 Ekim önceki kod kapısı: **263 birim/yetki testi + 104/104 mobil E2E** (102 kontrollü + 2 salt-okunur canlı görsel), retry yok. Bekleme listesi 14 ve kaynak 9 yeni senaryo dahil; web/mobil tip, lint, güvenlik regresyon kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. Bu mobil koşu 11 Ekim'de tekrar edilmedi; native kaynak değişmedi.
 
 `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm mobile:typecheck`, `pnpm test:security`, `pnpm build`.
 

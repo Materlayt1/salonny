@@ -86,8 +86,8 @@ begin
   insert into pg_temp.appointment_resource_reservations values
     (1,v_appointment,v_business,v_branch,v_resource,'2030-01-01 10:00Z','2030-01-01 11:00Z',null),
     (2,v_other_appointment,v_business,v_branch,v_resource,'2030-01-01 11:00Z','2030-01-01 12:00Z',null);
-  if pg_temp.resource_peak_units(v_resource,'2030-01-01 10:00Z','2030-01-01 12:00Z')<>1
-    or pg_temp.resource_peak_units(v_resource,'2030-01-01 10:30Z','2030-01-01 11:30Z')<>1 then
+  if pg_temp.resource_peak_units(v_resource,'2030-01-01 10:00Z','2030-01-01 12:00Z') is distinct from 1
+    or pg_temp.resource_peak_units(v_resource,'2030-01-01 10:30Z','2030-01-01 11:30Z') is distinct from 1 then
     raise exception 'smoke_failed: grouped_endpoint_deltas';
   end if;
   insert into pg_temp.native_resource_smoke_results values('grouped_endpoint_deltas');
@@ -95,7 +95,7 @@ begin
   -- Three overlapping-range rows can still have a simultaneous peak of TWO.
   insert into pg_temp.appointment_resource_reservations values
     (3,v_other_appointment,v_business,v_branch,v_resource,'2030-01-01 10:30Z','2030-01-01 11:30Z',null);
-  if pg_temp.resource_peak_units(v_resource,'2030-01-01 10:00Z','2030-01-01 12:00Z')<>2 then
+  if pg_temp.resource_peak_units(v_resource,'2030-01-01 10:00Z','2030-01-01 12:00Z') is distinct from 2 then
     raise exception 'smoke_failed: overlap_peak';
   end if;
   insert into pg_temp.native_resource_smoke_results values('overlap_peak');
@@ -192,7 +192,7 @@ begin
   -- Two items requiring two units each must SUM to FOUR, not DISTINCT to TWO.
   update pg_temp.appointments set starts_at='2030-01-01 12:00Z',ends_at='2030-01-01 13:00Z' where id=v_appointment;
   if (select count(*) from pg_temp.appointment_resource_reservations where appointment_id=v_appointment and starts_at='2030-01-01 12:00Z' and ends_at='2030-01-01 13:00Z')<>4
-    or pg_temp.resource_peak_units(v_resource,'2030-01-01 12:00Z','2030-01-01 13:00Z')<>4 then
+    or pg_temp.resource_peak_units(v_resource,'2030-01-01 12:00Z','2030-01-01 13:00Z') is distinct from 4 then
     raise exception 'smoke_failed: repeated_item_quantity_sum';
   end if;
   insert into pg_temp.native_resource_smoke_results values('repeated_item_quantity_sum');

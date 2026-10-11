@@ -36,9 +36,9 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 
 ## EAS ve mağaza hazırlığı
 
-10 Ekim devam turu: bekleme listesi ve kaynak yönetimi native kodu tamamlandı; 263 birim/yetki testi ve tam mobil **104/104** E2E (102 kontrollü + 2 salt-okunur Gogo görsel, retry yok), web/mobil tip, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. Canlı 028/029 yetki/tenant/kapasite güncellemeleri güncel onayı bekliyor; henüz kurulmadı. Gerçek DB yazım/yarış kabulü ve hazır sekiz kontrollü izole SQL smoke'u çalıştırılmadı.
+10 Ekim kod turu: bekleme listesi ve kaynak yönetimi native kodu tamamlandı; 263 birim/yetki testi ve tam mobil **104/104** E2E (102 kontrollü + 2 salt-okunur Gogo görsel, retry yok), web/mobil tip, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. 11 Ekim'de canlı 028/029 + kalan varsayılan hakları kapatan 030 onaylı kapsamda kuruldu; 267 birim testi, 8/8 izole SQL motor, 12/12 kurulum/ACL ve 11/11 fonksiyon kaynak eşleşmesi geçti. Gerçek DB yazım/JWT/RLS/yarış ve cihaz kabulü hâlâ gereklidir; 104 mobil koşu bu turda tekrar edilmedi.
 
-- [ ] 028/029 canlı kurulum onayı, migration geçmişi/ACL/constraint denetimi ve izole SQL motor smoke'unu tamamla. Kod tamamlandı işaretleri veritabanı etkinleştirmesi sayılmaz.
+- [x] 028/029 + 030 canlı kurulum, migration geçmişi/ACL/constraint denetimi ve izole SQL motor smoke'u 11 Ekim'de tamamlandı. Gerçek işletme/müşteri yazımına test kaydı eklenmedi; geçici nesneler rollback oldu.
 
 7 Ekim: kullanıcı Expo/EAS, Apple Developer ve Play Console hesaplarının henüz hazır olmadığını belirtti; bu tur yalnız kod/test çalışmasıdır. İmzalı APK/IPA, mağaza gönderimi veya fiziksel kabul tamamlandı sayılmaz. [Cihaz kabul planı](mobile-device-acceptance.md) henüz uygulanmamış senaryoları kaydeder.
 

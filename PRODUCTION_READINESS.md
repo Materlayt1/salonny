@@ -1,8 +1,8 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 10 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 11 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 10 Ekim son devam turunda 263 birim/yetki testi ve 104 mobil E2E senaryosu geçti (102 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir. Yeni 028/029 canlı kurulum onayı bekler.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028/029 + 030 canlı kuruldu; 267 birim, 8 izole SQL motor ve 12 kurulum/yetki kontrolü geçti. Önceki 10 Ekim mobil E2E kaydı 104/104 (102 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -40,7 +40,7 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 ## Canlıya çıkmadan önce tamamlanması gereken P0 operasyon işleri
 
 - [x] `202610070027` dahil önceki Supabase migrasyonları production'a uygulandı ve salt-okunur güvenlik sorgusuyla doğrulandı.
-- [ ] Yeni `202610100028` bekleme listesi / `202610100029` kaynak yönetimi migration'ları için güncel onay al, uygula ve ACL/tenant/kapasite denetimini tamamla. Kaynak ve native/web kodu hazır, bu iki migration henüz kurulmadı. İzole SQL motor smoke'u da kurulum sonrasında çalıştırılmalıdır; gerçek eşzamanlı staging kapasite kabulü ayrıca gerekir.
+- [x] `202610100028` bekleme listesi / `202610100029` kaynak yönetimi ve kalan varsayılan hakları kapatan `202610110030` canlı kuruldu; geçmiş, ACL/tenant/tetikleyici ve fonksiyon gövdesi eşleşmesi doğrulandı. İzole SQL motor 8/8 geçti. Gerçek JWT/RLS/yazım ve eşzamanlı staging kapasite kabulü ayrıca gerekir.
 - [ ] Ayrı bir staging Supabase projesi açıldığında aynı migrasyonları staging'e uygula.
 - [ ] Production ortamında Upstash Redis değişkenlerini tanımla; readiness ucu `200 ready` vermeden trafik açma.
 - [ ] Supabase bağlantı havuzu, PITR/yedekleme, geri yükleme tatbikatı ve kota alarmlarını etkinleştir.
@@ -56,7 +56,9 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 
 ## Son yerel doğrulama sonuçları
 
-10 Ekim devam turu: native bekleme listesi ve kaynak ekranları; webde ham bekleme/kaynak yazımları yerine kapsamlı atomik RPC'ler. 263 birim/yetki testi, tam mobil **104/104** E2E (102 kontrollü + 2 salt-okunur Gogo görsel, retry yok), web/mobil tip, lint, güvenlik kapısı (`unresolved: []`), Next.js 16.3.8 production build ve Android/iOS Hermes + web export başarılı. Salt-okunur canlı Supabase ön kontrolünde tenant/aktif duplicate/servis-şube/açık kaynak saat uyuşmazlığı sayıları 0; PostgreSQL 17.6, son migration 027. Yeni şema için onay bekleniyor; canlı randevu/müşteri/kaynak test yazımı veya SQL motor/yük testi yapılmadı. Bu kapı genel production GO değildir.
+11 Ekim onaylı canlı kurulum: 028/029 ve ek yetki kapama 030 başarılı. 12/12 salt-okunur metadata denetimi, 11/11 repo fonksiyon gövdesi eşleşmesi, 8/8 geçici tablo SQL motor testi ve 267/267 birim testi geçti. 030 tablo/kolon TRUNCATE/REFERENCES/TRIGGER/MAINTAIN dahil gereksiz varsayılan hakları kapattı; bu ek düzeltme mevcut RLS/işlevleri/verileri değiştirmedi. Anonim iki RPC ve iki korumalı REST tablo çağrısı 401; iki yeni oturumsuz API 401. Public dizin iki işletmeyle 200, development readiness 200/DB ok/Redis optional. Gerçek müşteri/randevu/kaynak test kaydı yazılmadı, geçici nesneler rollback oldu. Yeni native kaynak değişmediği için 104 mobil E2E ve derleme kayıtları 10 Ekim'deki son koşuya aittir; production Redis, gerçek staging yarış/yük, cihaz/mağaza kapıları açık kalır.
+
+10 Ekim önceki kod turu: native bekleme listesi ve kaynak ekranları; webde ham bekleme/kaynak yazımları yerine kapsamlı atomik RPC'ler. 263 birim/yetki testi, tam mobil **104/104** E2E (102 kontrollü + 2 salt-okunur Gogo görsel, retry yok), web/mobil tip, lint, güvenlik kapısı (`unresolved: []`), Next.js 16.3.8 production build ve Android/iOS Hermes + web export başarılı. O tarihte son migration 027, yeni şema onayı bekleniyordu; 11 Ekim canlı sonuçları yukarıdadır. Bu kapı genel production GO değildir.
 
 7 Ekim geliştirme sunucusu readiness 200: veritabanı `ok`, dağıtık rate limiter `optional_in_development`. Bu yanıt production Redis/altyapı kapısının geçtiğini göstermez.
 

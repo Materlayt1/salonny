@@ -127,6 +127,34 @@ describe("resource migration contract (static assertions, not applied database a
   });
 });
 
+describe("resource/waitlist residual ACL migration (static contract, not a live database test)", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/202610110030_resource_table_acl.sql", import.meta.url), "utf8");
+  const tables = "public.waitlist_entries,public.business_resources,public.service_resources,public.appointment_resource_reservations";
+  it("atomically revokes ALL residual table privileges, including PostgreSQL 17 MAINTAIN", () => {
+    expect(sql).toMatch(/begin;[\s\S]*revoke all privileges[\s\S]*commit;/);
+    expect(sql).toContain(`revoke all privileges on table ${tables} from public,anon,authenticated;`);
+    expect(sql).toContain("PostgreSQL 17 MAINTAIN");
+  });
+  it("removes separate column privileges using a fixed target allow-list and safely quoted catalog identifiers", () => {
+    expect(sql).toContain("array['waitlist_entries','business_resources','service_resources','appointment_resource_reservations']");
+    expect(sql).toContain("string_agg(format('%I',a.attname),',' order by a.attnum)");
+    expect(sql).toContain("a.attnum>0 and not a.attisdropped");
+    expect(sql).toContain("revoke select (%1$s),insert (%1$s),update (%1$s),references (%1$s) on table public.%2$I from public,anon,authenticated");
+    expect(sql).toContain("a.attrelid=format('public.%I',v_table)::regclass");
+  });
+  it("regrants only authenticated SELECT without restoring writes or ledger access", () => {
+    const grants = sql.match(/^grant .*;$/gm) ?? [];
+    expect(grants).toEqual([`grant select on table ${tables} to authenticated;`]);
+    expect(sql).not.toMatch(/^grant[^\n;]*to\s+(?:anon|public)(?:[,\s]|;)/im);
+    expect(sql).not.toContain("native_waitlist_requests");
+  });
+  it("does not alter data, RLS policies, functions, owners or execute permissions", () => {
+    expect(sql).not.toMatch(/^\s*(?:insert into|update public\.|delete from|truncate|alter table|create policy|drop policy|create .*function|alter .*owner|grant execute|revoke execute)/im);
+    expect(sql).not.toContain("cascade");
+    expect(sql).toContain("notify pgrst,'reload schema'");
+  });
+});
+
 describe("customer resource-safe reschedule error handling", () => {
   const startsAt = "2026-10-15T09:00:00Z";
   const changed = () => changeCustomerAppointment(new Request(`http://localhost:3001/api/appointments/${resourceId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "reschedule", startsAt }) }), { params: Promise.resolve({ id: resourceId }) });
