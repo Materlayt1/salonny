@@ -7,7 +7,8 @@
 - Kullanıcı kendi hesabının localhost'ta giriş yaptığını doğruladı; hata verdiği adres `https://salonny-git-codex-dynamic-preview-salonny1.vercel.app/auth/login`.
 - Aynı Vercel ekranında, hiçbir gerçek hesabı kullanmayan tek geçersiz kimlik isteğiyle eski genel hata tekrarlandı. Hesap oluşturulmadı, gerçek parola okunmadı/değiştirilmedi.
 - Yerel Supabase sağlık geçidi 200; sentetik geçersiz kimlik isteği 400 / `invalid_credentials`. Bunlar kullanıcıya ait başarılı Vercel girişi değildir.
-- Oturumsuz terminal kontrolü Vercel Authentication'a 302 döndü. Tarayıcı Vercel paneli giriş ekranında; yönetim bağlantısı henüz kurulmadığından gerçek Preview ortam değişkenleri, runtime kayıtları ve güncel dağıtım commit'i doğrulanamadı. Redis eksikliği bu dağıtım için kesinleştirilmiş kök neden değildir.
+- Oturumsuz terminal kontrolü Vercel Authentication'a 302 döndü. Tarayıcı Vercel paneli giriş ekranında; yönetim bağlantısı henüz kurulmadığından gerçek Preview ortam değişkenleri ve runtime kayıtları doğrulanamadı. Redis eksikliği bu dağıtım için kesinleştirilmiş kök neden değildir.
+- GitHub uzak branch'i `b4b8378` push'unu doğruladı; bu commit'in Vercel durum kontrolü `success / Deployment has completed` oldu. Aynı Preview adresi yeniden yüklendiğinde sentetik geçersiz kimlik isteği artık “Giriş servisine ulaşılamadı” verdi. Kod dağıtımı doğrulandı; servis kaynaklı giriş engeli sürüyor, gerçek kullanıcı hesabıyla Vercel girişi kabul edilmiş sayılmaz.
 
 ## Kod düzeltmeleri
 
@@ -18,6 +19,8 @@
 - Sunucu `auth_proxy_rejected` olayında yalnız endpoint, durum, güvenli kod ve aşama tutulur. E-posta/parola/oturum/API anahtarı/ham sağlayıcı metni kayda eklenmez.
 
 Doğrulama: 303/303 birim testi; gerçek form/SDK ile masaüstü+mobil 12/12 kontrollü E2E (429/503/modern 400, tekrar deneme, alanların korunması, JavaScript kapalı SSR guard'ı ve mevcut onboarding). Gerçek hesaba yazım yok, retry kullanılmadı. Web TypeScript, tam lint, güvenlik kapısı (`unresolved: []`) ve Next.js 16.3.8 production build başarılı. Bu sonuçlar gerçek Vercel dağıtımı/hesap kabulünün yerine geçmez.
+
+GitHub temiz Linux runner'ında ayrıca mobil MapLibre CSS side-effect import tipi eksikti. Yerelde ignored `expo-env.d.ts` bunu gizliyordu; tracked `apps/mobile/types/assets.d.ts` içine yalnız bu CSS modülü için ambient declaration eklendi. Kontrollerin kapatılması veya genel wildcard eklenmesi gerekmedi. Expo'nun ürettiği dosyalar repo'ya eklenmez.
 
 ## Dağıtım kabul sırası
 
