@@ -7,7 +7,7 @@ export class BusinessAccessError extends Error {
 }
 
 /** Client IDs select a scope only after membership and branch ownership checks. */
-export async function getBusinessRequestContext(request: Request): Promise<BusinessContext> {
+export async function getBusinessRequestContext(request: Request, options: { allowInactiveBranch?: boolean } = {}): Promise<BusinessContext> {
   const client = await createRequestClientOptional(request);
   const user = client ? (await client.auth.getUser()).data.user : null;
   if (!client || !user) throw new BusinessAccessError("Giriş yapmalısın.", 401);
@@ -28,15 +28,29 @@ export async function getBusinessRequestContext(request: Request): Promise<Busin
     client.from("branches").select("id,name,timezone").eq("business_id", membership.data.business_id).eq("active", true).order("is_primary", { ascending: false }).order("created_at").limit(100),
   ]);
   if (business.error || branches.error) throw new BusinessAccessError("İşletme bilgisi alınamadı.", 503);
-  if (!business.data || !branches.data?.length) throw new BusinessAccessError("Aktif işletme şubesi bulunamadı.", 403);
-  const branch = branchId ? branches.data.find((item) => item.id === branchId) : branches.data[0];
+  if (!business.data) throw new BusinessAccessError("İşletme bulunamadı.", 403);
+  const listedBranches = branches.data ?? [];
+  let branch = branchId ? listedBranches.find((item) => item.id === branchId) : listedBranches[0];
+  if (branchId && !branch) {
+    // Keep the default selector bounded without refusing a legitimate explicit
+    // branch just because it lies beyond the first hundred results.
+    let selectedQuery = client.from("branches").select("id,name,timezone")
+      .eq("id", branchId).eq("business_id", membership.data.business_id);
+    // Explicit opt-in is reserved for elevated cleanup workflows. All existing
+    // endpoints retain active-only branches, and ordinary staff cannot opt in.
+    if (!options.allowInactiveBranch || !["OWNER", "MANAGER"].includes(role)) selectedQuery = selectedQuery.eq("active", true);
+    const selected = await selectedQuery.maybeSingle();
+    if (selected.error) throw new BusinessAccessError("Şube bilgisi alınamadı.", 503);
+    branch = selected.data ?? undefined;
+  }
   if (!branch) throw new BusinessAccessError("Bu şubeye erişimin yok.", 403);
   const relation = membership.data.business_member_permissions;
   const row = (Array.isArray(relation) ? relation[0] : relation) as { permissions?: Record<string, boolean>; customer_visibility?: "all" | "assigned" | "none"; financial_visibility?: boolean } | null;
   const elevated = role === "OWNER" || role === "MANAGER";
   const defaults = { calendar: true, customers: true, campaigns: elevated, inventory: elevated, reports: elevated, operations: elevated };
   const permissions = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, elevated || (row?.permissions?.[key] ?? fallback)])) as Record<BusinessPermission, boolean>;
-  return { supabase: client, user: { id: user.id, email: user.email, fullName: user.user_metadata.full_name }, role, permissions, customerVisibility: elevated ? "all" : row?.customer_visibility ?? "assigned", financialVisibility: elevated || Boolean(row?.financial_visibility), business: business.data, branch, branches: branches.data };
+  const visibleBranches = listedBranches.some((item) => item.id === branch.id) ? listedBranches : [...listedBranches, branch];
+  return { supabase: client, user: { id: user.id, email: user.email, fullName: user.user_metadata.full_name }, role, permissions, customerVisibility: elevated ? "all" : row?.customer_visibility ?? "assigned", financialVisibility: elevated || Boolean(row?.financial_visibility), business: business.data, branch, branches: visibleBranches };
 }
 
 export function requirePanelPermission(context: BusinessContext, section: string, write = false) {

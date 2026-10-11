@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
+import { couponBookingResult, couponCode, couponFailure } from "@/lib/coupon-contract";
 
 const bookingSchema = z.object({
   businessId: z.uuid(),
@@ -12,6 +13,7 @@ const bookingSchema = z.object({
   customer: z.object({ name: z.string().min(2).max(120), phone: z.string().min(10).max(24), email: z.email() }),
   paymentMethod: z.enum(["business", "online"]),
   bookingToken: z.string().regex(/^[a-f0-9]{18}$/i).optional(),
+  couponCode: couponCode.optional(),
 });
 
 export async function POST(request: Request) {
@@ -32,7 +34,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Randevu oluşturmak için giriş yapmanız gerekiyor." }, { status: 401 });
 
-  const { data, error } = await supabase.rpc("create_appointment_atomic", {
+  const parameters = {
     p_business_id: parsed.data.businessId,
     p_branch_id: parsed.data.branchId,
     p_employee_id: parsed.data.employeeId,
@@ -42,10 +44,19 @@ export async function POST(request: Request) {
     p_customer_phone: parsed.data.customer.phone,
     p_customer_email: parsed.data.customer.email,
     p_idempotency_key: idempotencyKey,
-  });
+  };
+  const withCoupon = Boolean(parsed.data.couponCode);
+  const { data, error } = await supabase.rpc(withCoupon ? "create_appointment_with_coupon" : "create_appointment_atomic", withCoupon ? { ...parameters, p_coupon_code: parsed.data.couponCode } : parameters);
   if (error) {
     const conflict = error.code === "23P01" || error.message.includes("appointment_conflict") || error.message.includes("slot_not_available");
+    if (withCoupon && !conflict) { const failure = couponFailure(error); return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status, headers: { "Cache-Control": "private, no-store" } }); }
     return NextResponse.json({ error: conflict ? "Bu saat az önce doldu. Lütfen başka bir saat seçin." : "Randevu oluşturulamadı." }, { status: conflict ? 409 : 500 });
+  }
+  if (withCoupon) {
+    const result = couponBookingResult.safeParse(data);
+    if (!result.success || result.data.couponCode !== parsed.data.couponCode || result.data.subtotalMinor - result.data.discountMinor !== result.data.totalMinor) return NextResponse.json({ error: "Randevu sonucu doğrulanamadı. Aynı işlemle yeniden dene veya randevularını kontrol et." }, { status: 503 });
+    if (parsed.data.bookingToken) await supabase.rpc("track_booking_conversion", { p_token: parsed.data.bookingToken });
+    return NextResponse.json(result.data, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   }
   const { data: appointment } = await supabase.from("appointments").select("status").eq("id", data).eq("customer_user_id", user.id).maybeSingle();
   if (parsed.data.bookingToken) await supabase.rpc("track_booking_conversion", { p_token: parsed.data.bookingToken });

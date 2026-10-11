@@ -79,6 +79,12 @@ describe("native team controls", () => {
     }
     expect(rpc).not.toHaveBeenCalled();
   });
+  it("reports the atomic RPC guard as a conflict when the pre-read became stale", async () => {
+    rpc.mockResolvedValue({ error: { code: "P0001", message: "SCHEDULE_IN_USE" } });
+    const response = await POST(request({ action: "schedule", employeeId, periods: [] }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain("hiçbir dönem silinmedi");
+  });
   it("adds one skill without deleting other skills or overwriting price overrides", async () => {
     expect((await POST(request({ action: "service", employeeId, serviceId, assigned: true }))).status).toBe(200);
     expect(builders.services.eq).toHaveBeenCalledWith("business_id", businessId);

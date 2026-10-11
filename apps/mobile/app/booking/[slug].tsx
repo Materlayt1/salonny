@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Alert } from "@/lib/alert";
 import { AppButton, Chip, EmptyState, ErrorState, LoadingState, Screen } from "@/components/app-ui";
 import { FormField } from "@/components/form-field";
+import { CustomerBookingCoupon } from "@/components/customer-coupons";
+import type { CouponQuote } from "@/lib/coupons";
 import { theme } from "@/constants/theme";
 import { useBusiness } from "@/hooks/use-marketplace";
 import { ApiError, createBooking, getAvailability, getCustomerProfile } from "@/lib/api";
@@ -45,6 +47,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   const [phone, setPhone] = useState<string | null>(null);
   const [touched, setTouched] = useState({ name: false, phone: false });
   const [bookingFailure, setBookingFailure] = useState("");
+  const [coupon, setCoupon] = useState<{ selection: string; quote: CouponQuote | null; pending: boolean } | null>(null);
   const profile = useQuery({ queryKey: ["customer-profile", user?.id], queryFn: () => getCustomerProfile(session!.access_token), enabled: Boolean(session) });
   const serviceId = business.data?.services.find((service) => service.id === selectedServiceId)?.id || business.data?.services.find((service) => service.id === initialService)?.id || business.data?.services[0]?.id || "";
 
@@ -53,6 +56,8 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
     return business.data.employees.filter((employee) => !employee.services.length || employee.services.includes(serviceId));
   }, [business.data, serviceId]);
   const employeeId = employees.some((employee) => employee.id === selectedEmployeeId) ? selectedEmployeeId : employees[0]?.id ?? "";
+  const couponSelection = `${serviceId}:${employeeId}`;
+  const activeCoupon = coupon?.selection === couponSelection ? coupon : null;
   const selectionKey = `${serviceId}:${employeeId}:${date}`;
   const defaultName = String(profile.data?.fullName || user?.user_metadata.full_name || user?.email?.split("@")[0] || "");
   // A deliberately cleared field must stay empty rather than silently falling back to the profile.
@@ -80,11 +85,11 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   };
   useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [step]);
   const changeService = (id: string) => {
-    if (id !== serviceId) { setSlotSelection({ key: "", value: "" }); setBookingFailure(""); setFurthestStep(1); }
+    if (id !== serviceId) { setCoupon(null); setSlotSelection({ key: "", value: "" }); setBookingFailure(""); setFurthestStep(1); }
     setSelectedServiceId(id);
   };
   const changeEmployee = (id: string) => {
-    if (id !== employeeId) { setSlotSelection({ key: "", value: "" }); setBookingFailure(""); setFurthestStep(2); }
+    if (id !== employeeId) { setCoupon(null); setSlotSelection({ key: "", value: "" }); setBookingFailure(""); setFurthestStep(2); }
     setSelectedEmployeeId(id);
   };
   const changeDate = (value: string) => {
@@ -94,11 +99,13 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
 
   const booking = useMutation({
     mutationFn: () => {
+      if (activeCoupon?.pending) throw new ApiError("Kuponu uygula veya kaldırarak devam et.", 422, "coupon_not_applied");
       // Keep this guard independent from the button state and server-side validation.
       if (!session || !user || !business.data?.branchId || !serviceId || !employeeId || !slot || nameError || phoneError) throw new Error("Randevu bilgilerini kontrol et ve uygun bir saat seç.");
       const input = {
         businessId: business.data.id, branchId: business.data.branchId, serviceId, employeeId, startsAt: slot,
         customer: { name: customerName, phone: customerPhone.trim(), email: user.email! }, paymentMethod: "business" as const,
+        ...(activeCoupon?.quote ? { couponCode: activeCoupon.quote.code } : {}),
       };
       const signature = JSON.stringify(input);
       if (operation.current.signature !== signature) operation.current = { signature, key: randomUUID() };
@@ -113,7 +120,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
     },
     onError: (error) => {
       setBookingFailure(error instanceof Error ? error.message : "İşlem tamamlanamadı. Lütfen yeniden dene.");
-      if (error instanceof ApiError && error.status === 409) {
+      if (error instanceof ApiError && error.status === 409 && !error.code?.startsWith("coupon_")) {
         setSlotSelection({ key: "", value: "" });
         moveTo(2);
         void availability.refetch();
@@ -142,7 +149,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   if (business.isError || !business.data) return <Screen><ErrorState onRetry={() => void business.refetch()} /></Screen>;
   if (!business.data.branchId || !business.data.services.length || !business.data.employees.length) return <Screen><EmptyState icon="!" title="Randevu henüz açık değil" detail="Bu işletme hizmet veya çalışan planını tamamladığında randevu alabilirsin." /></Screen>;
 
-  const canContinue = step === 0 ? Boolean(serviceId) : step === 1 ? Boolean(employeeId) : Boolean(slot) && !availability.isError;
+  const canContinue = step === 0 ? Boolean(serviceId) : step === 1 ? Boolean(employeeId) : Boolean(slot) && !availability.isError && (step !== 3 || !activeCoupon?.pending);
   const currentDateIndex = bookingDates.findIndex((item) => dateKey(item) === date);
   const nextDate = bookingDates[currentDateIndex + 1];
 
@@ -216,12 +223,13 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
             {profile.isError ? <Text style={styles.stepDescription}>Kayıtlı iletişim bilgilerin yüklenemedi; bu alanları kendin doldurabilirsin.</Text> : null}
             {bookingFailure ? <Text style={styles.failure} accessibilityRole="alert">{bookingFailure}</Text> : null}
           </View> : null}
+          <View style={step === 3 ? styles.details : { display: "none" }}><CustomerBookingCoupon key={couponSelection} selection={{ businessId: business.data.id, branchId: business.data.branchId, serviceId, employeeId }} token={session.access_token} busy={booking.isPending} onChange={(quote, pending) => setCoupon({ selection: couponSelection, quote, pending })} /></View>
         </ScrollView>
 
         <View testID="booking-summary-footer" style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.confirmRow}>
             <View style={styles.rowText}><Text style={styles.confirmLabel} numberOfLines={1}>{selectedService?.name ?? "Hizmet seç"}</Text><Text style={styles.confirmDetail}>{slot ? `${formatDate(slot)} · ${formatTime(slot)}` : step < 2 ? "Tarih ve saat bir sonraki adımda" : "Devam etmek için saat seç"}</Text></View>
-            <Text style={styles.confirmPrice}>{selectedService?.price.toLocaleString("tr-TR")} ₺</Text>
+            <Text style={styles.confirmPrice}>{(activeCoupon?.quote ? activeCoupon.quote.totalMinor / 100 : selectedService?.price)?.toLocaleString("tr-TR")} ₺</Text>
           </View>
           <View style={styles.footerActions}>
             {step > 0 ? <AppButton label="Geri" variant="ghost" onPress={() => moveTo(step - 1)} disabled={booking.isPending} style={styles.backButton} /> : null}

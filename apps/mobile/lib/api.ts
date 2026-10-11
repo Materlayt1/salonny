@@ -7,10 +7,10 @@ import type {
 } from "@salonny/contracts";
 import { absoluteAssetUrl, config } from "@/lib/config";
 
-type ApiErrorPayload = { error?: string };
+type ApiErrorPayload = { error?: string; code?: string };
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
   }
 }
@@ -39,7 +39,7 @@ export async function requestJson<T>(
   });
   const payload = await response.json().catch(() => ({})) as T & ApiErrorPayload;
   if (!response.ok) {
-    throw new ApiError(payload.error ?? "İşlem tamamlanamadı.", response.status);
+    throw new ApiError(payload.error ?? "İşlem tamamlanamadı.", response.status, payload.code);
   }
   return payload;
   } finally { clearTimeout(timeout); init.signal?.removeEventListener("abort", abort); }
@@ -146,6 +146,7 @@ export async function createBooking(
     startsAt: string;
     customer: { name: string; phone: string; email: string };
     paymentMethod: "business";
+    couponCode?: string;
   },
   accessToken: string,
   idempotencyKey: string,

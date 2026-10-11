@@ -16,10 +16,12 @@ import {
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Appointment, Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { BookingCoupon } from "@/components/booking-coupon";
+import type { CouponQuote } from "@/lib/coupon-contract";
 
 function buildDates() {
   return Array.from({ length: 14 }, (_, index) => {
@@ -59,7 +61,8 @@ function formatTRY(value: number) {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
     currency: "TRY",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -114,6 +117,9 @@ export function BookingFlow({
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState<Appointment | null>(null);
   const [waitlistJoined, setWaitlistJoined] = useState(false);
+  const [coupon, setCoupon] = useState<{ selection: string; quote: CouponQuote | null; pending: boolean } | null>(null);
+  const operation = useRef({ signature: "", key: "" });
+  const submitting = useRef(false);
   const service =
     business.services.find((item) => item.id === serviceId) ??
     business.services[0];
@@ -125,6 +131,9 @@ export function BookingFlow({
   const employee =
     eligibleEmployees.find((item) => item.id === employeeId) ??
     eligibleEmployees[0];
+  const couponSelection = `${serviceId}:${employee?.id}`;
+  const activeCoupon = coupon?.selection === couponSelection ? coupon : null;
+  const displayedTotal = activeCoupon?.quote ? activeCoupon.quote.totalMinor / 100 : service.price;
 
   function bookingReturnUrl(targetStep = step) {
     const params = new URLSearchParams({
@@ -210,6 +219,8 @@ export function BookingFlow({
   }, [business.branchId, business.id, date.iso, employee.id, service.id]);
 
   async function confirmBooking() {
+    if (submitting.current) return;
+    if (activeCoupon?.pending && isAuthenticated) { setAvailabilityError("Kupon kodunu uygula veya kaldırarak devam et."); return; }
     setLoading(true);
     if (!time) {
       setAvailabilityError("Lütfen uygun bir saat seçin.");
@@ -246,13 +257,17 @@ export function BookingFlow({
       customer,
       paymentMethod: "business",
       bookingToken,
+      ...(activeCoupon?.quote ? { couponCode: activeCoupon.quote.code } : {}),
     };
+    const signature = JSON.stringify(payload);
+    if (operation.current.signature !== signature) operation.current = { signature, key: crypto.randomUUID() };
+    submitting.current = true;
     try {
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": crypto.randomUUID(),
+          "Idempotency-Key": operation.current.key,
         },
         body: JSON.stringify(payload),
       });
@@ -260,6 +275,7 @@ export function BookingFlow({
         id?: string;
         status?: Appointment["status"];
         error?: string;
+        totalMinor?: number;
       };
       if (response.status === 401) {
         continueWithAccount(4);
@@ -279,15 +295,16 @@ export function BookingFlow({
         date: date.full,
         time: slotTime(time),
         duration: service.duration,
-        price: service.price,
+        price: typeof result.totalMinor === "number" ? result.totalMinor / 100 : service.price,
         status: result.status ?? "pending",
         address: business.address,
       };
       setConfirmed(appointment);
-    } catch {
-      alert("Bir şeyler ters gitti. Lütfen tekrar deneyin.");
+    } catch (error) {
+      setAvailabilityError(error instanceof Error ? error.message : "Randevu oluşturulamadı. Lütfen tekrar dene.");
     } finally {
       setLoading(false);
+      submitting.current = false;
     }
   }
 
@@ -367,7 +384,7 @@ export function BookingFlow({
           </div>
           <div className="flex items-center justify-between border-t border-[#ECECF1] px-5 py-4">
             <span className="text-sm text-[#686872]">Toplam</span>
-            <strong>{formatTRY(service.price)}</strong>
+            <strong>{formatTRY(confirmed.price)}</strong>
           </div>
         </div>
         <div className="mt-5 rounded-2xl bg-[#F6F4FF] p-4 text-left text-sm text-[#5B3BE7]">
@@ -440,8 +457,8 @@ export function BookingFlow({
             </div>
           ))}
         </div>
-        <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px]">
-          <section className="surface p-5 md:p-7">
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <section className="surface min-w-0 p-5 md:p-7">
             {step === 1 && (
               <div>
                 <h1 className="text-2xl font-bold">Hizmet seç</h1>
@@ -455,6 +472,7 @@ export function BookingFlow({
                       onClick={() => {
                         setAvailabilityLoading(true);
                         setAvailabilityError(undefined);
+                        if (item.id !== serviceId) setCoupon(null);
                         setServiceId(item.id);
                         const firstEmployee = business.employees.find(
                           (member) => member.services.includes(item.id),
@@ -502,6 +520,7 @@ export function BookingFlow({
                       onClick={() => {
                         setAvailabilityLoading(true);
                         setAvailabilityError(undefined);
+                        if (item.id !== employeeId) setCoupon(null);
                         setEmployeeId(item.id);
                       }}
                       className={cn(
@@ -566,7 +585,7 @@ export function BookingFlow({
                         setDate(item);
                       }}
                       className={cn(
-                        "flex min-w-14 flex-col items-center rounded-xl border px-3 py-3 text-xs",
+                        "flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-3 py-3 text-xs",
                         date.iso === item.iso
                           ? "border-[#6C4BF4] bg-[#6C4BF4] text-white"
                           : "border-[#E8E8EE]",
@@ -726,6 +745,7 @@ export function BookingFlow({
                 )}
               </div>
             )}
+            <div hidden={step !== 4}><BookingCoupon key={couponSelection} selection={{ businessId: business.id, branchId: business.branchId!, employeeId: employee.id, serviceId: service.id }} authenticated={isAuthenticated} onChange={(quote, pending) => setCoupon({ selection: couponSelection, quote, pending })} /></div>
             <div className="mt-8 flex justify-between border-t border-[#ECECF1] pt-5">
               <Button
                 variant="ghost"
@@ -745,7 +765,7 @@ export function BookingFlow({
                 <Button
                   onClick={confirmBooking}
                   disabled={
-                    loading || !time || (isAuthenticated && !termsAccepted)
+                    loading || !time || (isAuthenticated && (!termsAccepted || Boolean(activeCoupon?.pending)))
                   }
                 >
                   {loading
@@ -757,9 +777,9 @@ export function BookingFlow({
               )}
             </div>
           </section>
-          <aside className="surface p-5 lg:sticky lg:top-6">
+          <aside className="surface min-w-0 p-5 lg:sticky lg:top-6">
             <div className="flex gap-3">
-              <div className="relative h-20 w-20 overflow-hidden rounded-xl">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl">
                 <Image
                   src={business.image}
                   alt=""
@@ -768,7 +788,7 @@ export function BookingFlow({
                   sizes="80px"
                 />
               </div>
-              <div>
+              <div className="min-w-0 break-words">
                 <strong>{business.name}</strong>
                 <p className="mt-1 flex items-center gap-1 text-xs">
                   <Star className="h-3.5 w-3.5 fill-[#F5B942] text-[#F5B942]" />{" "}
@@ -781,7 +801,7 @@ export function BookingFlow({
             </div>
             <div className="mt-5 border-t border-[#ECECF1] pt-5">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="min-w-0 break-words">
                   <span className="text-xs text-[#686872]">Hizmet</span>
                   <strong className="mt-1 block text-sm">{service.name}</strong>
                   <span className="mt-1 block text-xs text-[#686872]">
@@ -793,11 +813,12 @@ export function BookingFlow({
             </div>
             <div className="mt-5 flex items-center justify-between border-t border-[#ECECF1] pt-5">
               <strong>Toplam</strong>
-              <strong className="text-lg">{formatTRY(service.price)}</strong>
+              <strong className="text-lg">{formatTRY(displayedTotal)}</strong>
             </div>
+            {activeCoupon?.quote && <p className="mt-2 text-xs text-[#167D45]">Kupon indirimi: −{formatTRY(activeCoupon.quote.discountMinor / 100)}</p>}
             <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#686872]">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#22C55E]" />{" "}
-              Saatiniz, onay tamamlanana kadar kısa süreliğine tutulur.
+              Randevu yalnız onay tamamlandığında oluşturulur; uygunluk o anda yeniden kontrol edilir.
             </p>
           </aside>
         </div>

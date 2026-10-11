@@ -13,7 +13,7 @@
 
 1. [x] **Bekleme listesi yönetimi:** arama/durum filtresi/25'lik sayfalama, mevcut müşteri adına ekleme, düzenleme, onaylı iptal ve geçerli saatle teklif hazırlama. Saat dilimi/DST, eski grup kaydı, sona erme ve eşzamanlı değişiklik korunur. 028 canlıda onayla kuruldu. Teklif SMS/e-posta göndermez, randevu oluşturmaz veya saat ayırmaz.
 2. [x] **Kaynak yönetimi:** oda/koltuk/cihaz oluşturma/düzenleme, tek hizmet bağlantısı ve birim ihtiyacı, sayfalı kullanım/gerçek aralık özeti. Canlı 029, servis/kaynak kilitlerini sıralar ve randevu ertelemede açık rezervasyonları atomik taşır; değişmiş ihtiyaç grafiğinde eski randevu korunarak işlem durur. 030 kalan varsayılan tablo/kolon haklarını kapattı. Gerçek DB yarış kabulü aşağıda bekler.
-3. [ ] **İleri vardiyalar:** tarih aralığı, aynı günde birden fazla çalışma dönemi ve şube ataması. Haftalık vardiya/izin zaten var; native basit editör ileri planları koruyor. Web/DB haftalık toplu değiştirme işlemine ayrıca atomik koruma gerekir; tarihe bağlı dönemler mevcut müsaitlik motorunda ek dönemdir, haftalık planın otomatik yerine geçmez.
+3. [ ] **İleri vardiyalar — kod/test hazır, canlı 031 bekliyor:** tarih aralığı, aynı günde birden fazla çalışma dönemi, şube ataması ve pasif şube planı temizliği native ekrana eklendi. Web/native basit haftalık toplu değiştirmeye transaction içinde ileri plan koruması eklendi. Tarihli dönemler mevcut müsaitlik motorunda ek dönemdir; haftalık planın yerine geçmez. 031 canlı izin/tetikleyici değişikliği için açık onay bekler; gerçek JWT/RLS/yarış kabulü tamamlandı sayılmaz.
 4. [ ] **Gerçek rapor özeti/grafikleri:** 7/30/90 gün, önceki dönem, hizmet/uzman/şube kırılımı, doluluk/iptal. Randevu tutarı tahsil edilmiş ödeme olarak sunulmaz; kesilmiş sorgu sonuçlarından yanıltıcı toplam üretilmez.
 5. [ ] **Müşteri bakım/sadakat ve iletişim takibi:** müşteri geçmişi, bakım planı, sadakat hareketi ve gönderim durumları; rol/görünürlük ve kişisel veri sınırlarıyla.
 6. [ ] **Tam çoklu-işletme kampanyaları:** işletme seçimini transaction'da alan RPC, kod/tutar/tarihlerin atomik düzenlenmesi. Temel kampanya editörü zaten var, ilk yetkili işletme sınırı sürüyor.
@@ -29,6 +29,8 @@
 - [ ] Production HTTPS API, dağıtık rate limiter, yedekleme/geri yükleme, alarm ve ölçülmüş trafik kapasitesi. Bu iki ekranın tamamlanması genel production GO değildir.
 
 Doğrulama kayıtları: [native eşleşme](native-interface-parity.md), [mobil yayın kapısı](mobile-release-checklist.md), [genel üretim TO-DO](../PRODUCTION_READINESS.md).
+
+11 Ekim son kod kapısı: **484/484** birim/yetki testi, 031 izole fixture **29/29**, 032 kupon fixture **32/32**, son temiz preview export'ta tam mobil **125/125** (123 kontrollü + 2 salt-okunur Gogo) geçti; retry yok. Web/mobil tip, lint, güvenlik kapısı, Next.js production build ve güncel Android/iOS Hermes + web export başarılı. İleri vardiya 16, müşteri kuponu 5 kontrollü native senaryo içerir. 031/032 henüz canlıya uygulanmadı; gerçek test randevusu/kuponu oluşturulmadı. Önce bu onaylı kurulum/kabul, sonra sıradaki iş #4 gerçek rapor özetidir.
 
 10 Ekim bu devam turu: 263 birim/yetki testi, bekleme listesi 14/14 ve kaynak 9/9 hedefli mobil E2E geçti; web/mobil TypeScript, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export başarılı. Son temiz export üzerinde tam mobil regresyon **104/104** geçti (102 kontrollü + 2 salt-okunur Gogo ana sayfa/harita), retry kullanılmadı. Gerçek müşteri/randevu/kaynak test yazımı yapılmadı.
 

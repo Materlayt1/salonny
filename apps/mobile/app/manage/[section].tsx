@@ -15,6 +15,7 @@ import { BusinessBookingEditor } from "@/components/business-booking-editor";
 import { PackageManager } from "@/components/package-manager";
 import { WaitlistManager } from "@/components/waitlist-manager";
 import { ResourceManager } from "@/components/resource-manager";
+import { EmployeeScheduleManager } from "@/components/employee-schedule-manager";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif hazırlandı" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -78,6 +79,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const [status, setStatus] = useState("");
   const [editor, setEditor] = useState<{ row?: PanelRow } | null>(null);
   const [teamEmployee, setTeamEmployee] = useState<PanelRow | null>(null);
+  const [scheduleEmployee, setScheduleEmployee] = useState<PanelRow | null>(null);
   const [businessEditor, setBusinessEditor] = useState(false);
   const [campaignEditor, setCampaignEditor] = useState<{ id?: string } | null>(null);
   const [bookingEditor, setBookingEditor] = useState(false);
@@ -129,6 +131,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {row.amountMinor !== undefined ? <Text style={styles.price}>{money(row.amountMinor)}</Text> : null}
         {row.price_minor !== undefined ? <Text style={styles.price}>{money(row.price_minor)}</Text> : null}
         {section === "employees" && canWrite ? <AppButton label="Hizmetler ve müsaitlik" variant="secondary" onPress={() => setTeamEmployee(row)} /> : null}
+        {section === "employees" && canWrite ? <AppButton label="İleri vardiyalar ve şubeler" variant="ghost" onPress={() => setScheduleEmployee(row)} /> : null}
         {section === "campaigns" && canWrite ? <AppButton label="Kampanya düzenle" variant="secondary" onPress={() => setCampaignEditor({ id: row.id })} /> : null}
         {section === "inventory" ? <View style={styles.stock}><Package size={18} color={theme.colors.primary} /><Text style={styles.label}>Stok: {row.stock_quantity ?? 0} · Minimum: {row.minimum_stock ?? 0}</Text></View> : null}
         {(section === "appointments" || section === "calendar" || section === "dashboard") && context.data?.permissions.calendar && ["pending", "confirmed"].includes(row.status ?? "") ? <View style={styles.actions}>{row.status === "pending" ? <Chip label="Onayla" onPress={() => { if (!mutation.isPending) confirmStatus(row, "confirmed"); }} /> : <><Chip label="Tamamlandı" onPress={() => { if (!mutation.isPending) confirmStatus(row, "completed"); }} /><Chip label="Gelmedi" onPress={() => { if (!mutation.isPending) confirmStatus(row, "no_show"); }} /></>}<Chip label="İptal et" onPress={() => { if (!mutation.isPending) confirmStatus(row, "cancelled"); }} /></View> : null}
@@ -140,6 +143,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     />
     {editor ? <RecordForm key={`${section}-${editor.row?.id ?? "new"}`} section={section} row={editor.row} settings={first?.settings} busy={mutation.isPending} error={mutation.error?.message} onClose={() => setEditor(null)} onSave={(values) => mutation.mutate(values)} /> : null}
     {teamEmployee ? <TeamManager key={teamEmployee.id} employee={teamEmployee} onClose={() => setTeamEmployee(null)} /> : null}
+    {scheduleEmployee ? <EmployeeScheduleManager key={scheduleEmployee.id} employee={scheduleEmployee} onClose={() => setScheduleEmployee(null)} /> : null}
     {businessEditor ? <BusinessProfileEditor onClose={() => setBusinessEditor(false)} /> : null}
     {campaignEditor ? <CampaignEditor key={campaignEditor.id ?? "new"} campaignId={campaignEditor.id} onClose={() => setCampaignEditor(null)} onSaved={() => { void queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}
     {bookingEditor ? <BusinessBookingEditor onClose={() => setBookingEditor(false)} onSaved={async () => { await queryClient.invalidateQueries({ queryKey: ["business-panel"] }); }} /> : null}

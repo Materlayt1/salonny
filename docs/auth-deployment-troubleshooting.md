@@ -29,6 +29,8 @@ GitHub temiz Linux runner'ında ayrıca mobil MapLibre CSS side-effect import ti
 
 ## Dağıtım kabul sırası
 
+11 Ekim Preview kabulü: `cdd4a88` dağıtımı Ready oldu. Redis kaynaklı 503 engeli kalktı; aynı Preview adresinde kendi hesabını deneyen kullanıcı “oldu” yanıtıyla başarılı girişi doğruladı. Parola/hesap değiştirilmedi. Bu, Production ortamının veya şifre sıfırlama/e-posta teslimatının kabulü değildir.
+
 1. Vercel Deployments'ta branch `codex/dynamic-preview` ve beklenen Git commit'inin Ready olduğunu doğrula. Eski dağıtımı veya başarısız build'i yeni push olarak kabul etme.
 2. Project Settings → Environment Variables içinde **Preview**, varsa bu branch'e özel override'ları kontrol et. Production'daki değerlerin Preview'a otomatik uygulanacağını varsayma.
 3. Aynı Supabase projesinin `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` değerleri ve `NEXT_PUBLIC_SUPABASE_OFFLINE` ayarını doğrula. Anahtarları log/chat/repo'ya kopyalama. URL, Salonny projesini göstermeli.

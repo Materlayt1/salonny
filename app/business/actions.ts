@@ -376,13 +376,17 @@ export async function saveEmployee(
       if (error) throw error;
       employeeId = data.id;
     }
-    const { error: branchError } = await supabase
+    const existingBranch = await supabase
       .from("employee_branches")
-      .upsert(
+      .select("branch_id").eq("employee_id", employeeId!).eq("branch_id", branch.id).maybeSingle();
+    if (existingBranch.error) throw existingBranch.error;
+    if (!existingBranch.data) {
+      const { error: branchError } = await supabase.from("employee_branches").upsert(
         { employee_id: employeeId, branch_id: branch.id },
-        { onConflict: "employee_id,branch_id" },
+        { onConflict: "employee_id,branch_id", ignoreDuplicates: true },
       );
-    if (branchError) throw branchError;
+      if (branchError) throw branchError;
+    }
     await supabase
       .from("employee_services")
       .delete()
@@ -464,11 +468,23 @@ export async function saveEmployeeSchedule(
       };
     }
     const { supabase, business, branch } = await requireBusinessMutation();
+    const employee = await supabase.from("employees").select("id,employee_branches!inner(branch_id)")
+      .eq("id", id).eq("business_id", business.id).eq("employee_branches.branch_id", branch.id).maybeSingle();
+    if (employee.error) throw employee.error;
+    if (!employee.data) return { ok: false, message: "Çalışan seçili işletme ve şubede bulunamadı." };
+    const existing = await supabase.from("employee_working_hours").select("weekday,valid_from,valid_until", { count: "exact" })
+      .eq("employee_id", id).eq("business_id", business.id).eq("branch_id", branch.id).limit(50);
+    if (existing.error || existing.count === null) throw existing.error ?? new Error("Missing schedule count");
+    const hours = existing.data ?? [];
+    if (existing.count > 7 || hours.some((hour) => hour.valid_from || hour.valid_until) || new Set(hours.map((hour) => hour.weekday)).size !== hours.length) {
+      return { ok: false, message: "Tarihe özel veya çok parçalı vardiyalar var. İleri vardiya ekranından düzenle; mevcut plan değiştirilmedi." };
+    }
     const { error } = await supabase.rpc("save_employee_weekly_schedule", {
       p_employee_id: id,
       p_branch_id: branch.id,
       p_schedule: periods,
     });
+    if (error?.message?.includes("SCHEDULE_IN_USE")) return { ok: false, message: "Plan başka bir işlemde ileri vardiya olarak değişti. Güncel planı incele; hiçbir dönem silinmedi." };
     if (error) throw error;
     refreshBusiness([
       "/business/employees",

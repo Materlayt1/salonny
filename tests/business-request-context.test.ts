@@ -10,6 +10,8 @@ const branchId = "10000000-0000-4000-8000-000000000003";
 const foreignBranch = "10000000-0000-4000-8000-000000000004";
 const query = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), limit: vi.fn(), maybeSingle: vi.fn(), then: vi.fn() };
 const from = vi.fn(); let member: unknown;
+let branchLookup = vi.fn();
+let branchFilters = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks(); member = { business_id: businessId, role: "OWNER", business_member_permissions: null };
   for (const method of ["select", "eq", "order", "limit"] as const) query[method].mockReturnValue(query);
@@ -21,6 +23,9 @@ beforeEach(() => {
   // Use separate branches builder so it cannot be confused with membership.
   const branches = { ...query, then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [{ id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }], error: null }).then(resolve) };
   for (const method of ["select", "eq", "order", "limit"] as const) branches[method] = vi.fn(() => branches);
+  branchLookup = vi.fn(async () => ({ data: null, error: null }));
+  branches.maybeSingle = branchLookup;
+  branchFilters = branches.eq;
   const business = { ...query, maybeSingle: vi.fn(async () => ({ data: { id: businessId, name: "İşletme", slug: "isletme", status: "active", timezone: "Europe/Istanbul" }, error: null })) };
   for (const method of ["select", "eq", "order", "limit"] as const) business[method] = vi.fn(() => business);
   from.mockImplementation((table: string) => table === "branches" ? branches : table === "businesses" ? business : query);
@@ -42,6 +47,30 @@ describe("verified business request scope", () => {
   it("returns only verified business and branch scope", async () => {
     const context = await getBusinessRequestContext(request(`?businessId=${businessId}&branchId=${branchId}`));
     expect(context.business.id).toBe(businessId); expect(context.branch.id).toBe(branchId); expect(context.role).toBe("OWNER");
+  });
+  it("looks up an explicit owned active branch beyond the bounded selector", async () => {
+    branchLookup.mockResolvedValue({ data: { id: foreignBranch, name: "101. şube", timezone: "Europe/Istanbul" }, error: null });
+    const context = await getBusinessRequestContext(request(`?businessId=${businessId}&branchId=${foreignBranch}`));
+    expect(context.branch.id).toBe(foreignBranch);
+    expect(context.branches.map((branch) => branch.id)).toContain(foreignBranch);
+    expect(branchFilters).toHaveBeenCalledWith("id", foreignBranch);
+    expect(branchFilters).toHaveBeenCalledWith("business_id", businessId);
+    expect(branchFilters).toHaveBeenCalledWith("active", true);
+  });
+  it("fails closed on an explicit branch lookup outage", async () => {
+    branchLookup.mockResolvedValue({ data: null, error: { code: "XX000" } });
+    await expect(getBusinessRequestContext(request(`?branchId=${foreignBranch}`))).rejects.toMatchObject({ status: 503 });
+  });
+  it("allows explicit inactive cleanup only for elevated opt-in workflows", async () => {
+    branchLookup.mockResolvedValue({ data: { id: foreignBranch, name: "Pasif", timezone: "Europe/Istanbul" }, error: null });
+    const selected = await getBusinessRequestContext(request(`?branchId=${foreignBranch}`), { allowInactiveBranch: true });
+    expect(selected.branch.id).toBe(foreignBranch);
+    // The list always has active=true; explicit elevated lookup adds no second filter.
+    expect(branchFilters.mock.calls.filter(([key]) => key === "active")).toHaveLength(1);
+    branchFilters.mockClear();
+    member = { business_id: businessId, role: "EMPLOYEE", business_member_permissions: null };
+    await getBusinessRequestContext(request(`?branchId=${foreignBranch}`), { allowInactiveBranch: true });
+    expect(branchFilters.mock.calls.filter(([key]) => key === "active")).toHaveLength(2);
   });
   it("rejects malformed IDs before selecting tenant tables", async () => {
     await expect(getBusinessRequestContext(request("?businessId=foreign"))).rejects.toMatchObject({ status: 422 });

@@ -63,12 +63,15 @@ export async function POST(request: Request) {
     await scopedEmployee(context, values.employeeId);
     const { supabase: client, business, branch } = context;
     if (values.action === "schedule") {
-      // Existing weekly RPC replaces all periods; don't silently erase dated overrides.
+      // The simple editor must not erase dated/multipart (additive) periods.
+      // The migration also repeats this check inside the locked weekly RPC.
       const existing = await client.from("employee_working_hours").select("weekday,valid_from,valid_until", { count: "exact" }).eq("business_id", business.id).eq("branch_id", branch.id).eq("employee_id", values.employeeId).limit(50);
       if (existing.error) throw existing.error;
       const hours = existing.data ?? [];
       if ((existing.count ?? 0) > 7 || hours.some((row) => row.valid_from || row.valid_until) || new Set(hours.map((row) => row.weekday)).size !== hours.length) throw new BusinessAccessError("Tarihe özel veya çok parçalı vardiyalar var. Önce mevcut planı incele.", 409);
-      const result = await client.rpc("save_employee_weekly_schedule", { p_employee_id: values.employeeId, p_branch_id: branch.id, p_schedule: values.periods }); if (result.error) throw result.error;
+      const result = await client.rpc("save_employee_weekly_schedule", { p_employee_id: values.employeeId, p_branch_id: branch.id, p_schedule: values.periods });
+      if (result.error?.message?.includes("SCHEDULE_IN_USE")) throw new BusinessAccessError("Plan başka bir işlemde ileri vardiya olarak değişti. Güncel planı incele; hiçbir dönem silinmedi.", 409);
+      if (result.error) throw result.error;
     } else if (values.action === "service") {
       const service = await client.from("services").select("id,active").eq("id", values.serviceId).eq("business_id", business.id).maybeSingle();
       if (service.error) throw service.error;

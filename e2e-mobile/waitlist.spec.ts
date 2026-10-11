@@ -246,7 +246,10 @@ test("ended request windows remain visible but block offers until edited", async
   await expect(page.getByRole("button", { name: "Bekleme teklifi hazırla: Bekleyen müşteri", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Bekleme kaydını düzenle: Bekleyen müşteri", exact: true }).click();
   await page.getByLabel("İstenen başlangıç", { exact: true }).fill(local(windowFrom));
+  await expect(page.getByLabel("İstenen başlangıç", { exact: true })).toHaveValue(local(windowFrom));
   await page.getByLabel("İstenen bitiş", { exact: true }).fill(local(windowTo));
+  await expect(page.getByLabel("İstenen bitiş", { exact: true })).toHaveValue(local(windowTo));
+  await page.getByLabel("İstenen bitiş", { exact: true }).blur();
   await page.getByRole("button", { name: "Bekleme kaydını güncelle", exact: true }).click();
   await expect(page.getByRole("button", { name: "Bekleme teklifi hazırla: Bekleyen müşteri", exact: true })).toBeEnabled();
   expect(writes).toHaveLength(1); expect(writes[0].body.action).toBe("update");

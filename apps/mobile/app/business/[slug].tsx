@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { AppButton, ErrorState, LoadingState, Screen, SectionHeader } from "@/components/app-ui";
 import { GalleryViewer } from "@/components/gallery-viewer";
+import { CustomerCouponOffers } from "@/components/customer-coupons";
 import { theme } from "@/constants/theme";
 import { useBusiness } from "@/hooks/use-marketplace";
 import { getSessionSummary, setFavorite } from "@/lib/api";
@@ -156,6 +157,7 @@ function BusinessDetailContent({ slug }: { slug: string }) {
           <View style={styles.fact}><Text style={styles.factValue}>{item.startingPrice > 0 ? `${item.startingPrice.toLocaleString("tr-TR")} ₺+` : "Fiyatı gör"}</Text><Text style={styles.factLabel}>Başlangıç</Text></View>
         </View>
 
+        <CustomerCouponOffers businessId={item.id} />
         {galleryImages.length > 1 ? (
           <View>
             <SectionHeader title="Fotoğraflar" />
