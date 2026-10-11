@@ -43,7 +43,7 @@ export async function signIn(_previous: AuthState, formData: FormData): Promise<
   const supabase = await createServerClientOptional();
   if (!supabase) return { error: "Giriş servisi yapılandırılmamış." };
   const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
-  if (error) return { error: authErrorMessage(error.code, "signin") };
+  if (error) return { error: authErrorMessage(error.code, "signin", error.status) };
   redirect(destination);
 }
 
@@ -64,7 +64,7 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
       emailRedirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(destination)}`,
     },
   });
-  if (error) return { error: authErrorMessage(error.code, "signup") };
+  if (error) return { error: authErrorMessage(error.code, "signup", error.status) };
   if (data.user?.identities?.length === 0) return { error: "Bu e-posta adresiyle daha önce hesap oluşturulmuş." };
   if (data.session) redirect(destination);
   redirect(`/auth/verify?email=${encodeURIComponent(parsed.data.email)}`);

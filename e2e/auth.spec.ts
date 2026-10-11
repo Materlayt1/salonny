@@ -24,9 +24,9 @@ test("signup and login modes render a usable Supabase form", async ({ page }) =>
 test("business onboarding requires authentication and opens the detailed business signup", async ({ page }) => {
   await page.goto("/business/onboarding");
   await expect(page).toHaveURL(/\/auth\/login\?.*account=business/);
-  await page.goto(
-    "/auth/login?mode=signup&account=business&next=%2Fbusiness%2Fonboarding",
-  );
+  // Continue through the actual redirected page once its controls are ready.
+  await expect(page.getByRole("heading", { name: "Tekrar hoş geldin" })).toBeVisible();
+  await page.getByRole("button", { name: "Ücretsiz kayıt ol", exact: true }).click();
 
   await expect(page.getByLabel("İşletme adı")).toBeVisible();
   await expect(page.getByLabel("Ad soyad")).toBeVisible();
