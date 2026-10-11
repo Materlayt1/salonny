@@ -1,6 +1,6 @@
 # Native ileri vardiyalar
 
-11 Ekim 2026. Kod/test kapısı hazır; canlı `202610110031_native_staff_schedules.sql` onayı beklenir. Ekip → çalışan araçları → özel vardiya dönemleri; native ekran dış tarayıcıya yönlendirmez.
+11 Ekim 2026. Kod/test kapısı hazır; `202610110031_native_staff_schedules.sql` açık kullanıcı onayıyla canlı Supabase projesine kuruldu. Ekip → çalışan araçları → özel vardiya dönemleri; native ekran dış tarayıcıya yönlendirmez.
 
 ## Kullanım ve sınırlar
 
@@ -17,5 +17,7 @@
 Sahip/yönetici ve aktif işletme üyeliği gerekir; genel ADMIN rolü tenant sınırını atlayamaz. Dönem ve şube ataması aynı çalışan kilidini paylaşır. Ham çalışma saati yazımları kapatılır, RLS okumaları korunur. Atama/üst tenant/randevu tetikleyicileri dolaylı uyumsuzlukları engeller. Haftalık toplu değiştirme, tarihli/çok parçalı planı transaction içinde tekrar kontrol ederek korur.
 
 031 preflight tutarsız tenant, atama, tarih veya açık randevuda durur; veriyi silmez/onarmaz. `native_staff_schedules_deployment_verify.sql` 12 salt-okunur metadata/ACL kontrolüdür. Canlı kurulumda migration geçmişi başarıyla aynı transaction'da işlenmelidir.
+
+Canlı kabul: 12/12 metadata/ACL/constraint/tetikleyici denetimi geçti. Kupon güncellemesiyle birlikte `native_staff_coupons_source_verify.sql` 12 fonksiyon gövdesi ve iki tam kaynak/geçmiş kaydında 14/14 eşleşme verdi. Oturumsuz ileri vardiya API'si ve anonim hazır RPC 401 döndü. Mevcut çalışma planı test amacıyla değiştirilmedi; bu kontroller yetkili hesapla vardiya yazma/booking-unlink yarış kabulü değildir.
 
 `scripts/test-staff-schedule-engine.mjs` izole PostgreSQL/WASM fixture'ında 29 katalog/motor/preflight kontrolünden geçti. 16 kontrollü native E2E; kapsam, saniye/kesir snapshot'ı, stale/çakışma, pasif şube temizliği, atama, sayfalama, tekrar, onay ve dar ekranı kapsar. Gerçek JWT/RLS, staging eşzamanlı booking/unlink yarışı ve cihaz kabulü değildir; bu kapılar ayrıca açık kalır.

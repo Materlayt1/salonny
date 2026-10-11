@@ -6,8 +6,8 @@
 
 ## Bu turda uygulananlar
 
-- [x] İleri tarihli/çok parçalı dönem ve şube ataması için native ekran/API kodu eklendi. Pasif şube temizliği, tam hassasiyet snapshot'ı, çakışma/taslak koruması ve bağımsız sayfalama var. 031 canlı kurulum ayrıca onay bekler; [kapsam ve kabul](native-staff-schedules.md).
-- [x] Web ile ortak müşteri kupon uygulama, indirim özeti ve işletme detayında kod duyurusu eklendi. Hizmet/uzman değişimi veya terk edilmiş seçimden geç gelen yanıt eski indirimi geri getirmez. Tek kullanım için 032 canlı kurulum onayı bekler; [davranış ve güvenlik](customer-coupons.md).
+- [x] İleri tarihli/çok parçalı dönem ve şube ataması için native ekran/API kodu eklendi. Pasif şube temizliği, tam hassasiyet snapshot'ı, çakışma/taslak koruması ve bağımsız sayfalama var. 031 canlı kurulum açık onayla tamamlandı; [kapsam ve kabul](native-staff-schedules.md).
+- [x] Web ile ortak müşteri kupon uygulama, indirim özeti ve işletme detayında kod duyurusu eklendi. Hizmet/uzman değişimi veya terk edilmiş seçimden geç gelen yanıt eski indirimi geri getirmez. Tek kullanım defteri için 032 canlı kurulum açık onayla tamamlandı; [davranış ve güvenlik](customer-coupons.md).
 
 - [x] Webdeki gerçek `public/brand/salonny-mark.png` marka varlığı uygulamada kullanılıyor.
 - [x] Açık renkli ana ekran, arama alanı, pastel kategoriler, SVG ikonları ve webdeki beşli alt menü düzeni taşındı.
@@ -55,7 +55,7 @@
 
 - [ ] Fiziksel cihazda native harita, izin reddi ve kamera kabul testi. Harita yalnız yüklenen sonuç sayfalarını gösterir; tüm ülkenin sınırsız işletmelerini tek seferde indirmez.
 - [ ] Yüksek trafik öncesinde sözleşmeli/kendi barındırılan tile sağlayıcısı ve kapasite doğrulaması. `EXPO_PUBLIC_MAP_TILE_URL` değiştirilebilir; public OSM tile servisi SLA veya sınırsız kapasite sağlamaz.
-- [ ] Native işletme onboarding, görsel yükleme, yeni konum/harita üzerinde taşınma ve tarihe özel işletme çalışma saati düzenleyicisi. Çalışan ileri vardiya/şube ataması kodu hazır; 031 canlı onayı ve gerçek DB yarış kabulü bekler. Temel işletme saatleri ve çalışan vardiya/izin/hizmet yönetimi tamamlandı.
+- [ ] Native işletme onboarding, görsel yükleme, yeni konum/harita üzerinde taşınma ve tarihe özel işletme çalışma saati düzenleyicisi. Çalışan ileri vardiya/şube ataması ve 031 canlı kurulumu tamamlandı; gerçek DB yarış kabulü ayrı kapıda bekler. Temel işletme saatleri ve çalışan vardiya/izin/hizmet yönetimi tamamlandı.
 - [ ] Tekrarlanan/grup/çok hizmetli native işletme randevuları ve bakım/iletişim araçları. Bekleme/kaynak ekranları ve 028/029 canlı etkinleştirmesi tamamlandı; gerçek iletişim provider'ı/teslimatı ayrıca kabul edilir.
 - [ ] Paket kullanım işlem defteri ve başlangıç bakiye snapshot'ı; tanımlamada paket metadata okuması ve insert'i tek transaction'a alma. Şu an eşzamanlı aktiflik/geçerlilik değişiminde okunan anın değerleri kullanılabilir; hizmet/seans sayısı değişmez. Pakete bağlı hizmetler silinmez, pasife alınır. Mevcut kaynak motorunda çoklu kaynak kilit sırası transient deadlock oluşturabilir; işlem rollback olur ve tekrar denenmelidir.
 - [ ] İşletme seçimini transaction içinde alan kampanya oluşturma RPC'si, indirim kodu/tutar/tarihlerini atomik düzenleme ve ayrıntılı rapor grafikleri. Şu an ilk yetkili işletmede kampanya oluşturma, metadata ve durum yönetimi vardır.
@@ -67,7 +67,7 @@ Kaynak kurulum sınırları: 029 tenant/servis-şube/açık rezervasyon zaman uy
 
 ## Yeniden doğrulama
 
-11 Ekim son kod kapısı: 484 birim/yetki testi, ileri vardiya 29 ve kupon 32 izole PostgreSQL/WASM kontrolü başarılı. Güncel temiz preview export üzerinde **125/125 mobil E2E** (123 kontrollü, 2 salt-okunur gerçek Gogo görsel) retry olmadan geçti. 16 ileri vardiya, 5 müşteri kuponu senaryosu dahil; süre dolan bekleme aralığı testindeki alan değerleri açıkça doğrulandı ve tam koşu yeniden yapıldı. Web/mobil tip, tam lint, güvenlik kapısı, Next.js production build, güncel Android/iOS Hermes + web export başarılı. 031/032 canlı güncellemeleri ayrıca onay bekler; gerçek test müşteri/randevu/kuponu yazılmadı. Önceki sonuçlar tarihseldir.
+11 Ekim son kod kapısı: 484 birim/yetki testi, ileri vardiya 29 ve kupon 32 izole PostgreSQL/WASM kontrolü başarılı. Güncel temiz preview export üzerinde **125/125 mobil E2E** (123 kontrollü, 2 salt-okunur gerçek Gogo görsel) retry olmadan geçti. 16 ileri vardiya, 5 müşteri kuponu senaryosu dahil; süre dolan bekleme aralığı testindeki alan değerleri açıkça doğrulandı ve tam koşu yeniden yapıldı. Web/mobil tip, tam lint, güvenlik kapısı, Next.js production build, güncel Android/iOS Hermes + web export başarılı. Ardından 031/032 canlı kuruldu; 20/20 kurulum/yetki, 14/14 fonksiyon/geçmiş kaynak eşleşmesi geçti. Native kaynak değişmediği için bu E2E/build kayıtları yeniden koşulmuş sayılmaz; gerçek test müşteri/randevu/kuponu yazılmadı.
 
 11 Ekim canlı kapısı: kullanıcı onayıyla 028/029 ve varsayılan yetkileri kapatan 030 kuruldu. İki özellik güncellemesi editöre aktarılırken repo + geçmiş kaydı eşleşmesi, sonrasında 11/11 canlı fonksiyon gövdesi eşleşmesi doğrulandı. `native_operations_deployment_verify.sql` 12/12 geçti: 14 işlev ACL, dokuz FK, dört tetikleyici, beş RLS tablosu ve kapalı tablo/kolon/bakım/defter hakları. İzole geçici tablo SQL motor testi 8/8, tüm nesneler rollback; dört yeni ACL regresyonuyla 267 birim testi geçti. Anonim RPC/tablo ve oturumsuz API erişimi 401, public iki işletmeli dizin 200. Gerçek müşteri/randevu/kaynak test yazımı yapılmadı; gerçek yetkili hesapla yazma, JWT/RLS, yarış/staging ve fiziksel cihaz kapıları açık kalır.
 

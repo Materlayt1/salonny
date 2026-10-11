@@ -2,7 +2,7 @@
 
 Son güncelleme: 11 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028/029 + 030 canlı kuruldu; 267 birim, 8 izole SQL motor ve 12 kurulum/yetki kontrolü geçti. Önceki 10 Ekim mobil E2E kaydı 104/104 (102 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028/029 + 030 ardından 031/032 canlı kuruldu; son iki güncelleme için 20/20 kurulum/yetki ve 14/14 kaynak/geçmiş kontrolü geçti. Son kod kapısı 484 birim, 125/125 mobil E2E (123 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
 
 ## Tamamlanan P0 işleri
 
@@ -41,6 +41,7 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 
 - [x] `202610070027` dahil önceki Supabase migrasyonları production'a uygulandı ve salt-okunur güvenlik sorgusuyla doğrulandı.
 - [x] `202610100028` bekleme listesi / `202610100029` kaynak yönetimi ve kalan varsayılan hakları kapatan `202610110030` canlı kuruldu; geçmiş, ACL/tenant/tetikleyici ve fonksiyon gövdesi eşleşmesi doğrulandı. İzole SQL motor 8/8 geçti. Gerçek JWT/RLS/yazım ve eşzamanlı staging kapasite kabulü ayrıca gerekir.
+- [x] `202610110031` ileri vardiya/şube ataması ve `202610110032` müşteri kuponu açık onayla canlı kuruldu; 20/20 kurulum/yetki, 12 fonksiyon + iki tam migration kaynak kaydı için 14/14 eşleşme geçti. Mevcut kayıt sayıları değişmedi; gerçek test randevusu/kupon kullanımı oluşturulmadı. Gerçek yetkili yazım/yarış/yük kabulü değildir.
 - [ ] Ayrı bir staging Supabase projesi açıldığında aynı migrasyonları staging'e uygula.
 - [ ] Production ortamında Upstash Redis değişkenlerini tanımla; readiness ucu `200 ready` vermeden trafik açma.
 - [x] Vercel Preview giriş engelinin nedenini doğrula ve onaylı ücretsiz Redis bağlantısını kur: 11 Ekim runtime kaydı `rate_limit / 503`, Preview'da Redis değişkenleri yoktu. Free Upstash yalnız Preview'a bağlandı; hassas `KV_REST_API_URL/TOKEN` değerleri gösterilmeden otomatik eklendi. Production bağlantısı, SLA/kota/yük kabulü ve gerçek hesap testi bundan ayrı kapılardır.
@@ -57,7 +58,7 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 
 ## Son yerel doğrulama sonuçları
 
-11 Ekim devam turu: ileri vardiya/şube ataması native kodu ve atomik haftalık plan koruması hazır; 031 canlı onayı bekliyor. Web/native müşteri kupon alanı, işletme detayı duyurusu ve atomik tek kullanım defteri hazır; 032 canlı onayı bekliyor. [Vardiya kapsamı](docs/native-staff-schedules.md), [kupon davranışı/kabul sınırları](docs/customer-coupons.md). İşletme yan menüsü gerçek oturumda 600 px yükseklikte alt Ayarlar'a kaydırılarak doğrulandı. Gerçek Gogo randevu adımında belge taşması yok; yalnız tarih şeridi kendi içinde yatay kayar. Gerçek test randevusu/kuponu oluşturulmadı.
+11 Ekim devam turu: ileri vardiya/şube ataması native kodu ve atomik haftalık plan koruması; web/native müşteri kupon alanı, işletme detayı duyurusu ve atomik tek kullanım defteri hazır. 031/032 açık onayla canlı kuruldu; kurulum/yetki 20/20 ve kaynak/geçmiş 14/14 eşleşti. [Vardiya kapsamı](docs/native-staff-schedules.md), [kupon davranışı/kabul sınırları](docs/customer-coupons.md). İşletme yan menüsü gerçek oturumda 600 px yükseklikte alt Ayarlar'a kaydırılarak doğrulandı. Gerçek Gogo randevu adımında belge taşması yok; yalnız tarih şeridi kendi içinde yatay kayar. Gerçek test randevusu/kuponu oluşturulmadı.
 
 Bu tur: 484/484 birim/yetki testi; 031 izole SQL fixture'ı 29/29, 032 fixture'ı 32/32; web/mobil TypeScript, tam lint, güvenlik kapısı (`unresolved: []`) ve Next.js production build geçti. Son temiz preview export üzerinde tam mobil regresyon **125/125** (123 kontrollü + 2 salt-okunur gerçek Gogo görsel) geçti, retry yok. Güncel Android/iOS Hermes ve web export başarılı; imzalı APK/IPA veya gerçek JWT/DB yarış/yük/mağaza kabulü değildir.
 

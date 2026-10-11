@@ -4,7 +4,7 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 
 ## Kod ve güvenlik kapısı
 
-- [x] İleri vardiya dönemleri/şube ataması ve müşteri kupon ekranlarının kodu hazır; 031/032 canlı yetki güncellemeleri açık onay bekler. Kodun derlenmesi bu veritabanı özelliklerini canlı etkinleştirmez. [Vardiya](native-staff-schedules.md), [kupon](customer-coupons.md).
+- [x] İleri vardiya dönemleri/şube ataması ve müşteri kupon ekranlarının kodu hazır; 031/032 canlı yetki güncellemeleri açık onayla kuruldu. 20/20 kurulum/ACL ve 14/14 fonksiyon/geçmiş kaynak denetimi geçti. Gerçek JWT/yazım/yarış kabulü ve mağaza/cihaz kapıları ayrıdır. [Vardiya](native-staff-schedules.md), [kupon](customer-coupons.md).
 - [x] 11 Ekim güncel kod: 484 birim/yetki testi, 031 için 29 ve 032 için 32 izole SQL kontrolü; son temiz export'ta tam mobil 125/125 (123 kontrollü + 2 salt-okunur gerçek Gogo), retry yok. Web/mobil tip, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. Mağaza/cihaz/gerçek DB yarış kabulü değildir.
 
 - [x] Müşteri ana sayfası, yatay vitrinler ve sayfalı/filtreli tüm işletmeler listesi native olarak hazır.

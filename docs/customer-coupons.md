@@ -1,6 +1,6 @@
 # Müşteri kuponları
 
-11 Ekim 2026. Kod ve izole testler hazır; `202610110032_customer_coupons.sql` canlı etkinleştirmesi ayrıca onay gerektirir. Altyapı eksikken API indirim uygulanmış gibi başarı bildirmez.
+11 Ekim 2026. Kod ve izole testler hazır; `202610110032_customer_coupons.sql` açık kullanıcı onayıyla canlı Supabase projesine kuruldu. Altyapı eksikken API indirim uygulanmış gibi başarı bildirmez.
 
 ## Davranış
 
@@ -27,6 +27,10 @@ Bu eşikler yeni kupon davranışının tanımlarıdır; eski rapor/CRM segmentl
 `list_business_coupons` yalnız yayınlanan işletmenin en fazla 20 güncel kuponunun kod/tür/değer/son tarih/hedef kitlesini açar; müşteri bilgisi açıklamaz. `quote_customer_coupon` ve `create_appointment_with_coupon` doğrulanmış oturum ister. Kullanım defteri RLS ve kapalı tablo haklarıyla doğrudan istemci erişimine kapalıdır. Kod, kota ve kullanım hakları sunucuda yeniden kontrol edilir; kampanya/kupon kilitleri ve benzersiz kısıtlar seri kullanımı korur.
 
 Migration mevcut veriyi silmez. Aynı işletmede normalize edilince yinelenen eski kod varsa transaction durur; hangi kodun korunacağı ayrıca belirlenmelidir. `customer_coupons_deployment_verify.sql` sekiz salt-okunur kurulum/ACL denetimi içerir. Migration geçmişine 032 kaydı başarıdan sonra aynı SQL transaction'ında eklenmelidir.
+
+Canlı kabul: sekiz kupon kurulum/ACL denetimi geçti; 031 ile birlikte 12 işlev gövdesi ve iki tam migration kaynak kaydı 14/14 eşleşti. İki gerçek işletmenin public kupon uçları 200 verdi; geçerli %10 kupon duyurusu localhost ve yetkili Vercel tarayıcı oturumunda göründü. Oturumsuz quote API, anonim quote RPC ve kullanım defteri okuması 401 verdi. Vercel CLI istekleri dağıtım korumasıyla SSO'ya yönlendi; CLI sonucu API kabulü sayılmadı. Randevu veya kupon kullanım kaydı oluşturulmadı.
+
+Mevcut localhost oturumuyla gerçek hizmet ve mevcut kupon için yalnız quote çalıştırıldı: ₺400 → ₺40 indirim → ₺360 toplam, ekranda uygulama ve fiyat özeti doğrulandı. Son randevu/koşul onayı gönderilmedi; bu sonuç gerçek rezervasyon veya ikinci kullanım yarışı kabulü değildir. [Canlı kabul kaydı](staff-coupons-deployment-acceptance.md).
 
 ## Doğrulama sınırları
 
