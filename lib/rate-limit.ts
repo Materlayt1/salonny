@@ -1,3 +1,5 @@
+import { resolveRedisRestConfig } from "@/lib/redis-rest-config.mjs";
+
 type Entry = { count: number; resetAt: number };
 const buckets = new Map<string, Entry>();
 
@@ -19,23 +21,28 @@ export class RateLimitExceededError extends Error {
 }
 
 async function checkDistributedRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, "");
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
+  const config = resolveRedisRestConfig();
+  if (!config) return null;
   const script = "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]); end; local ttl=redis.call('PTTL',KEYS[1]); return {n,ttl}";
   try {
-    const response = await fetch(url, {
+    const response = await fetch(config.url, {
       method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${config.token}`, "content-type": "application/json" },
       body: JSON.stringify(["EVAL", script, "1", `${process.env.RATE_LIMIT_NAMESPACE ?? "service-marketplace"}:ratelimit:${key}`, String(windowMs)]),
       cache: "no-store",
       signal: AbortSignal.timeout(1_500),
     });
     if (!response.ok) return null;
-    const payload = await response.json() as { result?: [number, number] };
-    if (!Array.isArray(payload.result)) return null;
-    const [count, ttl] = payload.result;
-    return { allowed: count <= limit, remaining: Math.max(0, limit - count), resetAt: Date.now() + Math.max(0, ttl) };
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || "error" in payload) return null;
+    const result = (payload as { result?: unknown }).result;
+    if (!Array.isArray(result) || result.length !== 2) return null;
+    const [count, ttl] = result;
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count <= 0
+      || typeof ttl !== "number" || !Number.isSafeInteger(ttl) || ttl <= 0) return null;
+    const resetAt = Date.now() + ttl;
+    if (!Number.isSafeInteger(resetAt)) return null;
+    return { allowed: count <= limit, remaining: Math.max(0, limit - count), resetAt };
   } catch {
     return null;
   }

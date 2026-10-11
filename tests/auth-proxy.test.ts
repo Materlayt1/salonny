@@ -19,6 +19,9 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
   vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+  vi.stubEnv("KV_REST_API_URL", "");
+  vi.stubEnv("KV_REST_API_TOKEN", "");
+  vi.stubEnv("KV_REST_API_READ_ONLY_TOKEN", "");
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
   eventMock.mockReset().mockResolvedValue(undefined);

@@ -1,4 +1,5 @@
 import process from "node:process";
+import { resolveRedisRestConfig } from "../lib/redis-rest-config.mjs";
 
 for (const file of [".env.production.local", ".env.local", ".env.production", ".env"]) {
   try {
@@ -25,7 +26,10 @@ function requireHttpsUrl(name) {
   if (!configured) return "";
   try {
     const parsed = new URL(configured);
-    if (parsed.protocol !== "https:") failures.push(`${name} HTTPS olmalı.`);
+    if (parsed.protocol !== "https:") {
+      failures.push(`${name} HTTPS olmalı.`);
+      return "";
+    }
     return parsed.toString().replace(/\/$/, "");
   } catch {
     failures.push(`${name} geçerli bir URL değil.`);
@@ -37,8 +41,17 @@ const appUrl = requireHttpsUrl("NEXT_PUBLIC_APP_URL");
 const supabaseUrl = requireHttpsUrl("NEXT_PUBLIC_SUPABASE_URL");
 const supabaseAnonKey = requireValue("NEXT_PUBLIC_SUPABASE_ANON_KEY", 32);
 requireValue("SUPABASE_SERVICE_ROLE_KEY", 32);
-const redisUrl = requireHttpsUrl("UPSTASH_REDIS_REST_URL");
-const redisToken = requireValue("UPSTASH_REDIS_REST_TOKEN", 20);
+const redisConfig = resolveRedisRestConfig();
+let redisUrl = "";
+let redisToken = "";
+if (redisConfig) {
+  redisUrl = requireHttpsUrl(redisConfig.urlName);
+  redisToken = requireValue(redisConfig.tokenName, 20);
+  checks.redisRestConfiguration = redisConfig.family;
+} else {
+  checks.redisRestConfiguration = "missing_or_incomplete";
+  failures.push("Redis için geçerli HTTPS URL ile tam UPSTASH_REDIS_REST_URL/TOKEN veya KV_REST_API_URL/TOKEN çifti gerekli; eksik/geçersiz Upstash çifti KV ile tamamlanamaz.");
+}
 requireValue("CRON_SECRET", 32);
 requireHttpsUrl("LOG_DRAIN_URL");
 requireValue("LOG_DRAIN_TOKEN", 20);

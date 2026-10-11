@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicSupabaseClientOptional } from "@/lib/supabase/public";
+import { resolveRedisRestConfig, type RedisRestConfig } from "@/lib/redis-rest-config.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,11 @@ async function checkDatabase() {
   return !error;
 }
 
-async function checkDistributedRateLimit() {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, "");
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return false;
-
+async function checkDistributedRateLimit(config: RedisRestConfig) {
   try {
-    const response = await fetch(url, {
+    const response = await fetch(config.url, {
       method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${config.token}`, "content-type": "application/json" },
       body: JSON.stringify(["PING"]),
       cache: "no-store",
       signal: AbortSignal.timeout(1_500),
@@ -40,10 +37,11 @@ export async function GET() {
   const startedAt = performance.now();
   const databaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_OFFLINE !== "true"
     && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const rateLimitConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  const redisConfig = resolveRedisRestConfig();
+  const rateLimitConfigured = Boolean(redisConfig);
   const [databaseReachable, rateLimitReachable] = await Promise.all([
     databaseConfigured ? checkDatabase() : Promise.resolve(false),
-    rateLimitConfigured ? checkDistributedRateLimit() : Promise.resolve(false),
+    redisConfig ? checkDistributedRateLimit(redisConfig) : Promise.resolve(false),
   ]);
 
   const rateLimitReady = process.env.NODE_ENV !== "production" || rateLimitReachable;

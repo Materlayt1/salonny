@@ -18,6 +18,9 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_OFFLINE", "false");
   vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
   vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+  vi.stubEnv("KV_REST_API_URL", "");
+  vi.stubEnv("KV_REST_API_TOKEN", "");
+  vi.stubEnv("KV_REST_API_READ_ONLY_TOKEN", "");
   vi.stubGlobal("fetch", upstreamFetch);
   upstreamFetch.mockReset();
 });
@@ -90,6 +93,51 @@ describe("Supabase SDK authentication through the real gateway", () => {
     expect(error).toMatchObject({ name: "AuthRetryableFetchError", status: 503 });
     expect(authErrorMessage(error?.code, "signin", error?.status)).toBe("Giriş servisine ulaşılamadı. Bağlantını kontrol edip yeniden dene.");
     expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+
+  it("reaches Supabase through the real production gateway with writable KV protection", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("KV_REST_API_URL", "https://fixture-redis.example");
+    vi.stubEnv("KV_REST_API_TOKEN", "fixture-write-token");
+    upstreamFetch.mockImplementation((input, init) => {
+      if (String(input) === "https://fixture-redis.example") {
+        expect(new Headers(init.headers).get("authorization")).toBe("Bearer fixture-write-token");
+        const command = JSON.parse(init.body);
+        expect(command[0]).toBe("EVAL");
+        expect(command[4]).toBe("600000");
+        return Promise.resolve(new Response(JSON.stringify({ result: [1, 599_999] }), { status: 200 }));
+      }
+      expect(String(input)).toBe(`${projectOrigin}/auth/v1/token?grant_type=password`);
+      return Promise.resolve(new Response(JSON.stringify({ code: "invalid_credentials", msg: "Fixture invalid credentials" }), {
+        status: 400, headers: { "X-Supabase-Api-Version": "2024-01-01" },
+      }));
+    });
+    const { error } = await sdkClient().auth.signInWithPassword(credentials);
+    expect(error).toMatchObject({ code: "invalid_credentials", status: 400 });
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns SDK-readable 429 for a denied KV EVAL without contacting Supabase", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("KV_REST_API_URL", "https://fixture-redis.example");
+    vi.stubEnv("KV_REST_API_TOKEN", "fixture-write-token");
+    upstreamFetch.mockResolvedValue(new Response(JSON.stringify({ result: [21, 20_000] }), { status: 200 }));
+    const { error } = await sdkClient().auth.signInWithPassword(credentials);
+    expect(error).toMatchObject({ code: "over_request_rate_limit", status: 429 });
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(String(upstreamFetch.mock.calls[0][0])).toBe("https://fixture-redis.example");
+  });
+
+  it.each(["unreachable", "malformed"])("keeps the real production gateway closed for %s KV protection", async (failure) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("KV_REST_API_URL", "https://fixture-redis.example");
+    vi.stubEnv("KV_REST_API_TOKEN", "fixture-write-token");
+    if (failure === "unreachable") upstreamFetch.mockRejectedValue(new Error("fixture Redis connection failure"));
+    else upstreamFetch.mockResolvedValue(new Response(JSON.stringify({ result: [0, 60_000] }), { status: 200 }));
+    const { error } = await sdkClient().auth.signInWithPassword(credentials);
+    expect(error).toMatchObject({ name: "AuthRetryableFetchError", status: 503 });
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(String(upstreamFetch.mock.calls[0][0])).toBe("https://fixture-redis.example");
   });
 
   it("keeps local retry-later errors SDK-readable when the bucket is full", async () => {
