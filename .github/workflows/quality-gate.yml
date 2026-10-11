@@ -1,0 +1,49 @@
+name: Quality gate
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:security
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm mobile:typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm mobile:bundle
+  mobile-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MOBILE_STATIC_PREVIEW: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm mobile:export:preview
+      - run: pnpm mobile:test:e2e

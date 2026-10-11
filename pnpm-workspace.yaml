@@ -1,8 +1,42 @@
 packages:
   - "."
+  - "apps/*"
+  - "packages/*"
 
 allowBuilds:
   unrs-resolver: true
 
+minimumReleaseAgeExclude:
+  - '@expo/cli@57.0.28'
+  - '@expo/config-plugins@57.0.10'
+  - '@expo/config@57.0.10'
+  - '@expo/image-utils@0.11.6'
+  - '@expo/metro-config@57.0.13'
+  - '@expo/metro-file-map@57.0.4'
+  - '@expo/prebuild-config@57.0.17'
+  - '@expo/require-utils@57.0.6'
+  - '@expo/router-server@57.0.12'
+  - babel-preset-expo@57.0.14
+  - expo-asset@57.0.19
+  - expo-constants@57.0.21
+  - expo-modules-autolinking@57.0.14
+  - expo-modules-core@57.0.21
+  - expo@57.0.27
+  - '@expo/ui@57.0.22'
+  - expo-linking@57.0.12
+  - expo-router@57.0.25
+
 onlyBuiltDependencies:
   - unrs-resolver
+
+overrides:
+  "source-map-js@<1.2.2": "1.2.2"
+  "sharp@<0.35.5": "0.35.5"
+  "brace-expansion@>=4.0.0 <5.0.12": "5.0.12"
+  "decode-uri-component@<=0.4.2": "0.5.0"
+  "js-yaml@>=4.0.0 <4.3.2": "4.3.2"
+  "uuid@<11.1.1": "11.1.1"
+
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch
+  node-forge@1.4.0: patches/node-forge@1.4.0.patch

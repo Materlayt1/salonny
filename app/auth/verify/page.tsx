@@ -11,7 +11,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
         <BrandLogo className="justify-center" />
         <span className="mx-auto mt-8 grid h-16 w-16 place-items-center rounded-2xl bg-[#EAFBF0] text-[#16A34A]"><MailCheck className="h-8 w-8" /></span>
         <h1 className="mt-5 text-2xl font-bold">E-postanı kontrol et</h1>
-        <p className="mt-2 text-sm leading-6 text-[#777781]">
+        <p className="mt-2 text-sm leading-6 text-[#686872]">
           {email ? <><strong className="font-semibold text-[#44444C]">{email}</strong> adresine</> : "E-posta adresine"} güvenli bir doğrulama bağlantısı gönderdik.
         </p>
         <p className="mt-3 text-xs leading-5 text-[#96969F]">E-posta görünmüyorsa spam klasörünü kontrol et. Bağlantı seni güvenli şekilde {BRAND.name}&apos;ye geri getirecek.</p>

@@ -1,13 +1,45 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { isAllowedMobileOrigin } from "@/lib/mobile-origins";
+
+const corsOptions = {
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key, apikey, X-Client-Info, X-Supabase-Api-Version",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+};
+
+function withCors(response: NextResponse, request: NextRequest) {
+  const origin = request.headers.get("origin") ?? "";
+  if (origin && isAllowedMobileOrigin(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+  }
+  response.headers.set("Vary", "Origin");
+  Object.entries(corsOptions).forEach(([key, value]) => response.headers.set(key, value));
+  return response;
+}
+
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const timeoutSignal = AbortSignal.timeout(2_000);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
+  return fetch(input, { ...init, signal });
+}
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    if (request.method === "OPTIONS") {
+      return withCors(new NextResponse(null, { status: 204 }), request);
+    }
+    return withCors(NextResponse.next(), request);
+  }
+
+  if (process.env.NEXT_PUBLIC_SUPABASE_OFFLINE === "true") return NextResponse.next();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, key, {
+    global: { fetch: fetchWithTimeout },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookies) => {
@@ -36,6 +68,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/:path*",
     "/admin/:path*",
     "/business/onboarding/:path*",
     "/business/dashboard/:path*", "/business/calendar/:path*", "/business/appointments/:path*",

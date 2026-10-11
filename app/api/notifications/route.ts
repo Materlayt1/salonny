@@ -1,21 +1,29 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createServerClientOptional } from "@/lib/supabase/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { createRequestClientOptional } from "@/lib/supabase/request";
+import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 
 const bodySchema = z.object({ ids: z.array(z.uuid()).max(100).optional() });
 
+export async function GET(request: Request) {
+  const limited = await apiRateLimit(request, "notifications-read", 60, 60_000);
+  if (limited) return limited;
+  const client = await createRequestClientOptional(request);
+  const user = client ? (await client.auth.getUser()).data.user : null;
+  if (!client || !user) return NextResponse.json({ error: "Giriş yapmalısın." }, { status: 401 });
+  const { data, error } = await client.from("notifications").select("id,title,body,read_at,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
+  if (error) return NextResponse.json({ error: "Bildirimler alınamadı." }, { status: 503 });
+  return NextResponse.json({ notifications: (data ?? []).map((row) => ({ id: row.id, title: row.title, body: row.body, readAt: row.read_at, createdAt: row.created_at })) }, { headers: { "Cache-Control": "private, no-store" } });
+}
+
 export async function PATCH(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Geçersiz istek kaynağı." }, { status: 403 });
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "Yalnızca JSON istekleri desteklenir." }, { status: 415 });
-  if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 });
-  const rateKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const rate = await checkRateLimit(`notifications:${rateKey}`, 30, 60_000);
-  if (!rate.allowed) return NextResponse.json({ error: "Çok fazla işlem yaptınız." }, { status: 429 });
-  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+  const body = await readBoundedJson(request, 16_384);
+  if (!body.ok) return body.response;
+  const limited = await apiRateLimit(request, "notifications", 30, 60_000, { critical: true, message: "Çok fazla işlem yaptınız." });
+  if (limited) return limited;
+  const parsed = bodySchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: "Bildirim seçimi geçersiz." }, { status: 422 });
-  const supabase = await createServerClientOptional();
+  const supabase = await createRequestClientOptional(request);
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });

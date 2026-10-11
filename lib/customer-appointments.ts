@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerClientOptional } from "@/lib/supabase/server";
 import type { AppointmentStatus, CustomerAppointment } from "@/lib/types";
 
@@ -37,10 +38,9 @@ function publicAssetUrl(path: string | null) {
   return `${base}/storage/v1/object/public/business-assets/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-export async function getCustomerAppointments(): Promise<CustomerAppointment[]> {
-  const supabase = await createServerClientOptional();
-  if (!supabase) return [];
-
+export async function getCustomerAppointmentsWithClient(
+  supabase: SupabaseClient,
+): Promise<CustomerAppointment[]> {
   const { data, error } = await supabase.rpc("get_customer_appointments");
   if (error) throw new Error(`Randevular alınamadı: ${error.message}`);
 
@@ -85,4 +85,10 @@ export async function getCustomerAppointments(): Promise<CustomerAppointment[]> 
     reviewStatus: review?.moderation_status as CustomerAppointment["reviewStatus"] | undefined,
   });
   });
+}
+
+export async function getCustomerAppointments(): Promise<CustomerAppointment[]> {
+  const supabase = await createServerClientOptional();
+  if (!supabase) return [];
+  return getCustomerAppointmentsWithClient(supabase);
 }

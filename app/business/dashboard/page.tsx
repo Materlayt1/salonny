@@ -243,7 +243,7 @@ export default async function BusinessDashboardPage() {
   return (
     <div className="mx-auto max-w-[1400px]">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-2xl font-bold tracking-[-.03em]">Özet</h1><p className="mt-1 text-sm capitalize text-[#777781]">{formattedToday}</p></div>
+        <div><h1 className="text-2xl font-bold tracking-[-.03em]">Özet</h1><p className="mt-1 text-sm capitalize text-[#686872]">{formattedToday}</p></div>
         <ButtonLink href="/business/calendar" className="h-10"><Plus className="h-4 w-4" /> Takvimi aç</ButtonLink>
       </div>
 
@@ -256,14 +256,14 @@ export default async function BusinessDashboardPage() {
                 {change !== "—" && (positive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />)}{change}
               </span>
             </div>
-            <span className="mt-4 block text-xs text-[#777781]">{label}</span><strong className="mt-2 block text-2xl">{value}</strong><span className="mt-1 block text-[10px] text-[#A1A1AA]">düne göre</span>
+            <span className="mt-4 block text-xs text-[#686872]">{label}</span><strong className="mt-2 block text-2xl">{value}</strong><span className="mt-1 block text-[10px] text-[#A1A1AA]">düne göre</span>
           </article>
         ))}
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
         <article className="surface p-5">
-          <div className="flex items-center justify-between"><div><h2 className="font-semibold">Gelir performansı</h2><p className="mt-1 text-xs text-[#777781]">Son 7 gün · tamamlanan/ödenen randevular</p></div><strong className="text-sm">{money(dailyRevenue.reduce((total, day) => total + day.value, 0))}</strong></div>
+          <div className="flex items-center justify-between"><div><h2 className="font-semibold">Gelir performansı</h2><p className="mt-1 text-xs text-[#686872]">Son 7 gün · tamamlanan/ödenen randevular</p></div><strong className="text-sm">{money(dailyRevenue.reduce((total, day) => total + day.value, 0))}</strong></div>
           <div className="mt-8 flex h-60 items-end gap-3 border-b border-[#ECECF1]">
             {dailyRevenue.map((day) => <div key={day.key} className="group relative flex h-full flex-1 items-end" title={`${day.label}: ${money(day.value)}`}><span className="w-full min-w-2 rounded-t-md bg-[#7E61F5] transition group-hover:bg-[#5B3BE7]" style={{ height: day.value ? `${Math.max(5, (day.value / maxRevenue) * 100)}%` : "2px", opacity: day.value ? 0.8 : 0.18 }} /></div>)}
           </div>
@@ -271,15 +271,15 @@ export default async function BusinessDashboardPage() {
         </article>
 
         <article className="surface p-5">
-          <div className="flex items-center justify-between"><div><h2 className="font-semibold">Bugünün programı</h2><p className="mt-1 text-xs text-[#777781]">{todayAppointments.length} randevu</p></div><ButtonLink href="/business/calendar" variant="ghost" className="h-8 px-3">Takvim</ButtonLink></div>
-          {todaySchedule.length ? <div className="mt-5 grid gap-3">{todaySchedule.map((item) => { const customer = relation(item.customers); return <div key={item.id} className="flex items-center gap-3"><span className="w-11 text-xs font-semibold">{time(item.starts_at)}</span><div className="h-11 w-1 rounded-full bg-[#6C4BF4]" /><div className="min-w-0"><strong className="block truncate text-xs">{customer?.full_name ?? "İsimsiz müşteri"}</strong><span className="text-[10px] text-[#777781]">{item.appointment_items?.[0]?.name_snapshot ?? "Hizmet"}</span></div><Badge tone={item.status === "confirmed" ? "green" : item.status === "pending" ? "amber" : "gray"} className="ml-auto">{statusLabels[item.status]}</Badge></div>; })}</div> : <div className="mt-5 rounded-xl border border-dashed border-[#D9D4F3] p-6 text-center"><CalendarDays className="mx-auto h-6 w-6 text-[#8B75EA]" /><strong className="mt-3 block text-sm">Bugün randevu yok</strong><p className="mt-1 text-xs leading-5 text-[#777781]">Yeni randevular burada otomatik görünecek.</p></div>}
+          <div className="flex items-center justify-between"><div><h2 className="font-semibold">Bugünün programı</h2><p className="mt-1 text-xs text-[#686872]">{todayAppointments.length} randevu</p></div><ButtonLink href="/business/calendar" variant="ghost" className="h-8 px-3">Takvim</ButtonLink></div>
+          {todaySchedule.length ? <div className="mt-5 grid gap-3">{todaySchedule.map((item) => { const customer = relation(item.customers); return <div key={item.id} className="flex items-center gap-3"><span className="w-11 text-xs font-semibold">{time(item.starts_at)}</span><div className="h-11 w-1 rounded-full bg-[#6C4BF4]" /><div className="min-w-0"><strong className="block truncate text-xs">{customer?.full_name ?? "İsimsiz müşteri"}</strong><span className="text-[10px] text-[#686872]">{item.appointment_items?.[0]?.name_snapshot ?? "Hizmet"}</span></div><Badge tone={item.status === "confirmed" ? "green" : item.status === "pending" ? "amber" : "gray"} className="ml-auto">{statusLabels[item.status]}</Badge></div>; })}</div> : <div className="mt-5 rounded-xl border border-dashed border-[#D9D4F3] p-6 text-center"><CalendarDays className="mx-auto h-6 w-6 text-[#8B75EA]" /><strong className="mt-3 block text-sm">Bugün randevu yok</strong><p className="mt-1 text-xs leading-5 text-[#686872]">Yeni randevular burada otomatik görünecek.</p></div>}
         </article>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <article className="surface p-5 lg:col-span-2">
           <div className="flex items-center justify-between"><h2 className="font-semibold">Yaklaşan randevular</h2><Link href="/business/appointments" className="text-xs font-semibold text-[#6C4BF4]">Tümünü gör</Link></div>
-          {upcoming.length ? <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="border-b border-[#ECECF1] text-[#8A8A94]"><tr>{["Saat", "Müşteri", "Hizmet", "Uzman", "Durum"].map((heading) => <th key={heading} className="pb-3 font-medium">{heading}</th>)}</tr></thead><tbody className="divide-y divide-[#F0F0F3]">{upcoming.map((row) => { const customer = relation(row.customers); const employee = relation(row.employees); return <tr key={row.id}><td className="py-3.5">{time(row.starts_at)}</td><td className="py-3.5">{customer?.full_name ?? "—"}</td><td className="py-3.5">{row.appointment_items?.[0]?.name_snapshot ?? "—"}</td><td className="py-3.5">{employee?.display_name ?? "—"}</td><td className="py-3.5"><Badge tone={row.status === "confirmed" ? "green" : "amber"}>{statusLabels[row.status]}</Badge></td></tr>; })}</tbody></table></div> : <div className="mt-4 rounded-xl border border-dashed border-[#D9D4F3] p-8 text-center"><h3 className="text-sm font-semibold">Yaklaşan randevu yok</h3><p className="mt-1 text-xs text-[#777781]">Müşteriler randevu aldığında bu liste anında güncellenir.</p></div>}
+          {upcoming.length ? <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="border-b border-[#ECECF1] text-[#8A8A94]"><tr>{["Saat", "Müşteri", "Hizmet", "Uzman", "Durum"].map((heading) => <th key={heading} className="pb-3 font-medium">{heading}</th>)}</tr></thead><tbody className="divide-y divide-[#F0F0F3]">{upcoming.map((row) => { const customer = relation(row.customers); const employee = relation(row.employees); return <tr key={row.id}><td className="py-3.5">{time(row.starts_at)}</td><td className="py-3.5">{customer?.full_name ?? "—"}</td><td className="py-3.5">{row.appointment_items?.[0]?.name_snapshot ?? "—"}</td><td className="py-3.5">{employee?.display_name ?? "—"}</td><td className="py-3.5"><Badge tone={row.status === "confirmed" ? "green" : "amber"}>{statusLabels[row.status]}</Badge></td></tr>; })}</tbody></table></div> : <div className="mt-4 rounded-xl border border-dashed border-[#D9D4F3] p-8 text-center"><h3 className="text-sm font-semibold">Yaklaşan randevu yok</h3><p className="mt-1 text-xs text-[#686872]">Müşteriler randevu aldığında bu liste anında güncellenir.</p></div>}
         </article>
 
         <article className="surface p-5">
