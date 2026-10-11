@@ -21,6 +21,7 @@ import type { Appointment, Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { BookingCoupon } from "@/components/booking-coupon";
+import { BookingDatePicker } from "@/components/booking-date-picker";
 import type { CouponQuote } from "@/lib/coupon-contract";
 
 function buildDates() {
@@ -49,6 +50,7 @@ function buildDates() {
 }
 
 function slotTime(value: string) {
+  if (!value || !Number.isFinite(new Date(value).getTime())) return "—";
   return new Intl.DateTimeFormat("tr-TR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -108,9 +110,10 @@ export function BookingFlow({
   const [date, setDate] = useState(
     dates.find((item) => item.iso === initialDate) ?? dates[1],
   );
-  const [time, setTime] = useState(initialTime ?? "");
+  const [selectedTime, setTime] = useState(initialTime ?? "");
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilitySelection, setAvailabilitySelection] = useState<string>();
+  const [availabilityRevision, setAvailabilityRevision] = useState(0);
   const [availabilityError, setAvailabilityError] = useState<string>();
   const [customer, setCustomer] = useState(initialCustomer);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -131,6 +134,11 @@ export function BookingFlow({
   const employee =
     eligibleEmployees.find((item) => item.id === employeeId) ??
     eligibleEmployees[0];
+  // Revision also distinguishes a rapid return to an earlier, already-loaded day.
+  const availabilityRequestKey = JSON.stringify([business.id, business.branchId, employee?.id, service.id, date.iso, availabilityRevision]);
+  const availabilityLoading = availabilitySelection !== availabilityRequestKey;
+  // An old day's slot must never be usable while the new selection is pending.
+  const time = availabilityLoading ? "" : selectedTime;
   const couponSelection = `${serviceId}:${employee?.id}`;
   const activeCoupon = coupon?.selection === couponSelection ? coupon : null;
   const displayedTotal = activeCoupon?.quote ? activeCoupon.quote.totalMinor / 100 : service.price;
@@ -154,23 +162,24 @@ export function BookingFlow({
   }
 
   useEffect(() => {
+    let active = true;
     if (!employee?.id || !service?.id || !date?.iso) {
       queueMicrotask(() => {
+        if (!active) return;
         setAvailableSlots([]);
         setTime("");
-        setAvailabilityLoading(false);
+        setAvailabilitySelection(availabilityRequestKey);
         setAvailabilityError("Bu hizmet için aktif bir çalışan bulunmuyor.");
       });
-      return;
+      return () => { active = false; };
     }
-    let active = true;
     if (!business.branchId) {
       queueMicrotask(() => {
         if (active) {
           setAvailableSlots([]);
           setTime("");
           setAvailabilityError("İşletmenin şube bilgisi tamamlanmamış.");
-          setAvailabilityLoading(false);
+          setAvailabilitySelection(availabilityRequestKey);
         }
       });
       return () => {
@@ -184,7 +193,9 @@ export function BookingFlow({
       serviceId: service.id,
       date: date.iso,
     });
-    void fetch(`/api/availability?${params}`)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    void fetch(`/api/availability?${params}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => ({
         response,
         result: (await response.json()) as { slots?: string[]; error?: string },
@@ -197,7 +208,10 @@ export function BookingFlow({
           setAvailabilityError(result.error ?? "Uygun saatler alınamadı.");
           return;
         }
-        const slots = result.slots ?? [];
+        const slots = result.slots;
+        if (!Array.isArray(slots) || slots.some((slot) => typeof slot !== "string" || !Number.isFinite(new Date(slot).getTime()))) {
+          throw new Error("Invalid availability response");
+        }
         setAvailableSlots(slots);
         setTime((current) =>
           slots.includes(current) ? current : (slots[0] ?? ""),
@@ -207,16 +221,19 @@ export function BookingFlow({
         if (active) {
           setAvailableSlots([]);
           setTime("");
-          setAvailabilityError("Uygun saatler alınamadı.");
+          setAvailabilityError(controller.signal.aborted ? "Takvim yanıt vermedi. Lütfen tekrar dene." : "Uygun saatler alınamadı.");
         }
       })
       .finally(() => {
-        if (active) setAvailabilityLoading(false);
+        clearTimeout(timeout);
+        if (active) setAvailabilitySelection(availabilityRequestKey);
       });
     return () => {
       active = false;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [business.branchId, business.id, date.iso, employee.id, service.id]);
+  }, [availabilityRequestKey, business.branchId, business.id, date.iso, employee?.id, service.id]);
 
   async function confirmBooking() {
     if (submitting.current) return;
@@ -470,9 +487,12 @@ export function BookingFlow({
                     <button
                       key={item.id}
                       onClick={() => {
-                        setAvailabilityLoading(true);
+                        if (item.id === serviceId) return;
+                        setAvailabilityRevision((value) => value + 1);
+                        setTime("");
                         setAvailabilityError(undefined);
-                        if (item.id !== serviceId) setCoupon(null);
+                        setWaitlistJoined(false);
+                        setCoupon(null);
                         setServiceId(item.id);
                         const firstEmployee = business.employees.find(
                           (member) => member.services.includes(item.id),
@@ -518,9 +538,12 @@ export function BookingFlow({
                     <button
                       key={item.id}
                       onClick={() => {
-                        setAvailabilityLoading(true);
+                        if (item.id === employeeId) return;
+                        setAvailabilityRevision((value) => value + 1);
+                        setTime("");
                         setAvailabilityError(undefined);
-                        if (item.id !== employeeId) setCoupon(null);
+                        setWaitlistJoined(false);
+                        setCoupon(null);
                         setEmployeeId(item.id);
                       }}
                       className={cn(
@@ -574,33 +597,28 @@ export function BookingFlow({
                 <p className="mt-1 text-sm text-[#686872]">
                   {service.name} · {service.duration} dk
                 </p>
-                <div className="mt-6 flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-                  {dates.map((item) => (
-                    <button
-                      key={item.iso}
-                      onClick={() => {
-                        setAvailabilityLoading(true);
-                        setAvailabilityError(undefined);
-                        setWaitlistJoined(false);
-                        setDate(item);
-                      }}
-                      className={cn(
-                        "flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-3 py-3 text-xs",
-                        date.iso === item.iso
-                          ? "border-[#6C4BF4] bg-[#6C4BF4] text-white"
-                          : "border-[#E8E8EE]",
-                      )}
-                    >
-                      <span>{item.day}</span>
-                      <strong className="mt-1 text-base">{item.date}</strong>
-                    </button>
-                  ))}
-                </div>
+                <BookingDatePicker dates={dates} selected={date.iso} onSelect={(item) => {
+                  if (item.iso === date.iso) return;
+                  setAvailabilityRevision((value) => value + 1);
+                  setTime("");
+                  setAvailabilityError(undefined);
+                  setWaitlistJoined(false);
+                  setDate(item);
+                }} />
                 <h2 className="mt-7 text-sm font-semibold">Uygun saatler</h2>
                 {availabilityLoading ? (
                   <div className="mt-4 flex items-center gap-2 text-sm text-[#686872]">
                     <LoaderCircle className="h-4 w-4 animate-spin" /> Takvim
                     kontrol ediliyor...
+                  </div>
+                ) : availabilityError ? (
+                  <div className="mt-3 rounded-xl bg-[#FFF1F2] p-3 text-sm text-[#B42332]">
+                    <p role="alert">{availabilityError}</p>
+                    <Button variant="secondary" className="mt-3" onClick={() => {
+                      setTime("");
+                      setAvailabilityError(undefined);
+                      setAvailabilityRevision((value) => value + 1);
+                    }}>Tekrar dene</Button>
                   </div>
                 ) : availableSlots.length ? (
                   <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -633,11 +651,6 @@ export function BookingFlow({
                         : "Bu gün için bekleme listesine katıl"}
                     </Button>
                   </div>
-                )}
-                {availabilityError && (
-                  <p className="mt-3 rounded-xl bg-[#FFF1F2] p-3 text-sm text-[#B42332]">
-                    {availabilityError}
-                  </p>
                 )}
               </div>
             )}
@@ -757,7 +770,7 @@ export function BookingFlow({
               {step < 4 ? (
                 <Button
                   onClick={() => setStep((value) => Math.min(4, value + 1))}
-                  disabled={(step === 2 && !employee) || (step === 3 && !time)}
+                  disabled={(step === 2 && !employee) || (step === 3 && (availabilityLoading || !time))}
                 >
                   Devam Et <ArrowRight className="h-4 w-4" />
                 </Button>
