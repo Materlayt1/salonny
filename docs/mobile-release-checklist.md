@@ -39,6 +39,8 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 
 ## EAS ve mağaza hazırlığı
 
+11 Ekim native rapor kapısı: 521 birim/yetki, 61 izole rapor SQL kontrolü ve temiz preview'da 145/145 mobil E2E (143 kontrollü + 2 salt-okunur Gogo) geçti. 033 açık onayla canlı kuruldu; 10/10 kurulum/kaynak/veri koruma kontrolü geçti. Bu, gerçek yetkili rapor oturumu, imzalı APK/IPA, cihaz/mağaza veya production trafik kabulü değildir. Kalan paket/CRM/kampanya/onboarding değişiklikleri için yeni test/export gerekir.
+
 10 Ekim kod turu: bekleme listesi ve kaynak yönetimi native kodu tamamlandı; 263 birim/yetki testi ve tam mobil **104/104** E2E (102 kontrollü + 2 salt-okunur Gogo görsel, retry yok), web/mobil tip, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. 11 Ekim'de canlı 028/029 + kalan varsayılan hakları kapatan 030 onaylı kapsamda kuruldu; 267 birim testi, 8/8 izole SQL motor, 12/12 kurulum/ACL ve 11/11 fonksiyon kaynak eşleşmesi geçti. Gerçek DB yazım/JWT/RLS/yarış ve cihaz kabulü hâlâ gereklidir; 104 mobil koşu bu turda tekrar edilmedi.
 
 - [x] 028/029 + 030 canlı kurulum, migration geçmişi/ACL/constraint denetimi ve izole SQL motor smoke'u 11 Ekim'de tamamlandı. Gerçek işletme/müşteri yazımına test kaydı eklenmedi; geçici nesneler rollback oldu.

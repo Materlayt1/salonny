@@ -16,6 +16,7 @@ import { PackageManager } from "@/components/package-manager";
 import { WaitlistManager } from "@/components/waitlist-manager";
 import { ResourceManager } from "@/components/resource-manager";
 import { EmployeeScheduleManager } from "@/components/employee-schedule-manager";
+import { BusinessReport } from "@/components/business-report";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif hazırlandı" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -94,7 +95,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     initialPageParam: 0,
     queryFn: ({ pageParam }) => getPanelPage(section, session!.access_token, scope, { offset: pageParam, q: settledSearch, status, date: section === "calendar" ? date : undefined }),
     getNextPageParam: (last, pages) => last.hasMore ? pages.length * 50 : undefined,
-    enabled: Boolean(session && scope.businessId && allowed && definition), retry: false,
+    enabled: Boolean(session && scope.businessId && allowed && definition && section !== "reports"), retry: false,
   });
   const mutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => savePanelRecord(section === "calendar" || section === "dashboard" ? "appointments" : section, session!.access_token, scope, values),
@@ -105,6 +106,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const rows = page.data?.pages.flatMap((part) => part.rows) ?? [];
   const first = page.data?.pages[0];
   if (!definition || !allowed) return <EmptyState title="Bölüm açılamadı" detail="Bu bölüm mevcut değil veya erişim yetkin bulunmuyor." />;
+  if (section === "reports") return <BusinessReport />;
   const shiftDay = (delta: number) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + delta); setDate(next.toISOString().slice(0, 10)); };
   return <View style={{ flex: 1 }}>
     <FlatList data={rows} keyExtractor={(row) => row.id} contentContainerStyle={styles.content} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={7} keyboardShouldPersistTaps="handled" refreshing={page.isRefetching} onRefresh={() => void page.refetch()}

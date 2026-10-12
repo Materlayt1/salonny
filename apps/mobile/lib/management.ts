@@ -9,7 +9,7 @@ export const panelSections: { key: PanelSection; label: string; description: str
   { key: "customers", label: "Müşteriler", description: "Müşteri bilgileri ve notlar" },
   { key: "services", label: "Hizmetler", description: "Hizmetler, süreler ve fiyatlar" },
   { key: "employees", label: "Çalışanlar", description: "Ekibini yönet" },
-  { key: "reports", label: "Raporlar", description: "Randevu kayıtları ve tutarları" },
+  { key: "reports", label: "Raporlar", description: "Tam dönem özeti, karşılaştırmalar ve planlanan doluluk" },
   { key: "inventory", label: "Stok", description: "Ürünler ve stok hareketleri" },
   { key: "campaigns", label: "Pazarlama", description: "Kampanyalarının durumunu yönet" },
   { key: "settings", label: "Ayarlar", description: "Randevu ve bekleme listesi ayarları" },

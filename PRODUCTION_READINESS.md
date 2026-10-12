@@ -2,7 +2,7 @@
 
 Son güncelleme: 11 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
-Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028/029 + 030 ardından 031/032 canlı kuruldu; son iki güncelleme için 20/20 kurulum/yetki ve 14/14 kaynak/geçmiş kontrolü geçti. Son kod kapısı 484 birim, 125/125 mobil E2E (123 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir.
+Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028–033 canlı kuruldu; 033 rapor için 10/10 kurulum/kaynak/veri koruma kontrolü geçti. Rapor kod kapısı 521 birim, 61 izole SQL ve 145/145 mobil E2E (143 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir. Sonraki yeni özellikler için bu sabit export'un sonuçları tekrar kullanılamaz.
 
 ## Tamamlanan P0 işleri
 
@@ -42,6 +42,8 @@ Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar 
 - [x] `202610070027` dahil önceki Supabase migrasyonları production'a uygulandı ve salt-okunur güvenlik sorgusuyla doğrulandı.
 - [x] `202610100028` bekleme listesi / `202610100029` kaynak yönetimi ve kalan varsayılan hakları kapatan `202610110030` canlı kuruldu; geçmiş, ACL/tenant/tetikleyici ve fonksiyon gövdesi eşleşmesi doğrulandı. İzole SQL motor 8/8 geçti. Gerçek JWT/RLS/yazım ve eşzamanlı staging kapasite kabulü ayrıca gerekir.
 - [x] `202610110031` ileri vardiya/şube ataması ve `202610110032` müşteri kuponu açık onayla canlı kuruldu; 20/20 kurulum/yetki, 12 fonksiyon + iki tam migration kaynak kaydı için 14/14 eşleşme geçti. Mevcut kayıt sayıları değişmedi; gerçek test randevusu/kupon kullanımı oluşturulmadı. Gerçek yetkili yazım/yarış/yük kabulü değildir.
+- [x] `202610110033` native rapor agregasyonu açık onayla kuruldu; 10/10 canlı katalog/yetki/kaynak/geçmiş/kayıt-sayısı kontrolü geçti. Native grafikler eksiksiz dönemden hesaplanır; tahsilat/ciro iddiası ve sahte sıfır veri yoktur.
+- [ ] Eski web SSR rapor ekranını tam agregasyon motoruna geçir; sınırlı satırlardan müşteri/tutar içgörüleri ve para birimi karışımı düzeltilmeden bu ekranı tam/doğru rapor kabul etme.
 - [ ] Ayrı bir staging Supabase projesi açıldığında aynı migrasyonları staging'e uygula.
 - [ ] Production ortamında Upstash Redis değişkenlerini tanımla; readiness ucu `200 ready` vermeden trafik açma.
 - [x] Vercel Preview giriş engelinin nedenini doğrula ve onaylı ücretsiz Redis bağlantısını kur: 11 Ekim runtime kaydı `rate_limit / 503`, Preview'da Redis değişkenleri yoktu. Free Upstash yalnız Preview'a bağlandı; hassas `KV_REST_API_URL/TOKEN` değerleri gösterilmeden otomatik eklendi. Production bağlantısı, SLA/kota/yük kabulü ve gerçek hesap testi bundan ayrı kapılardır.

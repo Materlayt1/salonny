@@ -1,6 +1,6 @@
 # Native ileri işletme paneli
 
-11 Ekim 2026. Bu liste mevcut web özelliklerinden native uygulamada eksik kalanları ayırır; tamamlananları yeniden yaptırmaz. Ödeme, online depozito ve mağaza hesapları bu çalışma kapsamında değildir.
+12 Ekim 2026. Bu liste mevcut web özelliklerinden native uygulamada eksik kalanları ayırır; tamamlananları yeniden yaptırmaz. Ödeme, online depozito ve mağaza hesapları bu çalışma kapsamında değildir.
 
 ## Tamamlanan
 
@@ -14,7 +14,7 @@
 1. [x] **Bekleme listesi yönetimi:** arama/durum filtresi/25'lik sayfalama, mevcut müşteri adına ekleme, düzenleme, onaylı iptal ve geçerli saatle teklif hazırlama. Saat dilimi/DST, eski grup kaydı, sona erme ve eşzamanlı değişiklik korunur. 028 canlıda onayla kuruldu. Teklif SMS/e-posta göndermez, randevu oluşturmaz veya saat ayırmaz.
 2. [x] **Kaynak yönetimi:** oda/koltuk/cihaz oluşturma/düzenleme, tek hizmet bağlantısı ve birim ihtiyacı, sayfalı kullanım/gerçek aralık özeti. Canlı 029, servis/kaynak kilitlerini sıralar ve randevu ertelemede açık rezervasyonları atomik taşır; değişmiş ihtiyaç grafiğinde eski randevu korunarak işlem durur. 030 kalan varsayılan tablo/kolon haklarını kapattı. Gerçek DB yarış kabulü aşağıda bekler.
 3. [x] **İleri vardiyalar — kod/test ve canlı 031 kuruldu:** tarih aralığı, aynı günde birden fazla çalışma dönemi, şube ataması ve pasif şube planı temizliği native ekrana eklendi. Web/native basit haftalık toplu değiştirmeye transaction içinde ileri plan koruması eklendi. Tarihli dönemler mevcut müsaitlik motorunda ek dönemdir; haftalık planın yerine geçmez. 031 açık onayla canlı kuruldu; 12/12 kurulum/ACL denetimi geçti. Gerçek JWT/RLS/yazım/yarış kabulü aşağıdaki ayrı kapıda bekler.
-4. [ ] **Gerçek rapor özeti/grafikleri:** 7/30/90 gün, önceki dönem, hizmet/uzman/şube kırılımı, doluluk/iptal. Randevu tutarı tahsil edilmiş ödeme olarak sunulmaz; kesilmiş sorgu sonuçlarından yanıltıcı toplam üretilmez.
+4. [x] **Native gerçek rapor özeti/grafikleri — kod/test ve canlı 033:** 7/30/90 tam gün, önceki dönem, hizmet/uzman/şube kırılımı, gelecek yedi gün personel-plan doluluğu ve iptal/gelmedi oranı. Tam veri veritabanında toplanır; farklı para birimleri ayrılır, hizmetlere sepet tutarı uydurulmaz. 20 hedefli ve 145 tam mobil E2E, 61 izole PostgreSQL kontrolü geçti. 033 açık onayla kuruldu, 10/10 canlı kurulum/kaynak/veri koruma kontrolü geçti. Gerçek yetkili native oturum kabulü ayrı kapıda bekler. [Tanımlar ve kanıt](business-reports.md).
 5. [ ] **Müşteri bakım/sadakat ve iletişim takibi:** müşteri geçmişi, bakım planı, sadakat hareketi ve gönderim durumları; rol/görünürlük ve kişisel veri sınırlarıyla.
 6. [ ] **Tam çoklu-işletme kampanyaları:** işletme seçimini transaction'da alan RPC, kod/tutar/tarihlerin atomik düzenlenmesi. Temel kampanya editörü zaten var, ilk yetkili işletme sınırı sürüyor.
 7. [ ] **Native onboarding ve görseller:** işletme kaydı, kapak/galeri yükleme, yeni konum/harita üzerinde taşıma. Profil, mevcut adres metni ve haftalık açılış-kapanış editörü zaten var.
@@ -22,6 +22,9 @@
 
 ## Kabul kapıları
 
+- [x] **033 canlı rapor etkinleştirme:** iki işlevin yetkileri/kaynakları ve üç indeks doğrulandı; tam migration-geçmiş kaynağı repo ile eşleşti. Yedi mevcut tablonun kurulum öncesi/sonrası kayıt sayıları değişmedi. Test randevusu, paket, kupon kullanımı, müşteri veya ödeme yazılmadı.
+- [ ] **Web rapor sayfası doğruluğu:** mevcut web SSR rapor ekranının sınırlı ham sorgulardan ürettiği tutar/müşteri özetini tam agregasyon motoruna geçir. Native rapor API'si hazır olması eski web ekranının düzelmiş olduğu anlamına gelmez. Önceki dönem sıfırda uydurma %100 ve karışık para birimlerini tek TL toplamına katma kaldırılmalıdır.
+- [ ] **Gerçek rapor oturumu:** kendi işletme hesabıyla native raporu açıp şube/dönem/kırılım değişikliklerini salt-okunur kabul et; kontrollü fixture girişleri gerçek JWT kabulü değildir.
 - [x] **028/029 canlı etkinleştirme:** 11 Ekim'de açık onayla kuruldu ve geçmişe işlendi. Ek 030 düzeltmesi varsayılan TRUNCATE/REFERENCES/TRIGGER/MAINTAIN ve kolon haklarını kapattı; RLS/işlevler/veriler değişmedi. Salt-okunur kurulum denetimi 12/12, fonksiyon gövdeleri repo eşleşmesi 11/11; dokuz tenant FK doğrulandı. Tutarsız veride işlem durur; otomatik silme/onarım yoktur.
 - [x] **031/032 canlı etkinleştirme:** 11 Ekim'de iki güncelleme açık onayla kuruldu. Vardiya/kupon kurulum ve yetki denetimleri 20/20; 12 fonksiyon gövdesi ve iki tam migration-geçmişi kaynağı 14/14 eşleşti. Sekiz mevcut tablonun kayıt sayıları değişmedi; test randevusu, kupon kullanımı, SMS veya ödeme oluşturulmadı. Web/native ortak müşteri kuponu, sunucuda fiyat doğrulama ve müşteri/kod başına atomik tek kullanım defteri etkin.
 - [x] **Gerçek kupon duyurusu/quote kabulü:** mevcut %10 kampanya localhost ve yetkili Vercel tarayıcısında göründü. Mevcut localhost hesabıyla yalnız quote, ₺400 hizmeti ₺40 indirim/₺360 toplam olarak doğruladı; randevu gönderilmedi. Public uçlar 200, oturumsuz/anonim korumalı API/RPC/tablo çağrıları 401. [Kabul ve sınırlar](staff-coupons-deployment-acceptance.md).
@@ -32,7 +35,9 @@
 
 Doğrulama kayıtları: [native eşleşme](native-interface-parity.md), [mobil yayın kapısı](mobile-release-checklist.md), [genel üretim TO-DO](../PRODUCTION_READINESS.md).
 
-11 Ekim son kod kapısı: **484/484** birim/yetki testi, 031 izole fixture **29/29**, 032 kupon fixture **32/32**, son temiz preview export'ta tam mobil **125/125** (123 kontrollü + 2 salt-okunur Gogo) geçti; retry yok. Web/mobil tip, lint, güvenlik kapısı, Next.js production build ve güncel Android/iOS Hermes + web export başarılı. İleri vardiya 16, müşteri kuponu 5 kontrollü native senaryo içerir. Ardından 031/032 canlı kurulum ve salt-okunur kabul tamamlandı; native kaynak değişmediğinden bu mobil koşu yeniden yapılmış sayılmaz. Sıradaki iş #4 gerçek rapor özetidir.
+11 Ekim rapor kapısı: **521/521** birim/yetki testi, **61/61** rapor PostgreSQL/WASM kontrolü, temiz preview üzerinde **145/145** mobil E2E (143 kontrollü + 2 salt-okunur Gogo; skip/retry yok) geçti. Web/mobil tip, tam lint, güvenlik kapısı, Next.js production build ve ayrı çıktı dizininde Android/iOS Hermes + web export başarılı. 033 canlı kabulü 10/10 geçti. Eşzamanlı yoğun export sırasında web koşusunda iki hydration/zaman aşımı hatası çıktı; tam web koşusu tekrar doğrulanmadan geçti sayılmaz. Kalan 034 ve sonraki özellikler bu kapının kapsamında değildir; yeni kaynak için yeni export/test gerekir.
+
+11 Ekim önceki kod kapısı: **484/484** birim/yetki testi, 031 izole fixture **29/29**, 032 kupon fixture **32/32**, tam mobil **125/125** (123 kontrollü + 2 salt-okunur Gogo) geçti. Ardından 031/032 canlı kurulum ve salt-okunur kabul tamamlandı; bu tarihsel kayıttır.
 
 10 Ekim bu devam turu: 263 birim/yetki testi, bekleme listesi 14/14 ve kaynak 9/9 hedefli mobil E2E geçti; web/mobil TypeScript, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export başarılı. Son temiz export üzerinde tam mobil regresyon **104/104** geçti (102 kontrollü + 2 salt-okunur Gogo ana sayfa/harita), retry kullanılmadı. Gerçek müşteri/randevu/kaynak test yazımı yapılmadı.
 
