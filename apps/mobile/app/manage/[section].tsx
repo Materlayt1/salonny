@@ -18,6 +18,7 @@ import { ResourceManager } from "@/components/resource-manager";
 import { EmployeeScheduleManager } from "@/components/employee-schedule-manager";
 import { BusinessReport } from "@/components/business-report";
 import { CustomerCareManager } from "@/components/customer-care-manager";
+import { notificationUuid } from "@salonny/contracts";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif hazırlandı" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -66,14 +67,16 @@ function RecordForm({ section, row, settings, onClose, onSave, busy, error }: { 
 }
 
 export default function ManagementSection() {
-  const { section: rawSection } = useLocalSearchParams<{ section: string }>();
+  const { section: rawSection, appointmentId } = useLocalSearchParams<{ section: string; appointmentId?: string }>();
   const { scope, user, session } = useManagement();
-  return <ManagementSectionContent key={`${rawSection}-${user?.id}-${session?.access_token}-${scope.businessId}-${scope.branchId}`} rawSection={rawSection} />;
+  return <ManagementSectionContent key={`${rawSection}-${appointmentId}-${user?.id}-${session?.access_token}-${scope.businessId}-${scope.branchId}`} rawSection={rawSection} />;
 }
 function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const definition = panelSections.find((item) => item.key === rawSection);
   const section = definition?.key ?? "dashboard";
   const { context, scope, session, user } = useManagement();
+  const params = useLocalSearchParams<{ appointmentId?: string }>();
+  const appointmentId = section === "appointments" ? notificationUuid(params.appointmentId) ?? undefined : undefined;
   const queryClient = useQueryClient();
   const [date, setDate] = useState(today);
   const [search, setSearch] = useState("");
@@ -92,9 +95,9 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const allowed = Boolean(context.data && canViewSection(context.data, section));
   const canWrite = context.data?.role === "OWNER" || context.data?.role === "MANAGER";
   const page = useInfiniteQuery({
-    queryKey: ["business-panel", section, user?.id, session?.access_token, scope, settledSearch, status, section === "calendar" ? date : ""],
+    queryKey: ["business-panel", section, user?.id, session?.access_token, scope, settledSearch, status, section === "calendar" ? date : "", appointmentId],
     initialPageParam: 0,
-    queryFn: ({ pageParam, signal }) => getPanelPage(section, session!.access_token, scope, { offset: pageParam, q: settledSearch, status, date: section === "calendar" ? date : undefined }, signal),
+    queryFn: ({ pageParam, signal }) => getPanelPage(section, session!.access_token, scope, { offset: pageParam, q: settledSearch, status, date: section === "calendar" ? date : undefined, appointmentId }, signal),
     getNextPageParam: (last, pages) => last.hasMore ? pages.length * (section === "customers" ? 25 : 50) : undefined,
     enabled: Boolean(session && scope.businessId && allowed && definition && !["reports", "campaigns"].includes(section)), retry: false,
   });
@@ -115,6 +118,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     <FlatList data={rows} keyExtractor={(row) => row.id} contentContainerStyle={styles.content} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={7} keyboardShouldPersistTaps="handled" refreshing={page.isRefetching} onRefresh={() => void page.refetch()}
       ListHeaderComponent={<>
         <View style={styles.titleRow}><View style={{ flex: 1 }}><Text style={styles.heading}>{definition.label}</Text><Text style={styles.description}>{definition.description}</Text></View>{editable.includes(section) && canWrite ? <Pressable accessibilityRole="button" accessibilityLabel="Yeni kayıt ekle" style={styles.addButton} onPress={() => { mutation.reset(); setEditor({}); }}><Plus size={22} color="#fff" /></Pressable> : null}</View>
+        {appointmentId ? <View style={styles.card}><Text style={styles.label}>Bildirimdeki randevu</Text><AppButton label="Tüm işletme randevularını göster" variant="ghost" onPress={() => router.replace({ pathname: "/manage/[section]", params: { section: "appointments", ...scope } })} /></View> : null}
         {section === "settings" && canWrite ? <AppButton label="İşletme profili ve saatleri" variant="secondary" onPress={() => setBusinessEditor(true)} /> : null}
         {section === "settings" && canWrite ? <AppButton label="İşletme kurulumu, konum ve görseller" variant="secondary" onPress={() => router.push(`/business-setup?${new URLSearchParams({ businessId: scope.businessId!, branchId: scope.branchId! })}` as Href)} /> : null}
         {["dashboard", "calendar", "appointments"].includes(section) && canWrite && context.data?.permissions.calendar ? <AppButton label="Müşteri adına randevu" onPress={() => setBookingEditor(true)} /> : null}

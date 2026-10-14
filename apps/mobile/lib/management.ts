@@ -41,7 +41,7 @@ function path(section: string, params: Record<string, string | number | undefine
   return `/api/business-management/${section}?${search}`;
 }
 export const getPanelContext = (token: string, scope: PanelScope, signal?: AbortSignal) => requestJson<PanelContext>(path("context", scope), { signal }, token);
-export const getPanelPage = (section: PanelSection, token: string, scope: PanelScope, filters: { date?: string; q?: string; offset?: number; status?: string }, signal?: AbortSignal) => requestJson<PanelPage>(path(section, { ...scope, ...filters }), { signal }, token);
+export const getPanelPage = (section: PanelSection, token: string, scope: PanelScope, filters: { date?: string; q?: string; offset?: number; status?: string; appointmentId?: string }, signal?: AbortSignal) => requestJson<PanelPage>(path(section, { ...scope, ...filters }), { signal }, token);
 export const savePanelRecord = (section: PanelSection, token: string, scope: PanelScope, values: Record<string, unknown>) => requestJson<{ saved: boolean }>(path(section, scope), { method: "POST", body: JSON.stringify(values) }, token);
 export type TeamPeriod = { weekday: number; startsAt: string; endsAt: string };
 export type TeamTimeOff = { id: string; startsAt: string; endsAt: string; kind: "leave" | "vacation" | "blocked" | "break"; note: string };

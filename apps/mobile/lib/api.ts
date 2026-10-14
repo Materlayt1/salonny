@@ -3,6 +3,7 @@ import type {
   Category,
   CustomerAppointment,
   MarketplacePage,
+  NotificationItem,
   SessionSummary,
 } from "@salonny/contracts";
 import { absoluteAssetUrl, config } from "@/lib/config";
@@ -172,8 +173,8 @@ export const changeAppointment = (id: string, action: { action: "cancel"; reason
 export const submitReview = (appointmentId: string, rating: number, comment: string, token: string) =>
   requestJson("/api/reviews", { method: "POST", body: JSON.stringify({ appointmentId, rating, comment }) }, token);
 
-export type NotificationItem = { id: string; title: string; body: string; readAt: string | null; createdAt: string };
-export const listNotifications = (token: string) => requestJson<{ notifications: NotificationItem[] }>("/api/notifications", {}, token);
+export type { NotificationItem } from "@salonny/contracts";
+export const listNotifications = (token: string, signal?: AbortSignal) => requestJson<{ notifications: NotificationItem[] }>("/api/notifications", { signal }, token);
 export const markNotificationsRead = (token: string, ids?: string[]) =>
   requestJson("/api/notifications", { method: "PATCH", body: JSON.stringify(ids ? { ids } : {}) }, token);
 

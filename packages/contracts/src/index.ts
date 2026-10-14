@@ -1,3 +1,6 @@
+export { notificationDestination, notificationUuid, notificationSlug } from "./notifications";
+export type { NotificationItem } from "./notifications";
+
 export type Category = {
   id: string;
   name: string;

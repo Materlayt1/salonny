@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import type { ManagedCampaign } from "../lib/campaign-management-contract";
+import type { NotificationItem } from "@salonny/contracts";
 
 export const userId = "10000000-0000-4000-8000-000000000001";
 export const appointmentId = "10000000-0000-4000-8000-000000000002";
@@ -24,9 +25,10 @@ export const appointment = {
   canCancel: true, canReschedule: true, cancellationNoticeMinutes: 60, minimumNoticeMinutes: 30,
 };
 
-export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean; advancedSchedule?: boolean; teamWriteFailure?: boolean; gallery?: boolean; campaignWriteFailure?: boolean; campaignWrongScope?: boolean; profileWriteFailure?: boolean; advancedBusinessHours?: boolean; bookingError?: "retry" | "conflict"; extraBookingChoices?: boolean; emptyAvailability?: boolean; emptyDirectory?: boolean; delayedDirectory?: boolean } = {}) {
+export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean; advancedSchedule?: boolean; teamWriteFailure?: boolean; gallery?: boolean; campaignWriteFailure?: boolean; campaignWrongScope?: boolean; profileWriteFailure?: boolean; advancedBusinessHours?: boolean; bookingError?: "retry" | "conflict"; extraBookingChoices?: boolean; emptyAvailability?: boolean; emptyDirectory?: boolean; delayedDirectory?: boolean; notifications?: NotificationItem[]; notificationReadFailure?: boolean } = {}) {
   const writes: Array<{ path: string; method: string; body: unknown; key?: string; authorization?: string; url: string }> = [];
   let cancelled = false;
+  const notifications: NotificationItem[] = options.notifications ?? [{ id: appointmentId, type: "appointment_confirmed", title: "Randevun onaylandı", body: "Test bildirimi", readAt: null, createdAt: new Date().toISOString(), appointmentId, businessId, branchId: business.branchId }];
   let reviewed = false;
   let assigned = true;
   let bookingAttempts = 0;
@@ -59,6 +61,13 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
     if (path.endsWith("/user")) return respond(session.user);
     if (req.method() !== "GET") {
       writes.push({ path, method: req.method(), body: req.postDataJSON(), key: req.headers()["idempotency-key"], authorization: req.headers()["authorization"], url: req.url() });
+      if (path === "/api/notifications") {
+        if (options.notificationReadFailure) return respond({ error: "Okundu bilgisi kaydedilemedi." }, 503);
+        const ids = req.postDataJSON().ids as string[] | undefined;
+        const readAt = new Date().toISOString();
+        notifications.forEach((item) => { if (!item.readAt && (!ids || ids.includes(item.id))) item.readAt = readAt; });
+        return respond({ readAt });
+      }
       if (path === "/api/bookings" && bookingAttempts++ === 0 && options.bookingError) {
         if (options.bookingError === "conflict") availabilitySlot = new Date(Date.parse(availabilitySlot) + 3_600_000).toISOString();
         return respond({ error: options.bookingError === "retry" ? "İşlem tamamlanamadı. Yeniden dene." : "Bu saat başka bir randevuya ayrıldı." }, options.bookingError === "retry" ? 503 : 409);
@@ -135,7 +144,7 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
     if (path === "/api/appointments") return respond({ appointments: [{ ...appointment, status: options.completed ? "completed" : cancelled ? "cancelled" : "confirmed", canCancel: !options.completed && !cancelled, canReschedule: !options.completed && !cancelled, ...(reviewed ? { reviewId: "test-review", reviewRating: 5 } : {}) }] });
     if (path === `/api/appointments/${appointmentId}` || path === "/api/availability") return respond({ slots: options.emptyAvailability ? [] : [availabilitySlot] });
     if (path === "/api/favorites") return respond({ businesses: [] });
-    if (path === "/api/notifications") return respond({ notifications: [{ id: appointmentId, title: "Randevun onaylandı", body: "Test bildirimi", readAt: null, createdAt: new Date().toISOString() }] });
+    if (path === "/api/notifications") return respond({ notifications });
     return respond({ error: "Unexpected test request" }, 404);
   });
   return writes;

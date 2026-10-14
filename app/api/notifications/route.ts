@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
+import { mapNotification, notificationColumns } from "@/lib/notifications";
 
-const bodySchema = z.object({ ids: z.array(z.uuid()).max(100).optional() });
+const bodySchema = z.object({ ids: z.array(z.uuid()).min(1).max(100).optional() }).strict();
 
 export async function GET(request: Request) {
   const limited = await apiRateLimit(request, "notifications-read", 60, 60_000);
@@ -11,9 +12,9 @@ export async function GET(request: Request) {
   const client = await createRequestClientOptional(request);
   const user = client ? (await client.auth.getUser()).data.user : null;
   if (!client || !user) return NextResponse.json({ error: "Giriş yapmalısın." }, { status: 401 });
-  const { data, error } = await client.from("notifications").select("id,title,body,read_at,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
+  const { data, error } = await client.from("notifications").select(notificationColumns).eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
   if (error) return NextResponse.json({ error: "Bildirimler alınamadı." }, { status: 503 });
-  return NextResponse.json({ notifications: (data ?? []).map((row) => ({ id: row.id, title: row.title, body: row.body, readAt: row.read_at, createdAt: row.created_at })) }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ notifications: (data ?? []).map(mapNotification) }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: Request) {

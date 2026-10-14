@@ -1,11 +1,13 @@
 import { MobileNav } from "@/components/mobile-nav";
-import { NotificationsClient, type NotificationItem } from "@/components/notifications-client";
+import { NotificationsClient } from "@/components/notifications-client";
 import { SiteHeader } from "@/components/site-header";
 import { createServerClientOptional } from "@/lib/supabase/server";
+import { mapNotification, notificationColumns } from "@/lib/notifications";
 
 export default async function NotificationsPage() {
   const supabase = await createServerClientOptional();
-  const { data } = supabase ? await supabase.from("notifications").select("id,type,title,body,read_at,created_at").order("created_at", { ascending: false }).limit(100) : { data: [] };
-  const notifications: NotificationItem[] = (data ?? []).map((item) => ({ id: item.id, type: item.type, title: item.title, body: item.body, readAt: item.read_at, createdAt: item.created_at }));
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const { data } = supabase && user ? await supabase.from("notifications").select(notificationColumns).eq("user_id", user.id).order("created_at", { ascending: false }).limit(100) : { data: [] };
+  const notifications = (data ?? []).map(mapNotification);
   return <><SiteHeader search /><main className="container-shell min-h-[72vh] py-8 pb-28 md:py-12"><NotificationsClient initialNotifications={notifications} /></main><MobileNav /></>;
 }

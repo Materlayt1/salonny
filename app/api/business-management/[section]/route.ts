@@ -54,6 +54,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
     const q = (search.get("q") ?? "").slice(0, 80).replace(/[%_*\\]/g, "");
     if (section === "appointments" || section === "calendar" || section === "reports") {
       let { query } = await appointmentsQuery(context, search.get("date") ?? undefined);
+      const appointmentId = search.get("appointmentId");
+      if (appointmentId !== null) {
+        if (section !== "appointments" || search.getAll("appointmentId").length !== 1 || !z.uuid().safeParse(appointmentId).success) return reply({ error: "Geçersiz randevu seçimi." }, 422);
+        // Existing membership, branch, calendar permission and own-employee
+        // restrictions still apply; a deep link is not an authorization grant.
+        query = query.eq("id", appointmentId);
+      }
       const status = search.get("status");
       if (status && ["pending", "confirmed", "completed", "cancelled", "no_show"].includes(status)) query = query.eq("status", status);
       const result = await query.order("starts_at", { ascending: section === "calendar" }).range(offset, offset + limit - 1);

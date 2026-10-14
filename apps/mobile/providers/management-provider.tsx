@@ -17,7 +17,7 @@ function useManagementState() {
   const [lastEntryScope, setLastEntryScope] = useState(entryScope);
   if (entryScope !== lastEntryScope) {
     setLastEntryScope(entryScope);
-    if (params.businessId && params.branchId) setSelection({ businessId: params.businessId, branchId: params.branchId });
+    if (params.businessId) setSelection({ businessId: params.businessId, ...(params.branchId ? { branchId: params.branchId } : {}) });
   }
   const context = useQuery({ queryKey: ["business-panel", "context", user?.id, session?.access_token, selection], queryFn: ({ signal }) => getPanelContext(session!.access_token, selection, signal), enabled: Boolean(session?.access_token), retry: false });
   const scope = { businessId: context.data?.business.id, branchId: context.data?.branch.id };

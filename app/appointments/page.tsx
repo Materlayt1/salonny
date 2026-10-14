@@ -4,8 +4,10 @@ import { MobileNav } from "@/components/mobile-nav";
 import { SiteHeader } from "@/components/site-header";
 import { ButtonLink } from "@/components/ui/button";
 import { getCustomerAppointments } from "@/lib/customer-appointments";
+import { notificationUuid } from "@salonny/contracts";
 
-export default async function AppointmentsPage() {
+export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const appointmentId = notificationUuid((await searchParams).appointmentId);
   const appointments = await getCustomerAppointments();
 
   return (
@@ -26,7 +28,7 @@ export default async function AppointmentsPage() {
           </ButtonLink>
         </div>
         <CustomerWaitlistPanel />
-        <CustomerAppointmentsClient initialAppointments={appointments} />
+        <CustomerAppointmentsClient key={appointmentId ?? "all"} initialAppointments={appointments} initialAppointmentId={appointmentId} />
       </main>
       <MobileNav />
     </>

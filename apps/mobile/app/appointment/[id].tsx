@@ -47,7 +47,7 @@ export default function AppointmentDetailScreen() {
   if (loading || appointments.isLoading) return <Screen><LoadingState label="Randevun hazırlanıyor..." /></Screen>;
   if (!session) return <Screen><EmptyState title="Hesabına giriş yap" detail="Randevunu yönetmek için giriş yapmalısın." action={<AppButton label="Giriş yap" onPress={() => router.push("/auth")} />} /></Screen>;
   if (appointments.isError) return <Screen><ErrorState onRetry={() => void appointments.refetch()} /></Screen>;
-  if (!item) return <Screen><EmptyState title="Randevu bulunamadı" detail="Bu randevu hesabında bulunmuyor." /></Screen>;
+  if (!item) return <Screen><EmptyState title="Randevu bulunamadı" detail="Bu randevu hesabında bulunmuyor veya artık erişilemiyor." action={<AppButton label="Randevularımı göster" onPress={() => router.replace("/appointments")} />} /></Screen>;
 
   return <Screen><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.hero}>

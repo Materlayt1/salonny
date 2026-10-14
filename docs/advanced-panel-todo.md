@@ -20,6 +20,8 @@
 7. [x] **Native onboarding ve görseller — kod ve canlı 037:** ilk işletme taslağını başlatma/devam, kategori/iletişim, kapak/galeri yayınlama, seçili şubede yeni konum/harita taşıma ve incelemeye gönderme. Taslak otomatik yayınlanmaz; public fotoğraf URL'si gizli saklama değildir. Native ilave işletme oluşturma ayrı kapsamdır.
 8. [x] **Paket işlem defteri — kod ve canlı 034:** atomik tanımlama/snapshot, özel seans defteri ve tek tamamlama makbuzu. Yeniden tamamlamak seans veya sadakat puanını tekrar işletmez. Eski kullanılan sayı, fiyat veya tahsilat bilinmiyorsa tahmin edilmez.
 
+9. [x] **Bildirimden ilgili ekrana geçiş:** müşteri bildirimi native randevu detayına, işletmeye gelen randevu bildirimi açık işletme/şube ve tek kayıtla native panele, kampanya bildirimi işletmeye gider. Okunmuş kart da açılır; okundu isteği başarısızlığı navigasyonu engellemez. Web karşılığı da eklendi. [Kapsam ve doğrulama](notification-navigation.md).
+
 ## Kabul kapıları
 
 - [x] **034–037 canlı etkinleştirme:** 13 Ekim'de açık onayla dört migration/geçmiş kaydı tek korumalı transaction'da kuruldu. 52/52 katalog/yetki/kaynak/indeks/Storage/veri koruma kontrolü geçti; 15 mevcut tablonun kayıt sayıları değişmedi ve geçmiş defter hareketi eklenmedi. [Kapsam ve son kontroller](native-advanced-completion.md).
