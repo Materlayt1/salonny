@@ -1,145 +1,92 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { GET, POST } from "@/app/api/business-management/campaign-editor/route";
 import { BusinessAccessError, getBusinessRequestContext } from "@/lib/business-request-context";
 import { apiRateLimit } from "@/lib/api-security";
+import { campaignMutationSchema, managedCampaignSchema } from "@/lib/campaign-management-contract";
 import type { BusinessContext } from "@/lib/business-context";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("@/lib/business-request-context", async (original) => ({ ...await original<typeof import("@/lib/business-request-context")>(), getBusinessRequestContext: vi.fn() }));
 vi.mock("@/lib/api-security", async (original) => ({ ...await original<typeof import("@/lib/api-security")>(), apiRateLimit: vi.fn() }));
 const businessId = "10000000-0000-4000-8000-000000000001";
 const branchId = "10000000-0000-4000-8000-000000000002";
 const campaignId = "10000000-0000-4000-8000-000000000003";
-type Builder = Record<string, ReturnType<typeof vi.fn>>;
-let builders: Record<string, Builder>;
-let context: BusinessContext;
-let firstBusinessId: string;
-let missing: boolean;
-let conflicting: boolean;
-let queryError: boolean;
-const from = vi.fn(); const rpc = vi.fn();
-const campaign = { id: campaignId, name: "Fırsat", status: "active", audience_filter: { segment: "all", city: "İzmir" } };
-const create = { action: "create", name: "Sonbahar fırsatı", code: "SONBAHAR20", kind: "percentage", value: 20, audience: "all", startsAt: "2026-10-15T09:00:00+03:00", endsAt: "2026-10-31T23:59:00+03:00" };
-const request = (body?: unknown, query = "", headers?: Record<string, string>) => new Request(`http://localhost:3001/api/business-management/campaign-editor${query}`, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+const requestId = "10000000-0000-4000-8000-000000000004";
+const row = () => ({ id: campaignId, businessId, name: "Fırsat", status: "active", revision: 1, terms: { code: "TEST20", kind: "percentage", value: 20, audience: "all", startsAt: null, endsAt: null }, termsEditable: true, lockReason: null });
+const create = () => ({ action: "save", id: null, revision: null, requestId, name: "Fırsat", status: "active", terms: row().terms });
+const request = (body?: unknown, query = `businessId=${businessId}&branchId=${branchId}`, headers?: Record<string, string>) => new Request(`http://localhost:3001/api/business-management/campaign-editor?${query}`, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+let context: BusinessContext; let data: unknown; let error: unknown;
+const abortSignal = vi.fn(); const rpc = vi.fn(() => ({ abortSignal }));
 beforeEach(() => {
-  vi.clearAllMocks(); builders = {}; firstBusinessId = businessId; missing = false; conflicting = false; queryError = false;
-  from.mockImplementation((table: string) => {
-    if (!builders[table]) {
-      const builder: Builder = {};
-      for (const key of ["select", "eq", "in", "order", "limit", "update"]) builder[key] = vi.fn(() => builder);
-      builder.maybeSingle = vi.fn(async () => ({ data: table === "business_members" ? { business_id: firstBusinessId } : missing || (conflicting && builder.update.mock.calls.length) ? null : campaign, error: queryError ? { code: "XX000" } : null }));
-      builder.then = vi.fn((resolve: (value: unknown) => unknown) => Promise.resolve({ data: [{ code: "FIXED100", kind: "fixed", value: 10000, starts_at: null, ends_at: null }], error: queryError ? { code: "XX000" } : null }).then(resolve));
-      builders[table] = builder;
-    }
-    return builders[table];
-  });
-  rpc.mockResolvedValue({ data: campaignId, error: null });
-  context = { supabase: { from, rpc } as unknown as BusinessContext["supabase"], user: { id: branchId }, role: "OWNER", permissions: { calendar: true, customers: true, campaigns: true, inventory: true, reports: true, operations: true }, customerVisibility: "all", financialVisibility: true, business: { id: businessId, name: "Salon", slug: "salon", status: "published", timezone: "Europe/Istanbul" }, branch: { id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }, branches: [] };
-  vi.mocked(getBusinessRequestContext).mockImplementation(async () => context);
-  vi.mocked(apiRateLimit).mockResolvedValue(null);
+  vi.clearAllMocks(); data = row(); error = null;
+  abortSignal.mockImplementation(async () => ({ data, error }));
+  context = { supabase: { rpc } as unknown as BusinessContext["supabase"], user: { id: branchId }, role: "OWNER", permissions: { calendar: true, customers: true, campaigns: true, inventory: true, reports: true, operations: true }, customerVisibility: "all", financialVisibility: true, business: { id: businessId, name: "Salon", slug: "salon", status: "published", timezone: "Europe/Istanbul" }, branch: { id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }, branches: [] };
+  vi.mocked(getBusinessRequestContext).mockImplementation(async () => context); vi.mocked(apiRateLimit).mockResolvedValue(null);
 });
-
-describe("native campaign creation and metadata editing", () => {
-  it("requires verified auth and owner/manager access for both reads and writes", async () => {
-    vi.mocked(getBusinessRequestContext).mockRejectedValueOnce(new BusinessAccessError("Giriş yapmalısın.", 401));
-    expect((await GET(request())).status).toBe(401);
-    context.role = "EMPLOYEE";
-    expect((await GET(request())).status).toBe(403);
-    expect((await POST(request(create))).status).toBe(403);
-    context.role = "MANAGER"; context.permissions.campaigns = false;
-    expect((await POST(request(create))).status).toBe(403);
-    expect(from).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled();
+describe("explicit-tenant atomic campaign editor", () => {
+  it("same-scope background refresh keeps the draft mounted while identity and authorization gates remain", () => {
+    const native = readFileSync(new URL("../apps/mobile/components/campaign-editor.tsx", import.meta.url), "utf8");
+    expect(native).not.toContain("context.isFetching");
+    expect(native).toContain("context.isPending || context.isPlaceholderData || context.isError");
+    expect(native).toContain('!["OWNER", "MANAGER"].includes(context.data.role)');
+    expect(native).toContain("!context.data.permissions.campaigns");
+    expect(native).toContain("`${user?.id}-${session.access_token}-${scope.businessId}-${scope.branchId}`");
   });
-  it("uses the same first elevated membership selection as the installed creation RPC", async () => {
-    const response = await GET(request());
-    expect(response.status).toBe(200); expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(await response.json()).toEqual({ createAllowed: true });
-    expect(builders.business_members.eq).toHaveBeenCalledWith("user_id", context.user.id);
-    expect(builders.business_members.eq).toHaveBeenCalledWith("active", true);
-    expect(builders.business_members.in).toHaveBeenCalledWith("role", ["OWNER", "MANAGER"]);
-    expect(builders.business_members.order).toHaveBeenCalledWith("created_at");
-    expect(builders.business_members.limit).toHaveBeenCalledWith(1);
+  it("web and native fixed-discount copy does not invent a TRY-only currency", () => {
+    const web = readFileSync(new URL("../components/business-campaigns-manager.tsx", import.meta.url), "utf8");
+    const native = readFileSync(new URL("../apps/mobile/components/campaign-editor.tsx", import.meta.url), "utf8");
+    expect(web).toContain("Sabit tutar hizmetin para biriminde uygulanır; kur dönüşümü yapılmaz.");
+    expect(web).toContain("(hizmet para birimi)");
+    expect(web).not.toContain("Sabit TL");
+    expect(web).not.toContain("${campaign.value / 100} TL");
+    expect(native).toContain("Sabit tutar seçilen hizmetin para biriminde uygulanır.");
   });
-  it("refuses creation instead of silently writing into another selected tenant", async () => {
-    firstBusinessId = branchId;
-    expect(await (await GET(request())).json()).toEqual({ createAllowed: false });
-    const response = await POST(request(create));
-    expect(response.status).toBe(409); expect((await response.json()).error).toContain("yanlış kayıt");
-    expect(rpc).not.toHaveBeenCalled();
+  it("creates with minor units, operation UUID and selected tenant, without raw writes", async () => {
+    const values = { ...create(), terms: { ...row().terms, code: " fixed_100 ", kind: "fixed", value: 10050 } };
+    const response = await POST(request(values)); expect(response.status).toBe(201); expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(rpc).toHaveBeenCalledWith("native_save_business_campaign", { p_business_id: businessId, p_campaign_id: null, p_request_id: requestId, p_expected_revision: null, p_operation: "save", p_name: "Fırsat", p_status: "active", p_code: "FIXED_100", p_kind: "fixed", p_value: 10050, p_audience: "all", p_starts_at: null, p_ends_at: null });
+    expect(abortSignal).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(apiRateLimit).toHaveBeenCalledWith(expect.any(Request), "campaign-editor-write", 30, 60_000, { critical: true });
   });
-  it("creates campaign and discount atomically through the existing RPC with fixed TL converted to minor units", async () => {
-    context.role = "MANAGER";
-    const response = await POST(request({ ...create, name: "  Sonbahar  ", code: " fixed_100 ", kind: "fixed", value: 100 }));
-    expect(response.status).toBe(200); expect(await response.json()).toEqual({ saved: true, id: campaignId });
-    expect(rpc).toHaveBeenCalledWith("create_business_campaign", { p_name: "Sonbahar", p_code: "FIXED_100", p_kind: "fixed", p_value: 10000, p_audience: "all", p_starts_at: create.startsAt, p_ends_at: create.endsAt });
-    expect(builders.campaigns).toBeUndefined();
+  it("edits full unused conditions with revision CAS", async () => {
+    expect((await POST(request({ ...create(), id: campaignId, revision: 0 }))).status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("native_save_business_campaign", expect.objectContaining({ p_campaign_id: campaignId, p_expected_revision: 0 }));
   });
-  it("sends null optional dates and percentage values unchanged", async () => {
-    expect((await POST(request({ ...create, startsAt: null, endsAt: null }))).status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith("create_business_campaign", expect.objectContaining({ p_value: 20, p_starts_at: null, p_ends_at: null }));
+  it("metadata has no audience or terms mutation", async () => {
+    const values = { action: "metadata", id: campaignId, requestId, revision: 0, name: "Yeni isim", status: "draft" };
+    expect((await POST(request(values))).status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("native_save_business_campaign", expect.objectContaining({ p_operation: "metadata", p_code: null, p_kind: null, p_value: null, p_audience: null, p_starts_at: null, p_ends_at: null }));
+    expect((await POST(request({ ...values, audience: "new" }))).status).toBe(422);
   });
-  it("rejects malformed or reverse dates and unsupported discount values without database access", async () => {
-    for (const body of [
-      { ...create, startsAt: "2026-02-31T09:00:00+03:00" }, { ...create, endsAt: create.startsAt }, { ...create, endsAt: "2026-10-01T09:00:00Z" },
-      { ...create, startsAt: "2026-10-15T09:00:00" }, { ...create, value: 101 }, { ...create, value: 0 }, { ...create, value: 2.5 }, { ...create, kind: "other" }, { ...create, audience: "everyone" },
-      { ...create, kind: "fixed", value: 1_000_001 }, { ...create, code: "özel kod" }, { ...create, name: "a" },
-    ]) expect((await POST(request(body))).status).toBe(422);
-    expect(from).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled();
+  it("supports explicitly selected second business instead of the first membership", async () => {
+    context.business.id = requestId; data = { ...row(), businessId: requestId };
+    expect((await POST(request(create(), `businessId=${requestId}&branchId=${branchId}`))).status).toBe(201);
+    expect(rpc).toHaveBeenCalledWith("native_save_business_campaign", expect.objectContaining({ p_business_id: requestId }));
   });
-  it("rejects arbitrary content, status and ownership injection on create and edit", async () => {
-    for (const body of [
-      { ...create, business_id: branchId }, { ...create, branchId }, { ...create, status: "active" }, { ...create, content: { html: "<script>bad</script>" } },
-      { action: "editMetadata", id: campaignId, name: "Güncel", audience: "new", value: 99 },
-      { action: "editMetadata", id: campaignId, name: "Güncel", audience: "new", content: { discount_code: "CHANGED" } },
-    ]) expect((await POST(request(body))).status).toBe(422);
-    expect(from).not.toHaveBeenCalled();
+  it("requires verified owner/manager and campaign permission", async () => {
+    vi.mocked(getBusinessRequestContext).mockRejectedValueOnce(new BusinessAccessError("Giriş yapmalısın.", 401)); expect((await POST(request(create()))).status).toBe(401);
+    context.role = "EMPLOYEE"; expect((await POST(request(create()))).status).toBe(403);
+    context.role = "MANAGER"; context.permissions.campaigns = false; expect((await POST(request(create()))).status).toBe(403); expect(rpc).not.toHaveBeenCalled();
   });
-  it("validates read IDs and scopes campaign and discount data to the selected business", async () => {
-    expect((await GET(request(undefined, "?campaignId=not-an-id"))).status).toBe(422);
-    const response = await GET(request(undefined, `?campaignId=${campaignId}`));
-    expect(response.status).toBe(200); expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect((await response.json()).campaign).toMatchObject({ id: campaignId, audience: "all", discount: { kind: "fixed", value: 100 } });
-    expect(builders.campaigns.eq).toHaveBeenCalledWith("id", campaignId);
-    expect(builders.campaigns.eq).toHaveBeenCalledWith("business_id", businessId);
-    expect(builders.discounts.eq).toHaveBeenCalledWith("campaign_id", campaignId);
-    expect(builders.discounts.eq).toHaveBeenCalledWith("business_id", businessId);
-    expect(builders.discounts.limit).toHaveBeenCalledWith(2);
+  it.each(["", `businessId=${businessId}`, `businessId=${businessId}&branchId=${branchId}&offset=1`, `businessId=${businessId}&branchId=${branchId}&businessId=${businessId}`, `businessId=${businessId}&branchId=${branchId}&userId=${requestId}`, `businessId=${businessId}&branchId=${branchId}&offset=01`, `businessId=${businessId}&branchId=${branchId}&campaignId=${campaignId}`])("rejects ambiguous/unsupported query %s", async (query) => { expect((await GET(request(undefined, query))).status).toBe(422); expect(rpc).not.toHaveBeenCalled(); });
+  it("rejects ownership drift before RPC", async () => { context.branch.id = campaignId; expect((await POST(request(create()))).status).toBe(403); expect(rpc).not.toHaveBeenCalled(); });
+  it("lists exact bounded results with JWT-only RPC", async () => {
+    data = { businessId, offset: 0, total: 1, hasMore: false, rows: [row()] };
+    expect((await GET(request())).status).toBe(200); expect(rpc).toHaveBeenCalledWith("native_business_campaigns", { p_business_id: businessId, p_query: "", p_offset: 0 });
   });
-  it("rejects foreign IDs before any read disclosure or mutation", async () => {
-    missing = true;
-    expect((await GET(request(undefined, `?campaignId=${campaignId}`))).status).toBe(404);
-    expect((await POST(request({ action: "editMetadata", id: campaignId, name: "Güncel", audience: "new" }))).status).toBe(404);
-    expect(builders.campaigns.update).not.toHaveBeenCalled(); expect(builders.discounts).toBeUndefined();
+  it("enforces origin and bounded body", async () => {
+    expect((await POST(request(create(), undefined, { origin: "https://attacker.example" }))).status).toBe(403);
+    expect((await POST(request({ ...create(), name: "x".repeat(9000) }))).status).toBe(413); expect(rpc).not.toHaveBeenCalled();
   });
-  it("updates only name and segment, preserving existing filters, terms, content and state", async () => {
-    const response = await POST(request({ action: "editMetadata", id: campaignId, name: " Güncel ", audience: "new" }));
-    expect(response.status).toBe(200);
-    expect(builders.campaigns.update).toHaveBeenCalledWith({ name: "Güncel", audience_filter: { segment: "new", city: "İzmir" } });
-    expect(builders.campaigns.eq).toHaveBeenCalledWith("business_id", businessId);
-    expect(builders.campaigns.eq).toHaveBeenCalledWith("name", "Fırsat");
-    expect(builders.campaigns.eq).toHaveBeenCalledWith("audience_filter", JSON.stringify(campaign.audience_filter));
-    expect(builders.discounts).toBeUndefined(); expect(rpc).not.toHaveBeenCalled();
+  it.each(["CAMPAIGN_STALE", "CAMPAIGN_TERMS_LOCKED", "CAMPAIGN_LEGACY_TERMS", "CAMPAIGN_CODE_USED", "CAMPAIGN_REQUEST_CONFLICT"])("safe conflict %s", async (message) => { error = { code: "P0001", message }; expect((await POST(request(create()))).status).toBe(409); });
+  it.each(["PGRST202", "57014", "XX000"])("no fake success when backend %s", async (code) => { error = { code, message: "private customer diagnostic" }; const result = await POST(request(create())); expect(result.status).toBe(503); expect(await result.text()).not.toContain("private"); });
+  it("uses safe 404 and 403", async () => { error = { code: "P0001", message: "CAMPAIGN_NOT_FOUND" }; expect((await POST(request(create()))).status).toBe(404); error = { code: "42501" }; expect((await POST(request(create()))).status).toBe(403); });
+  it("fails closed on critical limiter before RPC", async () => { vi.mocked(apiRateLimit).mockResolvedValueOnce(new Response(null, { status: 503 }) as Awaited<ReturnType<typeof apiRateLimit>>); expect((await POST(request(create()))).status).toBe(503); expect(rpc).not.toHaveBeenCalled(); });
+  it("rejects response scope, unknown secrets, broken terms or revisions", async () => {
+    for (const invalid of [{ ...row(), businessId: branchId }, { ...row(), customer_id: requestId }, { ...row(), revision: -1 }, { ...row(), termsEditable: false }, { ...row(), terms: { ...row().terms, value: 101 } }]) { data = invalid; expect((await POST(request(create()))).status).toBe(503); }
   });
-  it("returns conflict when metadata changed since the owned read", async () => {
-    conflicting = true;
-    expect((await POST(request({ action: "editMetadata", id: campaignId, name: "Güncel", audience: "new" }))).status).toBe(409);
-  });
-  it("enforces bounded body and origin before any database call", async () => {
-    expect((await POST(request(create, "", { origin: "https://attacker.example" }))).status).toBe(403);
-    expect((await POST(request({ ...create, name: "x".repeat(5000) }))).status).toBe(413);
-    expect(from).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled();
-  });
-  it("fails closed on critical limiter and database errors, and reports duplicate codes clearly", async () => {
-    vi.mocked(apiRateLimit).mockResolvedValueOnce(new Response(null, { status: 503 }) as Awaited<ReturnType<typeof apiRateLimit>>);
-    expect((await POST(request(create))).status).toBe(503); expect(from).not.toHaveBeenCalled();
-    rpc.mockResolvedValueOnce({ error: { code: "23505" } });
-    const duplicate = await POST(request(create)); expect(duplicate.status).toBe(409); expect((await duplicate.json()).error).toContain("zaten kullanılıyor");
-    rpc.mockResolvedValueOnce({ error: { code: "XX000", message: "sensitive database diagnostics" } });
-    const failure = await POST(request(create)); expect(failure.status).toBe(503); expect((await failure.text())).not.toContain("sensitive");
-    queryError = true; expect((await GET(request())).status).toBe(503);
-  });
-  it("does not report a successful creation without a valid returned identifier", async () => {
-    rpc.mockResolvedValueOnce({ data: null, error: null });
-    const response = await POST(request(create)); expect(response.status).toBe(503); expect((await response.json()).error).toContain("Tekrar oluşturmadan önce");
+  it("strict mutation parser rejects invalid dates, percentages, metadata, request and CAS", () => {
+    for (const invalid of [{ ...create(), terms: { ...row().terms, startsAt: "2026-02-31T09:00:00Z" } }, { ...create(), terms: { ...row().terms, value: 101 } }, { ...create(), businessId }, { ...create(), requestId: "retry" }, { ...create(), id: campaignId }, { ...create(), revision: 0 }]) expect(campaignMutationSchema.safeParse(invalid).success).toBe(false);
+    expect(managedCampaignSchema.safeParse({ ...row(), termsEditable: false, lockReason: "used" }).success).toBe(true);
   });
 });

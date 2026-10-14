@@ -134,6 +134,7 @@ const packageSchema = z.object({
   validityDays: z.number().int().min(1).max(3650),
 });
 const customerPackageSchema = z.object({
+  id: z.string().uuid().optional(),
   customerId: z.string().uuid(),
   packageId: z.string().uuid(),
 });
@@ -685,9 +686,15 @@ export async function createCampaign(
         ok: false,
         message: "Bitiş tarihi başlangıçtan sonra olmalıdır.",
       };
-    const { supabase } = await requireBusinessMutation();
-    const { data, error } = await supabase.rpc("create_business_campaign", {
+    const { supabase, business } = await requireBusinessMutation();
+    const { data, error } = await supabase.rpc("native_save_business_campaign", {
+      p_business_id: business.id,
+      p_campaign_id: null,
+      p_request_id: randomUUID(),
+      p_expected_revision: null,
+      p_operation: "save",
       p_name: values.name,
+      p_status: "active",
       p_code: values.code,
       p_kind: values.kind,
       p_value:
@@ -697,10 +704,11 @@ export async function createCampaign(
       p_ends_at: values.endsAt ?? null,
     });
     if (error) throw error;
+    const savedId = idSchema.parse(data?.id);
     revalidatePath("/business/campaigns");
     return {
       ok: true,
-      id: typeof data === "string" ? data : undefined,
+      id: savedId,
       message: "Kampanya oluşturuldu.",
     };
   } catch (error) {
@@ -718,10 +726,25 @@ export async function setCampaignStatus(
   try {
     const campaignId = idSchema.parse(id);
     const nextStatus = z.enum(["draft", "active", "cancelled"]).parse(status);
-    const { supabase } = await requireBusinessMutation();
-    const { error } = await supabase.rpc("set_business_campaign_status", {
+    const { supabase, business } = await requireBusinessMutation();
+    const existing = await supabase.from("campaigns").select("id,name,revision")
+      .eq("id", campaignId).eq("business_id", business.id).maybeSingle();
+    if (existing.error) throw existing.error;
+    if (!existing.data) throw new Error("Kampanya bulunamadı.");
+    const { error } = await supabase.rpc("native_save_business_campaign", {
+      p_business_id: business.id,
       p_campaign_id: campaignId,
+      p_request_id: randomUUID(),
+      p_expected_revision: existing.data.revision,
+      p_operation: "metadata",
+      p_name: existing.data.name,
       p_status: nextStatus,
+      p_code: null,
+      p_kind: null,
+      p_value: null,
+      p_audience: null,
+      p_starts_at: null,
+      p_ends_at: null,
     });
     if (error) throw error;
     revalidatePath("/business/campaigns");
@@ -972,7 +995,7 @@ export async function createServicePackage(
   try {
     const values = packageSchema.parse(input);
     const { supabase, business } =
-      await requireBusinessPermissionMutation("operations");
+      await requireBusinessPermissionMutation("operations", ["OWNER", "MANAGER"]);
     const { data, error } = await supabase
       .from("service_packages")
       .insert({
@@ -998,39 +1021,14 @@ export async function assignServicePackage(
   try {
     const values = customerPackageSchema.parse(input);
     const { supabase, business } =
-      await requireBusinessPermissionMutation("operations");
-    const [{ data: customer }, { data: servicePackage }] = await Promise.all([
-      supabase
-        .from("customers")
-        .select("id")
-        .eq("id", values.customerId)
-        .eq("business_id", business.id)
-        .maybeSingle(),
-      supabase
-        .from("service_packages")
-        .select("id,session_count,validity_days")
-        .eq("id", values.packageId)
-        .eq("business_id", business.id)
-        .eq("active", true)
-        .maybeSingle(),
-    ]);
-    if (!customer || !servicePackage)
-      throw new Error("Müşteri veya paket bulunamadı.");
-    const expiresAt = new Date(
-      Date.now() + servicePackage.validity_days * 86_400_000,
-    ).toISOString();
-    const { data, error } = await supabase
-      .from("customer_packages")
-      .insert({
-        business_id: business.id,
-        customer_id: customer.id,
-        package_id: servicePackage.id,
-        remaining_sessions: servicePackage.session_count,
-        expires_at: expiresAt,
-      })
-      .select("id")
-      .single();
-    if (error) throw error;
+      await requireBusinessPermissionMutation("operations", ["OWNER", "MANAGER"]);
+    const ready = await supabase.rpc("native_package_ledger_ready", { p_business_id: business.id });
+    if (ready.error || ready.data !== true) return { ok: false, message: "Seans geçmişi altyapısı henüz etkin değil veya bu işlem için yetkiniz yok." };
+    const id = values.id ?? randomUUID();
+    const result = await supabase.rpc("assign_customer_package_atomic", { p_business_id: business.id, p_customer_id: values.customerId, p_package_id: values.packageId, p_id: id }).abortSignal(AbortSignal.timeout(10_000));
+    if (result.error) return operationFailure(result.error, "Paket müşteriye tanımlanamadı. Listeyi yenileyip tekrar deneyin.");
+    const data = z.object({ id: idSchema, saved: z.literal(true) }).strict().parse(result.data);
+    if (data.id !== id) throw new Error("Package assignment identity mismatch");
     revalidatePath("/business/operations");
     return { ok: true, id: data.id, message: "Paket müşteriye tanımlandı." };
   } catch (error) {
@@ -1064,31 +1062,24 @@ export async function importCustomers(
 }
 
 export async function saveCustomerCareProfile(
-  input: z.input<typeof careProfileSchema>,
-): Promise<BusinessActionResult> {
+  input: z.input<typeof careProfileSchema> & { expectedVersion?: string | null },
+): Promise<BusinessActionResult & { updatedAt?: string }> {
   try {
-    const values = careProfileSchema.parse(input);
-    const { supabase, business, user } =
+    const values = careProfileSchema.extend({ expectedVersion: z.string().datetime({ offset: true }).nullable().default(null) }).strict().parse(input);
+    const { supabase, business } =
       await requireBusinessPermissionMutation("customers");
-    const { error } = await supabase.from("customer_care_profiles").upsert(
-      {
-        customer_id: values.customerId,
-        business_id: business.id,
-        allergies: values.allergies,
-        anamnesis: values.anamnesis || null,
-        treatment_notes: values.treatmentNotes || null,
-        consent_status: values.consentStatus,
-        consent_at:
-          values.consentStatus === "signed" ? new Date().toISOString() : null,
-        consent_version: values.consentVersion || null,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "customer_id" },
-    );
+    const { data, error } = await supabase.rpc("save_customer_care_atomic", {
+      p_business_id: business.id, p_customer_id: values.customerId, p_expected_version: values.expectedVersion,
+      p_allergies: values.allergies, p_anamnesis: values.anamnesis, p_treatment_notes: values.treatmentNotes,
+      p_consent_status: values.consentStatus, p_consent_version: values.consentVersion,
+    });
+    if (error?.code === "PGRST202" || error?.code === "42883") return { ok: false, message: "Müşteri bakım altyapısı henüz etkin değil. İşletme yöneticine bildir." };
+    if (error?.code === "40001") return { ok: false, message: "Bakım kaydı başka bir işlemde değişti. Sayfayı yenileyip güncel kaydı yükle." };
     if (error) throw error;
+    const result = z.object({ saved: z.literal(true), customerId: z.string().uuid(), updatedAt: z.string().datetime({ offset: true }) }).strict().parse(data);
+    if (result.customerId !== values.customerId) throw new Error("Bakım kayıt kapsamı doğrulanamadı.");
     revalidatePath("/business/customers");
-    return { ok: true, message: "Müşteri bakım ve onam kaydı güncellendi." };
+    return { ok: true, updatedAt: result.updatedAt, message: "Müşteri bakım ve onam durum kaydı güncellendi." };
   } catch (error) {
     return failure(error, "Bakım kaydı kaydedilemedi.");
   }
@@ -1099,7 +1090,7 @@ export async function registerCustomerCareMedia(
 ): Promise<BusinessActionResult> {
   try {
     const values = careMediaSchema.parse(input);
-    const { supabase, business, user } =
+    const { supabase, business } =
       await requireBusinessPermissionMutation("customers");
     if (!values.storagePath.startsWith(`${business.id}/${values.customerId}/`))
       throw new Error("Geçersiz dosya yolu.");
@@ -1110,23 +1101,16 @@ export async function registerCustomerCareMedia(
       .eq("business_id", business.id)
       .maybeSingle();
     if (!customer) throw new Error("Müşteri bulunamadı.");
-    const { data, error } = await supabase
-      .from("customer_care_media")
-      .insert({
-        business_id: business.id,
-        customer_id: values.customerId,
-        kind: values.kind,
-        storage_path: values.storagePath,
-        caption: values.caption || null,
-        created_by: user.id,
-      })
-      .select("id")
-      .single();
+    const { data, error } = await supabase.rpc("register_customer_care_media_atomic", {
+      p_business_id: business.id, p_customer_id: values.customerId, p_kind: values.kind, p_storage_path: values.storagePath, p_caption: values.caption,
+    });
+    if (error?.code === "PGRST202" || error?.code === "42883") return { ok: false, message: "Müşteri bakım altyapısı henüz etkin değil. İşletme yöneticine bildir." };
     if (error) throw error;
+    const mediaId = z.string().uuid().parse(data);
     revalidatePath("/business/customers");
     return {
       ok: true,
-      id: data.id,
+      id: mediaId,
       message: "Bakım görseli güvenli alana kaydedildi.",
     };
   } catch (error) {

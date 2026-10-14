@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { BusinessAccessError, getBusinessRequestContext, requirePanelPermission } from "@/lib/business-request-context";
+import { packageAssignmentResult, packageLedgerSchema } from "@/lib/package-ledger-contract";
 
 const uuid = z.string().uuid();
 const name = z.string().trim().min(2).max(120);
@@ -22,17 +23,42 @@ async function requirePackageInfrastructure(context: Awaited<ReturnType<typeof g
   if (ready.error) throw new BusinessAccessError("Paket altyapısı güncellemesi henüz tamamlanmadı. İşletme yöneticine bildir.", 503);
   if (ready.data !== true) throw new BusinessAccessError("Paket yönetimi için işletme sahibi veya yönetici yetkisi gerekiyor.", 403);
 }
+async function requireLedgerInfrastructure(context: Awaited<ReturnType<typeof getBusinessRequestContext>>) {
+  const ready = await context.supabase.rpc("native_package_ledger_ready", { p_business_id: context.business.id });
+  if (ready.error) throw new BusinessAccessError("Seans geçmişi altyapısı henüz etkin değil. İşletme yöneticine bildir.", 503);
+  if (ready.data !== true) throw new BusinessAccessError("Seans geçmişi için işletme sahibi veya yönetici yetkisi gerekiyor.", 403);
+}
+function rpcFailure(error: { code?: string; message?: string }) {
+  if (error.code === "42501") return new BusinessAccessError("Bu paket işlemi için yetkin yok.", 403);
+  if (error.code === "22023") return new BusinessAccessError("Geçersiz paket veya sayfa bilgisi.", 422);
+  if (error.code === "P0002") return new BusinessAccessError("Müşteri veya paket seçili işletmede bulunamadı.", 404);
+  if (error.code === "23505") return new BusinessAccessError("İşlem kimliği farklı bir paket için kullanılmış. Listeyi yenile.", 409);
+  if (["PACKAGE_INACTIVE", "PACKAGE_SERVICE_INACTIVE"].includes(error.message ?? "")) return new BusinessAccessError("Paket veya hizmet artık aktif değil. Listeyi yenile.", 409);
+  return new BusinessAccessError("Seans kaydı doğrulanamadı. Yeniden dene.", 503);
+}
 
 export async function GET(request: Request) {
   try {
     const params = new URL(request.url).searchParams;
+    const allowed = new Set(["businessId", "branchId", "mode", "offset", "q", "customerPackageId"]);
+    if ([...params.keys()].some((key) => !allowed.has(key) || params.getAll(key).length !== 1)) return reply({ error: "Geçersiz paket araması veya sayfa." }, 422);
     const mode = params.get("mode") ?? "templates";
-    const offset = Number(params.get("offset") ?? 0);
+    const offsetText = params.get("offset") ?? "0";
+    const offset = Number(offsetText);
     const q = (params.get("q") ?? "").trim();
-    if (!["templates", "assignments", "customers", "services"].includes(mode) || !Number.isInteger(offset) || offset < 0 || offset > 100_000 || q.length > 120) return reply({ error: "Geçersiz paket araması veya sayfa." }, 422);
-    const limited = await apiRateLimit(request, "business-packages-read", 120, 60_000); if (limited) return limited;
+    if (!["templates", "assignments", "customers", "services", "ledger"].includes(mode) || !/^(0|[1-9]\d*)$/.test(offsetText) || !Number.isInteger(offset) || offset < 0 || offset > 100_000 || offset % 25 !== 0 || q.length > 120 || (mode === "ledger" ? !uuid.safeParse(params.get("customerPackageId")).success || q !== "" : params.has("customerPackageId"))) return reply({ error: "Geçersiz paket araması veya sayfa." }, 422);
+    const limited = mode === "ledger" ? await apiRateLimit(request, "business-package-ledger-read", 60, 60_000, { critical: true }) : await apiRateLimit(request, "business-packages-read", 120, 60_000);
+    if (limited) { limited.headers.set("Cache-Control", "private, no-store"); return limited; }
     const context = await getBusinessRequestContext(request);
     requirePanelPermission(context, "operations", true);
+    if (mode === "ledger") {
+      await requireLedgerInfrastructure(context);
+      const result = await context.supabase.rpc("native_customer_package_ledger", { p_business_id: context.business.id, p_customer_package_id: params.get("customerPackageId")!, p_offset: offset }).abortSignal(AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]));
+      if (result.error) throw rpcFailure(result.error);
+      const ledger = packageLedgerSchema.safeParse(result.data);
+      if (!ledger.success || ledger.data.grant.id !== params.get("customerPackageId") || ledger.data.offset !== offset) throw new BusinessAccessError("Seans geçmişi doğrulanamadı. Yeniden dene.", 503);
+      return reply(ledger.data);
+    }
     await requirePackageInfrastructure(context);
     const { supabase: client, business } = context;
     // Names only: escaped LIKE metacharacters cannot broaden a customer search.
@@ -64,6 +90,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const params = new URL(request.url).searchParams;
+    if ([...params.keys()].some((key) => !["businessId", "branchId"].includes(key) || params.getAll(key).length !== 1)) return reply({ error: "Geçersiz işletme veya şube." }, 422);
     const body = await readBoundedJson(request, 4096); if (!body.ok) return body.response;
     const parsed = input.safeParse(body.value); if (!parsed.success) return reply({ error: "Paket adı, seans ve geçerlilik bilgilerini kontrol et." }, 422);
     const limited = await apiRateLimit(request, "business-packages-write", 40, 60_000, { critical: true }); if (limited) return limited;
@@ -92,32 +120,13 @@ export async function POST(request: Request) {
       if (result.error) throw result.error;
       if (!result.data) throw new BusinessAccessError("Paket seçili işletmede bulunamadı.", 404);
     } else {
-      // Retries with the same UUID never create a second grant, even if a response was lost.
-      const previous = await client.from("customer_packages").select("id,customer_id,package_id").eq("id", values.id).eq("business_id", business.id).maybeSingle();
-      if (previous.error) throw previous.error;
-      if (previous.data) {
-        if (previous.data.customer_id !== values.customerId || previous.data.package_id !== values.packageId) throw new BusinessAccessError("İşlem kimliği farklı bir tanımda kullanılmış. Listeyi yenile.", 409);
-        return reply({ saved: true, id: values.id });
-      }
-      const [customer, pkg] = await Promise.all([
-        client.from("customers").select("id").eq("id", values.customerId).eq("business_id", business.id).maybeSingle(),
-        client.from("service_packages").select("id,session_count,validity_days,active,service_id").eq("id", values.packageId).eq("business_id", business.id).maybeSingle(),
-      ]);
-      if (customer.error || pkg.error) throw new Error("Package ownership query failed");
-      if (!customer.data || !pkg.data) throw new BusinessAccessError("Müşteri veya paket seçili işletmede bulunamadı.", 404);
-      if (!pkg.data.active) throw new BusinessAccessError("Pasif paket müşteriye tanımlanamaz.", 409);
-      if (pkg.data.service_id) {
-        const service = await client.from("services").select("id,active").eq("id", pkg.data.service_id).eq("business_id", business.id).maybeSingle();
-        if (service.error) throw service.error;
-        if (!service.data?.active) throw new BusinessAccessError("Paketin hizmeti artık aktif değil.", 409);
-      }
-      const result = await client.from("customer_packages").insert({ id: values.id, business_id: business.id, customer_id: values.customerId, package_id: values.packageId, remaining_sessions: pkg.data.session_count, expires_at: new Date(Date.now() + pkg.data.validity_days * 86_400_000).toISOString() }).select("id").single();
-      if (result.error?.code === "23505") {
-        const existing = await client.from("customer_packages").select("id,customer_id,package_id").eq("id", values.id).eq("business_id", business.id).maybeSingle();
-        if (existing.error) throw existing.error;
-        if (!existing.data || existing.data.customer_id !== values.customerId || existing.data.package_id !== values.packageId) throw new BusinessAccessError("Paket tanımı doğrulanamadı. Listeyi yenile.", 409);
-      } else if (result.error) throw result.error;
-      else if (!result.data) throw new Error("Missing grant insert result");
+      await requireLedgerInfrastructure(context);
+      // The database locks the template, snapshots entitlement and appends its
+      // first movement in one transaction. Reusing this UUID is a safe retry.
+      const result = await client.rpc("assign_customer_package_atomic", { p_business_id: business.id, p_customer_id: values.customerId, p_package_id: values.packageId, p_id: values.id }).abortSignal(AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]));
+      if (result.error) throw rpcFailure(result.error);
+      const assigned = packageAssignmentResult.safeParse(result.data);
+      if (!assigned.success || assigned.data.id !== values.id) throw new BusinessAccessError("Paket tanımı doğrulanamadı. Listeyi yenile.", 503);
     }
     revalidatePath("/business/operations");
     return reply({ saved: true, id: values.id });

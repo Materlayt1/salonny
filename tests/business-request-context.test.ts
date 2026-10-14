@@ -81,4 +81,10 @@ describe("verified business request scope", () => {
     const context = await getBusinessRequestContext(request());
     expect(context.permissions.calendar).toBe(false); expect(context.permissions.customers).toBe(false); expect(context.customerVisibility).toBe("none"); expect(context.financialVisibility).toBe(false);
   });
+  it("rejects truthy malformed staff JSON instead of exposing customer or financial data", async () => {
+    member = { business_id: businessId, role: "EMPLOYEE", business_member_permissions: [{ permissions: { calendar: "false", customers: "true", reports: 1 }, customer_visibility: "unknown", financial_visibility: "false" }] };
+    const context = await getBusinessRequestContext(request());
+    expect(context.permissions.calendar).toBe(false); expect(context.permissions.customers).toBe(false); expect(context.permissions.reports).toBe(false);
+    expect(context.customerVisibility).toBe("none"); expect(context.financialVisibility).toBe(false);
+  });
 });

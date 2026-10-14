@@ -1,6 +1,7 @@
 import "server-only";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import type { BusinessContext, BusinessMemberRole, BusinessPermission } from "@/lib/business-context";
+import { memberBoolean, memberCustomerVisibility } from "@/lib/business-permissions";
 
 export class BusinessAccessError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -48,9 +49,9 @@ export async function getBusinessRequestContext(request: Request, options: { all
   const row = (Array.isArray(relation) ? relation[0] : relation) as { permissions?: Record<string, boolean>; customer_visibility?: "all" | "assigned" | "none"; financial_visibility?: boolean } | null;
   const elevated = role === "OWNER" || role === "MANAGER";
   const defaults = { calendar: true, customers: true, campaigns: elevated, inventory: elevated, reports: elevated, operations: elevated };
-  const permissions = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, elevated || (row?.permissions?.[key] ?? fallback)])) as Record<BusinessPermission, boolean>;
+  const permissions = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, elevated || memberBoolean(row?.permissions?.[key], fallback)])) as Record<BusinessPermission, boolean>;
   const visibleBranches = listedBranches.some((item) => item.id === branch.id) ? listedBranches : [...listedBranches, branch];
-  return { supabase: client, user: { id: user.id, email: user.email, fullName: user.user_metadata.full_name }, role, permissions, customerVisibility: elevated ? "all" : row?.customer_visibility ?? "assigned", financialVisibility: elevated || Boolean(row?.financial_visibility), business: business.data, branch, branches: visibleBranches };
+  return { supabase: client, user: { id: user.id, email: user.email, fullName: typeof user.user_metadata.full_name === "string" ? user.user_metadata.full_name : undefined }, role, permissions, customerVisibility: elevated ? "all" : memberCustomerVisibility(row?.customer_visibility), financialVisibility: elevated || memberBoolean(row?.financial_visibility), business: business.data, branch, branches: visibleBranches };
 }
 
 export function requirePanelPermission(context: BusinessContext, section: string, write = false) {

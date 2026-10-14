@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import type { ManagedCampaign } from "../lib/campaign-management-contract";
 
 export const userId = "10000000-0000-4000-8000-000000000001";
 export const appointmentId = "10000000-0000-4000-8000-000000000002";
@@ -32,6 +33,9 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
   let availabilitySlot = new Date(Date.now() + 4 * 86_400_000).toISOString();
   const detailBusiness = options.extraBookingChoices ? { ...business, services: [...business.services, { ...business.services[0], id: "10000000-0000-4000-8000-000000000007", name: "Saç bakımı", price: 600 }], employees: [...business.employees, { ...business.employees[0], id: "10000000-0000-4000-8000-000000000008", name: "İkinci uzman" }] } : business;
   let campaign = { id: appointmentId, name: "Test kampanyası", audience: "all", status: "active", discount: { code: "TEST20", kind: "percentage", value: 20, startsAt: null as string | null, endsAt: null as string | null } };
+  const campaignEditorRows: ManagedCampaign[] = [{ id: campaign.id, businessId, name: campaign.name, status: "active", revision: 0,
+    terms: { code: "TEST20", kind: "percentage", value: 20, audience: "all", startsAt: null, endsAt: null }, termsEditable: true, lockReason: null }];
+  const campaignRequests = new Map<string, { fingerprint: string; result: ManagedCampaign }>();
   let profile = { name: business.name, phone: "05555555555", description: "Test işletmesi açıklaması" };
   let location = { id: appointmentId, addressLine: business.address, district: business.district, city: business.city };
   let hours = Array.from({ length: 7 }, (_, weekday) => ({ weekday, opensAt: "09:00", closesAt: "19:00", closed: false }));
@@ -61,8 +65,25 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       }
       if (path === "/api/business-management/campaign-editor") {
         if (options.campaignWriteFailure) return respond({ error: "Kampanya kaydedilemedi. Yeniden dene." }, 503);
+        if (options.campaignWrongScope) return respond({ error: "Seçili işletme veya şube doğrulanamadı." }, 403);
         const body = req.postDataJSON();
-        campaign = { ...campaign, name: body.name, audience: body.audience, ...(body.action === "create" ? { status: body.startsAt && Date.parse(body.startsAt) > Date.now() ? "scheduled" : "active", discount: { code: body.code, kind: body.kind, value: body.value, startsAt: body.startsAt, endsAt: body.endsAt } } : {}) };
+        const selectedBusiness = new URL(req.url()).searchParams.get("businessId") ?? businessId;
+        const fingerprint = JSON.stringify(body); const key = `${selectedBusiness}/${body.requestId}`;
+        const replay = campaignRequests.get(key);
+        if (replay) return replay.fingerprint === fingerprint ? respond(replay.result, body.id ? 200 : 201) : respond({ error: "İşlem anahtarı farklı bir kampanya için kullanılmış." }, 409);
+        const previous = campaignEditorRows.find((row) => row.id === body.id && row.businessId === selectedBusiness);
+        if (body.id && !previous) return respond({ error: "Kampanya bulunamadı." }, 404);
+        if (previous && previous.revision !== body.revision) return respond({ error: "Kampanya başka bir işlemle değişti. Listeyi yenileyip yeniden düzenle.", code: "CAMPAIGN_STALE" }, 409);
+        if (!["save", "metadata"].includes(body.action) || (body.action === "metadata" && !previous)) return respond({ error: "Geçersiz kampanya işlemi." }, 422);
+        const terms = body.action === "save" ? body.terms : previous!.terms;
+        const saved: ManagedCampaign = { id: previous?.id ?? `85000000-0000-4000-8000-${String(100 + campaignEditorRows.length).padStart(12, "0")}`,
+          businessId: selectedBusiness, name: body.name, status: body.status === "active" && terms?.startsAt && Date.parse(terms.startsAt) > Date.now() ? "scheduled" : body.status,
+          revision: previous ? previous.revision + 1 : 0, terms, termsEditable: previous?.termsEditable ?? true, lockReason: previous?.lockReason ?? null };
+        if (previous) campaignEditorRows.splice(campaignEditorRows.indexOf(previous), 1, saved); else campaignEditorRows.unshift(saved);
+        campaignRequests.set(key, { fingerprint, result: saved });
+        campaign = { ...campaign, id: saved.id, name: saved.name, status: saved.status, audience: saved.terms?.audience ?? campaign.audience,
+          ...(saved.terms ? { discount: { code: saved.terms.code, kind: saved.terms.kind, value: saved.terms.value, startsAt: saved.terms.startsAt, endsAt: saved.terms.endsAt } } : {}) };
+        return respond(saved, previous ? 200 : 201);
       }
       if (path === "/api/business-management/business-profile") {
         if (options.profileWriteFailure) return respond({ error: "İşletme bilgileri kaydedilemedi. Yeniden dene." }, 503);
@@ -100,7 +121,13 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       if (section === "appointments" || section === "calendar") return respond({ rows: [{ id: appointmentId, title: "Test Müşteri", subtitle: "Saç kesimi · Test uzmanı", status: "confirmed", startsAt: appointment.startsAt, endsAt: appointment.endsAt, amountMinor: options.employee ? undefined : 40000 }], hasMore: false });
       if (section === "settings") return respond({ rows: [], settings: { booking_window_days: 60, minimum_notice_minutes: 120, cancellation_notice_minutes: 1440, auto_confirm: true, allow_waitlist: false } });
       if (section === "campaigns") return respond({ rows: [{ id: campaign.id, title: campaign.name, status: campaign.status, subtitle: campaign.audience }], total: 1, hasMore: false });
-      if (section === "campaign-editor") return respond({ createAllowed: !options.campaignWrongScope, campaign: new URL(req.url()).searchParams.get("campaignId") ? campaign : undefined });
+      if (section === "campaign-editor") {
+        if (options.campaignWrongScope) return respond({ error: "Seçili işletme veya şube doğrulanamadı." }, 403);
+        const params = new URL(req.url()).searchParams; const selectedBusiness = params.get("businessId") ?? businessId;
+        const query = (params.get("q") ?? "").trim().toLowerCase(); const offset = Number(params.get("offset") ?? 0);
+        const rows = campaignEditorRows.filter((row) => row.businessId === selectedBusiness && row.name.toLowerCase().includes(query));
+        return respond({ businessId: selectedBusiness, offset, total: rows.length, hasMore: offset + 25 < rows.length, rows: rows.slice(offset, offset + 25) });
+      }
       if (section === "business-profile") return respond({ profile, location, hours, hasAdvancedHours: options.advancedBusinessHours ?? false, timezone: "Europe/Istanbul", branchName: "Merkez" });
       return respond({ rows: [], total: 0, hasMore: false });
     }

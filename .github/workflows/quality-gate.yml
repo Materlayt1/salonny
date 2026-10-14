@@ -27,6 +27,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm mobile:typecheck
       - run: pnpm test
+      - run: pnpm test:sql
       - run: pnpm build
       - run: pnpm mobile:bundle
   mobile-flows:

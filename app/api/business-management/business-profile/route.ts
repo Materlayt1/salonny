@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     ]);
     if (profile.error) throw profile.error;
     if (!profile.data) throw new BusinessAccessError("İşletme bulunamadı.", 404);
-    return reply({ profile: { name: profile.data.name, phone: profile.data.phone ?? "", description: profile.data.description ?? "" }, location: location ? { id: location.id, addressLine: location.address_line, district: location.district, city: location.city } : null, hours: hours.rows.map((row) => ({ weekday: row.weekday, opensAt: row.opens_at?.slice(0, 5) ?? null, closesAt: row.closes_at?.slice(0, 5) ?? null, closed: row.is_closed })), hasAdvancedHours: hours.advanced, timezone: context.branch.timezone, branchName: context.branch.name });
+    return reply({ profile: { name: profile.data.name, phone: profile.data.phone ?? "", description: profile.data.description ?? "" }, location: location ? { id: location.id, addressLine: location.address_line, district: location.district, city: location.city } : null, hours: hours.rows.map((row) => ({ weekday: row.weekday, opensAt: row.opens_at?.slice(0, 5) ?? null, closesAt: row.closes_at?.slice(0, 5) ?? null, closed: row.is_closed })), hasAdvancedHours: hours.advanced, timezone: context.business.timezone, branchName: context.branch.name });
   } catch (error) { return failed(error); }
 }
 

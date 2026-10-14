@@ -558,6 +558,7 @@ function Growth({
   pending: boolean;
   run: Runner;
 }) {
+  const packageAssignment = useRef<{ scope: string; customerId: string; packageId: string; id: string } | null>(null);
   const base = typeof window === "undefined" ? "" : window.location.origin;
   return (
     <div className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -714,14 +715,21 @@ function Growth({
         {!!initial.packages.length && !!initial.customers.length && (
           <form
             className="mt-5 grid gap-3 border-t border-[#ECECF1] pt-5 sm:grid-cols-2"
-            action={(form) =>
-              run(() =>
-                assignServicePackage({
-                  customerId: String(form.get("packageCustomer")),
-                  packageId: String(form.get("packageId")),
-                }),
-              )
-            }
+            onChange={(event) => {
+              const form = new FormData(event.currentTarget);
+              const current = packageAssignment.current;
+              if (current && (current.customerId !== String(form.get("packageCustomer")) || current.packageId !== String(form.get("packageId")))) packageAssignment.current = null;
+            }}
+            action={(form) => {
+              const customerId = String(form.get("packageCustomer")); const packageId = String(form.get("packageId"));
+              if (!packageAssignment.current || packageAssignment.current.scope !== initial.scopeKey || packageAssignment.current.customerId !== customerId || packageAssignment.current.packageId !== packageId) packageAssignment.current = { scope: initial.scopeKey, customerId, packageId, id: crypto.randomUUID() };
+              const id = packageAssignment.current.id;
+              run(async () => {
+                const result = await assignServicePackage({ id, customerId, packageId });
+                if (result.ok) packageAssignment.current = null;
+                return result;
+              });
+            }}
           >
             <Select
               label="Müşteri"

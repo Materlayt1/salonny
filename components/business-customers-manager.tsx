@@ -18,7 +18,7 @@ import {
 } from "@/app/business/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate, formatMoney, initials } from "@/lib/format";
+import { formatDate, initials } from "@/lib/format";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -30,7 +30,7 @@ export type ManagedCustomer = {
   notes: string;
   marketingConsent: boolean;
   totalVisits: number;
-  totalSpendMinor: number;
+  totalSpendMinor: string | null;
   lastVisitAt: string | null;
   createdAt: string;
   allergies: string[];
@@ -38,6 +38,7 @@ export type ManagedCustomer = {
   treatmentNotes: string;
   consentStatus: "missing" | "requested" | "signed" | "revoked";
   consentVersion: string;
+  careUpdatedAt: string | null;
   careMedia: {
     id: string;
     kind: "before" | "after" | "document";
@@ -58,11 +59,14 @@ const emptyCustomer = {
   treatmentNotes: "",
   consentStatus: "missing" as const,
   consentVersion: "",
+  careUpdatedAt: null,
   careMedia: [],
 };
 
 function segment(customer: ManagedCustomer): Segment {
-  if (customer.totalSpendMinor >= 25_000_00 || customer.totalVisits >= 20)
+  // Legacy aggregate has no stored currency. Never apply a TRY spending
+  // threshold to potentially mixed-currency appointment values.
+  if (customer.totalVisits >= 20)
     return "VIP";
   if (
     customer.lastVisitAt &&
@@ -77,9 +81,13 @@ function segment(customer: ManagedCustomer): Segment {
 export function BusinessCustomersManager({
   businessId,
   initialCustomers,
+  canWrite = true,
+  financialVisible = true,
 }: {
   businessId: string;
   initialCustomers: ManagedCustomer[];
+  canWrite?: boolean;
+  financialVisible?: boolean;
 }) {
   const [customers, setCustomers] = useState(initialCustomers);
   const [query, setQuery] = useState("");
@@ -88,6 +96,7 @@ export function BusinessCustomersManager({
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
+  const [careStale, setCareStale] = useState(false);
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const filtered = useMemo(
@@ -138,9 +147,10 @@ export function BusinessCustomersManager({
       setMessage(result.message);
       if (!result.ok) return;
       const customerId = input.id ?? result.id!;
-      const careResult = await saveCustomerCareProfile({ customerId, ...care });
+      const careResult = await saveCustomerCareProfile({ customerId, expectedVersion: selected?.careUpdatedAt ?? null, ...care });
       if (!careResult.ok) {
         setMessage(careResult.message);
+        if (careResult.message.includes("başka bir işlemde değişti")) setCareStale(true);
         return;
       }
       const previous = editing && editing !== "new" ? editing : null;
@@ -149,10 +159,11 @@ export function BusinessCustomersManager({
         ...care,
         id: customerId,
         totalVisits: previous?.totalVisits ?? 0,
-        totalSpendMinor: previous?.totalSpendMinor ?? 0,
+        totalSpendMinor: previous?.totalSpendMinor ?? (financialVisible ? "0" : null),
         lastVisitAt: previous?.lastVisitAt ?? null,
         createdAt: previous?.createdAt ?? new Date().toISOString(),
         careMedia: previous?.careMedia ?? [],
+        careUpdatedAt: careResult.updatedAt ?? null,
       };
       setCustomers((items) =>
         input.id
@@ -170,13 +181,13 @@ export function BusinessCustomersManager({
       return `"${text.replaceAll('"', '""')}"`;
     };
     const rows = [
-      ["Ad Soyad", "Telefon", "E-posta", "Ziyaret", "Harcama (TL)", "Segment"],
+      ["Ad Soyad", "Telefon", "E-posta", "Ziyaret", ...(financialVisible ? ["Eski kayıtlı tutar (kuruş; para birimi saklanmamış)"] : []), "Segment"],
       ...filtered.map((customer) => [
         customer.fullName,
         customer.phone,
         customer.email,
         customer.totalVisits,
-        customer.totalSpendMinor / 100,
+        ...(financialVisible ? [customer.totalSpendMinor ?? ""] : []),
         segment(customer),
       ]),
     ];
@@ -187,7 +198,7 @@ export function BusinessCustomersManager({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `musteriler-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `musteriler-bu-sayfa-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -223,12 +234,14 @@ export function BusinessCustomersManager({
         storagePath: path,
       });
       if (!result.ok) {
-        await supabase.storage.from("customer-care-assets").remove([path]);
+        // Registration may already have committed despite a timed-out
+        // response. Never delete that object after an ambiguous failure.
         throw new Error(result.message);
       }
-      const { data: signed } = await supabase.storage
+      const { data: signed, error: signError } = await supabase.storage
         .from("customer-care-assets")
-        .createSignedUrl(path, 3600);
+        .createSignedUrl(path, 300);
+      if (signError || !signed?.signedUrl) throw new Error("Görsel kaydedildi ancak bağlantısı yüklenemedi. Sayfayı yenile.");
       const media = {
         id: result.id!,
         kind,
@@ -268,11 +281,11 @@ export function BusinessCustomersManager({
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={downloadCsv}>
-            <Download className="h-4 w-4" /> Dışa Aktar
+            <Download className="h-4 w-4" /> Bu sayfayı dışa aktar
           </Button>
-          <Button onClick={() => setEditing("new")}>
+          {canWrite ? <Button onClick={() => { setCareStale(false); setEditing("new"); }}>
             <Plus className="h-4 w-4" /> Müşteri Ekle
-          </Button>
+          </Button> : null}
         </div>
       </div>
       {message && (
@@ -282,14 +295,14 @@ export function BusinessCustomersManager({
       )}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {[
-          ["Toplam müşteri", customers.length],
+          ["Yüklenen müşteri", customers.length],
           [
-            "Bu ay yeni",
+            "Bu sayfada bu ay yeni",
             customers.filter(
               (c) => new Date(c.createdAt).getTime() >= monthStart,
             ).length,
           ],
-          ["Tekrar ziyaret", `%${repeatRate}`],
+          ["Bu sayfada tekrar ziyaret", `%${repeatRate}`],
         ].map(([label, value]) => (
           <div key={String(label)} className="surface p-5">
             <span className="text-xs text-[#686872]">{label}</span>
@@ -304,7 +317,7 @@ export function BusinessCustomersManager({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Müşteri ara..."
+              placeholder="Bu sayfada filtrele..."
               className="flex-1 text-xs outline-none"
             />
           </label>
@@ -328,7 +341,7 @@ export function BusinessCustomersManager({
                   "Telefon",
                   "Son ziyaret",
                   "Ziyaret",
-                  "Toplam harcama",
+                  ...(financialVisible ? ["Kayıtlı randevu tutarı"] : []),
                   "Segment",
                   "",
                 ].map((head) => (
@@ -365,9 +378,9 @@ export function BusinessCustomersManager({
                         : "Henüz yok"}
                     </td>
                     <td className="px-5 py-4">{customer.totalVisits}</td>
-                    <td className="px-5 py-4">
-                      {formatMoney(customer.totalSpendMinor)}
-                    </td>
+                    {financialVisible ? <td className="px-5 py-4">
+                      {customer.totalSpendMinor === null ? "Gizli" : `${(BigInt(customer.totalSpendMinor) / 100n).toLocaleString("tr-TR")},${(BigInt(customer.totalSpendMinor) % 100n).toString().padStart(2, "0")} · para birimi saklanmamış`}
+                    </td> : null}
                     <td className="px-5 py-4">
                       <Badge
                         tone={
@@ -385,10 +398,10 @@ export function BusinessCustomersManager({
                     </td>
                     <td className="px-5 py-4">
                       <button
-                        onClick={() => setEditing(customer)}
-                        aria-label="Düzenle"
+                        onClick={() => { setCareStale(false); setEditing(customer); }}
+                        aria-label={canWrite ? "Düzenle" : "Bakım kartını gör"}
                       >
-                        <Pencil className="h-4 w-4" />
+                        {canWrite ? <Pencil className="h-4 w-4" /> : "Gör"}
                       </button>
                     </td>
                   </tr>
@@ -420,6 +433,7 @@ export function BusinessCustomersManager({
             action={submit}
             className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6"
           >
+            <fieldset disabled={!canWrite || pending || careStale} className="contents">
             <div className="flex justify-between">
               <h2 className="text-lg font-bold">
                 {editing === "new" ? "Müşteri ekle" : "Müşteriyi düzenle"}
@@ -484,7 +498,7 @@ export function BusinessCustomersManager({
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-2 text-xs font-semibold">
-                      Dijital onam
+                    Onam durum kaydı
                       <select
                         name="consentStatus"
                         defaultValue={selected.consentStatus}
@@ -503,6 +517,7 @@ export function BusinessCustomersManager({
                       placeholder="v1.0"
                     />
                   </div>
+                  <p className="text-[10px] text-[#686872]">Bu durum kaydı elektronik imza veya hukuki onam oluşturmaz.</p>
                   {editing !== "new" && (
                     <div>
                       <span className="text-xs font-semibold">
@@ -540,7 +555,7 @@ export function BusinessCustomersManager({
                             ),
                         )}
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      {canWrite ? <div className="mt-3 flex flex-wrap gap-2">
                         {(["before", "after", "document"] as const).map(
                           (kind) => (
                             <label
@@ -567,9 +582,9 @@ export function BusinessCustomersManager({
                             </label>
                           ),
                         )}
-                      </div>
+                      </div> : null}
                       <p className="mt-2 text-[10px] text-[#686872]">
-                        Dosyalar özel depoda tutulur; bağlantılar 1 saat sonra
+                        İlk 25 görsel gösterilir. Dosyalar özel depoda tutulur; bağlantılar 5 dakika sonra
                         geçersizleşir.
                       </p>
                     </div>
@@ -586,9 +601,12 @@ export function BusinessCustomersManager({
               />{" "}
               Pazarlama izni müşteriden alındı
             </label>
-            <Button disabled={pending} className="mt-6 w-full">
+            {canWrite ? <Button disabled={pending} className="mt-6 w-full">
               {pending ? "Kaydediliyor..." : "Kaydet"}
-            </Button>
+            </Button> : <p className="mt-6 text-xs text-[#686872]">Salt okunur. Düzenleme için sahip/yönetici yetkisi gerekir.</p>}
+            </fieldset>
+            {!canWrite ? <Button type="button" className="mt-4 w-full" onClick={() => setEditing(null)}>Kapat</Button> : null}
+            {careStale ? <div className="mt-4 space-y-3"><p role="alert" className="text-sm text-[#686872]">Bakım kaydı değişti; eski taslak yeniden gönderilmez. Müşteri iletişim bilgileri ilk adımda kaydedilmiş olabilir.</p><Button type="button" onClick={() => window.location.reload()}>Güncel bakım kartını yükle</Button></div> : null}
           </form>
         </div>
       )}

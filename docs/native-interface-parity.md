@@ -49,16 +49,18 @@
 - [x] Operasyon bölümünde native oda/koltuk/cihaz yönetimi: kapasite/aktiflik, tek hizmet bağlantısı ve ihtiyaç birimleri, 24 saat/7 gün/30 gün kullanım özeti ve sayfalı rezervasyon birimleri. Toplam/tepe kullanım yalnız görünen sayfadan tahmin edilmez. Mevcut/gelecek rezervasyon varken kapasite azaltma veya pasife alma güvenle reddedilir.
 - [x] Web operasyon işlemleri güvenli RPC'lere geçirildi: kaynak ve başlangıç hizmetleri tek transaction'da, bekleme durumu expectedUpdatedAt ile, yalnız sahip/yönetici ve seçili şubede. Başarısız form gönderimi taslağı sıfırlamaz; aynı denemede anahtar korunur. Bekleyen talep doğrudan kabul edilemez; canlı teklif gerekir. Müşteri telefon sahipliği hatası kişisel veri açıklamadan gösterilir.
 
-Önceki görsel kabul kayıtları aşağıda tarihseldir. Bu devam turunun güncel tam mobil koşusu 104/104 geçti; iki salt-okunur gerçek Gogo ana sayfa/harita senaryosu da yeniden çalıştırıldı.
+Önceki görsel kabul kayıtları aşağıda tarihseldir. 034–037 native özellikleri ve 13 Ekim 52/52 canlı kabulünün kapsamı [son tamamlama kaydında](native-advanced-completion.md) tutulur; eski export sonuçları yeni kaynak için kullanılmaz.
 
 ## Henüz birebir olmayan alanlar / sonraki kapsam
 
 - [ ] Fiziksel cihazda native harita, izin reddi ve kamera kabul testi. Harita yalnız yüklenen sonuç sayfalarını gösterir; tüm ülkenin sınırsız işletmelerini tek seferde indirmez.
 - [ ] Yüksek trafik öncesinde sözleşmeli/kendi barındırılan tile sağlayıcısı ve kapasite doğrulaması. `EXPO_PUBLIC_MAP_TILE_URL` değiştirilebilir; public OSM tile servisi SLA veya sınırsız kapasite sağlamaz.
-- [ ] Native işletme onboarding, görsel yükleme, yeni konum/harita üzerinde taşınma ve tarihe özel işletme çalışma saati düzenleyicisi. Çalışan ileri vardiya/şube ataması ve 031 canlı kurulumu tamamlandı; gerçek DB yarış kabulü ayrı kapıda bekler. Temel işletme saatleri ve çalışan vardiya/izin/hizmet yönetimi tamamlandı.
-- [ ] Tekrarlanan/grup/çok hizmetli native işletme randevuları ve bakım/iletişim araçları. Bekleme/kaynak ekranları ve 028/029 canlı etkinleştirmesi tamamlandı; gerçek iletişim provider'ı/teslimatı ayrıca kabul edilir.
-- [ ] Paket kullanım işlem defteri ve başlangıç bakiye snapshot'ı; tanımlamada paket metadata okuması ve insert'i tek transaction'a alma. Şu an eşzamanlı aktiflik/geçerlilik değişiminde okunan anın değerleri kullanılabilir; hizmet/seans sayısı değişmez. Pakete bağlı hizmetler silinmez, pasife alınır. Mevcut kaynak motorunda çoklu kaynak kilit sırası transient deadlock oluşturabilir; işlem rollback olur ve tekrar denenmelidir.
-- [ ] İşletme seçimini transaction içinde alan kampanya oluşturma RPC'si, indirim kodu/tutar/tarihlerini atomik düzenleme. Şu an ilk yetkili işletmede kampanya oluşturma, metadata ve durum yönetimi vardır. Native ayrıntılı rapor grafikleri ve 033 canlı kurulumu tamamlandı; gerçek oturum kabulü ayrıca bekler.
+- [x] Native ilk işletme onboarding/devam, kategori/iletişim, public kapak/galeri yayınlama ve seçili şube konumu/harita pini; 037 canlı kuruldu. İncelemeye gönderme otomatik yayın değildir.
+- [ ] Native ilave işletme oluşturma ve tarihe özel işletme çalışma saati editörü. Çalışan ileri vardiya/şube ataması ve temel işletme saatleri zaten vardır; gerçek DB yarış kabulü ayrı kapıdır.
+- [x] Native müşteri bakım/onam durum kartı, randevu/yeni sadakat/teslimat geçmişi ve mevcut özel görseller; 036 canlı kuruldu. İletişim göndermez, hukuki onam oluşturmaz; staff scope/mali redaksiyon korunur.
+- [ ] Native yeni özel before/after bakım görseli yükleme ve gerçek iletişim provider'ı/teslimat kabulü. Tekrarlanan/grup/çok hizmetli native işletme randevuları da ayrı kapsamdır.
+- [x] Paket/seans defteri, yeni tanımlama snapshot'ı ve atomik tanımlama; 034 canlı kuruldu. Eski kullanım/fiyat/tahsilat tahmin edilmez, tek tamamlama makbuzu seans ve sadakat tekrarını önler. Gerçek DB yarış kabulü ayrı kapıdır.
+- [x] Açık işletme seçimiyle atomik kampanya/kupon şartı düzenleme, CAS ve tekrar kimliği; 035 canlı kuruldu. Kullanılmış koşullar kilitlidir. Native ayrıntılı rapor grafikleri/033 zaten vardır; gerçek hesap kabulü ayrıca bekler.
 - [ ] Fiziksel iOS/Android cihaz kabul testi; mağaza imzalama, gerçek production HTTPS API adresi ve yayın hesapları.
 
 Bu değişiklik bütün web sayfalarının pixel-perfect taşınması veya App Store/Play Store yayın onayı anlamına gelmez. Native ekranlar aynı Supabase veritabanını kullanır; sahte işletme/kimlik verisi eklenmez. Kontrollü E2E fixture verileri sadece test ortamına aittir.
@@ -66,6 +68,8 @@ Bu değişiklik bütün web sayfalarının pixel-perfect taşınması veya App S
 Kaynak kurulum sınırları: 029 tenant/servis-şube/açık rezervasyon zaman uyuşmazlığı ve fazla kapasitede veri silmeden durur. Yeni erteleme tetikleyicisi mevcut birim grafiği aynıysa rezervasyonları taşır; farklıysa yönetici incelemesi ister ve eski kayıtlar korunur. Fiziksel kaynak silme/cascade engellenir, aktiflik yönetimi kullanılır. Oluşturma UUID'si mevcut içerikle karşılaştırılır; sonraki değişiklikler için kalıcı replay garantisi değildir. Seri SQL motor testi 8/8 geçti; gerçek DB yarış/staging kapasite kabulü yapılmadı.
 
 ## Yeniden doğrulama
+
+14 Ekim son kaynak kapısı: **184/184 mobil E2E** (182 kontrollü + 2 salt-okunur Gogo), hata/skip/retry yok; 700 birim/yetki ve 427 izole SQL kontrolü geçti. Web 49 başarılı/9 platform atlaması. Tip, tam lint, güvenlik, Next.js production build ve ayrı Android/iOS Hermes + web export başarılı. Kampanya UUID doğrulaması ve işletme/şube değişiminde router reseti düzeltildi; aynı-kapsam bakım taslağı ve orijinal CAS snapshot'ı arka plan yenilemesinde korunur. [034–037 canlı kabulü ve açık sınırlar](native-advanced-completion.md).
 
 11 Ekim rapor kapısı: 521 birim/yetki testi, 61 rapor PostgreSQL/WASM kontrolü ve temiz preview üzerinde **145/145 mobil E2E** (143 kontrollü + 2 public Gogo) geçti; skip/retry yok. 7/30/90 tam gün, ayrı para birimleri, üç sayfalı kırılım ve gelecek yedi gün personel planı native ekranda eklendi. 033 onayla canlı kuruldu; 8 katalog/yetki/kaynak + geçmiş kaynak eşleşmesi + yedi tablo kayıt sayısı koruma kapısı **10/10** geçti. Web/mobil tip, lint, güvenlik, Next.js build ve ayrı dizinde Android/iOS Hermes + web export başarılı. Yeni native özellikler bu sabit export'un testleri olarak sayılmaz. [Rapor tanımları](business-reports.md).
 

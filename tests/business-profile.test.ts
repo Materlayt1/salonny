@@ -39,6 +39,10 @@ beforeEach(() => {
 });
 
 describe("native business profile and opening hours", () => {
+  it("uses the business timezone used by the booking engine even if branch metadata differs", async () => {
+    context.branch.timezone = "UTC";
+    expect(await (await GET(request())).json()).toMatchObject({ timezone: "Europe/Istanbul" });
+  });
   it("requires authenticated owner or manager for both reads and writes", async () => {
     vi.mocked(getBusinessRequestContext).mockRejectedValueOnce(new BusinessAccessError("Giriş yapmalısın.", 401));
     expect((await GET(request())).status).toBe(401);

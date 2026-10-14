@@ -4,6 +4,8 @@ Bu belge `apps/mobile` altındaki Expo/React Native uygulamasının Google Play 
 
 ## Kod ve güvenlik kapısı
 
+- [x] 034–037 native paket defteri, çoklu-işletme kampanyaları, müşteri bakım/geçmişi ve kurulum/görseller kodu tamamlandı; 13 Ekim açık onayla canlı kuruldu, 52/52 salt-okunur kaynak/yetki/veri koruma kontrolü geçti. Yeni özel bakım görseli yükleme, ilave işletme oluşturma, fiziksel cihaz ve gerçek yazım/yarış kabulü bu kapının dışında. [Kapsam ve son doğrulama](native-advanced-completion.md).
+- [x] 14 Ekim yeni kaynak: 700 birim, 427 izole SQL, temiz preview'da 184/184 mobil E2E (182 kontrollü + 2 public Gogo; skip/retry yok). 52 hedef ekran testi ayrıca geçti. Web 49 başarılı/9 platform atlaması, tip/lint/güvenlik/Next.js build ve ayrı Android/iOS Hermes + web export başarılı. İmzalı paket/mağaza veya production trafik kabulü değildir.
 - [x] İleri vardiya dönemleri/şube ataması ve müşteri kupon ekranlarının kodu hazır; 031/032 canlı yetki güncellemeleri açık onayla kuruldu. 20/20 kurulum/ACL ve 14/14 fonksiyon/geçmiş kaynak denetimi geçti. Gerçek JWT/yazım/yarış kabulü ve mağaza/cihaz kapıları ayrıdır. [Vardiya](native-staff-schedules.md), [kupon](customer-coupons.md).
 - [x] 11 Ekim güncel kod: 484 birim/yetki testi, 031 için 29 ve 032 için 32 izole SQL kontrolü; son temiz export'ta tam mobil 125/125 (123 kontrollü + 2 salt-okunur gerçek Gogo), retry yok. Web/mobil tip, lint, güvenlik kapısı, Next.js production build ve Android/iOS Hermes + web export geçti. Mağaza/cihaz/gerçek DB yarış kabulü değildir.
 

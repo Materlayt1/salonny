@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useState } from "react";
 import { Alert } from "@/lib/alert";
@@ -86,6 +86,7 @@ export default function ProfileScreen() {
             <ChevronRight size={20} color={theme.colors.primary} />
           </Pressable>
         ) : null}
+        {summary.data?.authenticated ? <AppButton label={summary.data.hasBusiness ? "İşletme kurulumunu ve görsellerini düzenle" : "İşletmeni Salonny'ye ekle"} variant="secondary" onPress={() => router.push("/business-setup" as Href)} /> : null}
 
         <View style={styles.menuCard}>
           <Pressable accessibilityRole="button" onPress={() => router.push("/favorites")} style={styles.menuRow}><View style={styles.menuIcon}><Heart size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Favorilerim</Text><Text style={styles.menuDetail}>Kaydettiğin işletmeler</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>

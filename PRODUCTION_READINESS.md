@@ -1,11 +1,12 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 11 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 14 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
 
 Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028–033 canlı kuruldu; 033 rapor için 10/10 kurulum/kaynak/veri koruma kontrolü geçti. Rapor kod kapısı 521 birim, 61 izole SQL ve 145/145 mobil E2E (143 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir. Sonraki yeni özellikler için bu sabit export'un sonuçları tekrar kullanılamaz.
 
 ## Tamamlanan P0 işleri
 
+- [x] 034–037, açık kullanıcı onayıyla tek transaction'da canlı kuruldu: native paket/seans defteri, seçili işletme kampanyaları, kapsamlı müşteri bakım/geçmişi ve kurulum/görseller. 52/52 canlı kaynak/yetki/veri koruma kontrolü; 15 mevcut tablo sayısı korunması doğrulandı. Bu, production trafik veya mağaza onayı değildir. [Kapsam](docs/native-advanced-completion.md).
 - [x] Next.js ve MapLibre kritik güvenlik güncellemeleri uygulandı; yeni bağımlılık advisory'leri için aşağıdaki doğrulanmış yerel yama kapısı eklendi.
 - [x] CSP, HSTS, frame, MIME, referrer, tarayıcı izinleri ve statik varlık cache başlıkları sertleştirildi.
 - [x] IP adresini düz metin saklamayan ortak API oran sınırlama katmanı eklendi.

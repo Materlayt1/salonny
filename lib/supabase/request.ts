@@ -33,7 +33,7 @@ export async function createRequestClientOptional(
     },
     global: {
       headers: { Authorization: authorization },
-      fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(12_000) }),
+      fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.any([request.signal, AbortSignal.timeout(12_000), ...(init?.signal ? [init.signal] : [])]) }),
     },
   });
 }

@@ -44,7 +44,7 @@ beforeEach(() => {
     builder.then = vi.fn((resolve: (value: unknown) => unknown) => Promise.resolve({ data: records[table], count: records[table].length, error: queryError === table || (operation === "insert" && insertError) ? { code: "XX000" } : null }).then(resolve));
     (builders[table] ??= []).push(builder); return builder;
   });
-  rpc.mockResolvedValue({ data: true, error: null });
+  rpc.mockImplementation((name: string) => name === "assign_customer_package_atomic" ? { abortSignal: vi.fn(async () => ({ data: { id: grantId, saved: true }, error: null })) } : Promise.resolve({ data: true, error: null }));
   context = { supabase: { from, rpc } as unknown as BusinessContext["supabase"], user: { id: businessId }, role: "OWNER", permissions: { calendar: true, customers: true, campaigns: true, inventory: true, reports: true, operations: true }, customerVisibility: "all", financialVisibility: true, business: { id: businessId, name: "Salon", slug: "salon", status: "published", timezone: "Europe/Istanbul" }, branch: { id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }, branches: [] };
   vi.mocked(getBusinessRequestContext).mockResolvedValue(context);
   vi.mocked(apiRateLimit).mockResolvedValue(null);
@@ -175,30 +175,24 @@ describe("native package/session management", () => {
     missing = "service_packages";
     expect((await POST(request({ action: "update", id: packageId, name: "Yeni ad", validityDays: 90, active: false }))).status).toBe(404);
   });
-  it("defines one new grant using server template quantity/expiry, without ledger writes", async () => {
-    const now = Date.now();
+  it("defines one new grant through the atomic snapshot and ledger RPC", async () => {
     const response = await POST(request(assign)); expect(response.status).toBe(200);
-    const record = builders.customer_packages[1].insert.mock.calls[0][0];
-    expect(record).toMatchObject({ id: grantId, business_id: businessId, customer_id: customerId, package_id: packageId, remaining_sessions: 5 });
-    expect(Date.parse(record.expires_at)).toBeGreaterThanOrEqual(now + 365 * 86_400_000);
-    expect(builders.customers[0].eq).toHaveBeenCalledWith("business_id", businessId);
-    expect(builders.service_packages[0].eq).toHaveBeenCalledWith("business_id", businessId);
-    expect(builders.customer_packages.every((builder) => !builder.update.mock.calls.length)).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("native_package_ledger_ready", { p_business_id: businessId });
+    expect(rpc).toHaveBeenCalledWith("assign_customer_package_atomic", { p_business_id: businessId, p_customer_id: customerId, p_package_id: packageId, p_id: grantId });
+    expect(from).not.toHaveBeenCalled();
   });
-  it("rejects foreign customers/packages, inactive templates and removed services", async () => {
-    for (const table of ["customers", "service_packages"]) { missing = table; expect((await POST(request(assign))).status).toBe(404); }
-    missing = ""; records.service_packages[0].active = false;
-    expect((await POST(request(assign))).status).toBe(409);
-    records.service_packages[0].active = true; records.services[0].active = false;
-    expect((await POST(request(assign))).status).toBe(409);
-    expect(builders.customer_packages.every((builder) => !builder.insert.mock.calls.length)).toBe(true);
+  it("maps atomic tenant/not-found and inactive-template errors without direct balance writes", async () => {
+    for (const [error, status] of [[{ code: "P0002" }, 404], [{ code: "23514", message: "PACKAGE_INACTIVE" }, 409], [{ code: "23514", message: "PACKAGE_SERVICE_INACTIVE" }, 409]] as const) {
+      rpc.mockImplementation((name: string) => name === "assign_customer_package_atomic" ? { abortSignal: vi.fn(async () => ({ data: null, error })) } : Promise.resolve({ data: true, error: null }));
+      expect((await POST(request(assign))).status).toBe(status);
+    }
+    expect(from).not.toHaveBeenCalled();
   });
-  it("returns the same existing grant on retry even after its balance was used", async () => {
-    records.customer_packages = [{ id: grantId, customer_id: customerId, package_id: packageId, remaining_sessions: 1 }];
+  it("uses the same grant UUID and references on retry without client-calculated balance", async () => {
     expect((await POST(request(assign))).status).toBe(200);
-    expect(builders.customer_packages[0].insert).not.toHaveBeenCalled();
-    expect(builders.service_packages).toBeUndefined();
-    expect((await POST(request({ ...assign, customerId: businessId }))).status).toBe(409);
+    expect((await POST(request(assign))).status).toBe(200);
+    expect(rpc.mock.calls.filter(([name]) => name === "assign_customer_package_atomic").map(([, values]) => values)).toEqual([{ p_business_id: businessId, p_customer_id: customerId, p_package_id: packageId, p_id: grantId }, { p_business_id: businessId, p_customer_id: customerId, p_package_id: packageId, p_id: grantId }]);
+    expect(from).not.toHaveBeenCalled();
   });
   it("validates duplicate IDs before treating insert conflicts as successful retries", async () => {
     insertError = { code: "23505" };
@@ -206,7 +200,8 @@ describe("native package/session management", () => {
     records.service_packages[0].session_count = 8;
     expect((await POST(request(create))).status).toBe(409);
     records.service_packages[0].session_count = 5;
-    // No scoped existing grant can be verified; collision is not false success.
+    rpc.mockImplementation((name: string) => name === "assign_customer_package_atomic" ? { abortSignal: vi.fn(async () => ({ data: null, error: { code: "23505" } })) } : Promise.resolve({ data: true, error: null }));
+    // The atomic function rejects a UUID bound to a different grant.
     expect((await POST(request(assign))).status).toBe(409);
   });
   it("never reports success for database failure or critical limiter outage", async () => {

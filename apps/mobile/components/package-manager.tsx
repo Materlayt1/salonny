@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { randomUUID } from "expo-crypto";
@@ -8,13 +8,13 @@ import { AppButton, Chip, LoadingState } from "@/components/app-ui";
 import { FormField } from "@/components/form-field";
 import { theme } from "@/constants/theme";
 import { Alert } from "@/lib/alert";
-import { getPackagePage, savePackage, type PackageChoice, type PackageGrant, type PackageTemplate, type PackageWrite } from "@/lib/package-management";
+import { getPackageLedger, getPackagePage, savePackage, type PackageChoice, type PackageGrant, type PackageTemplate, type PackageWrite } from "@/lib/package-management";
 import { useManagement } from "@/providers/management-provider";
 
 function useSearch(value: string) { const [result, setResult] = useState(value); useEffect(() => { const timer = setTimeout(() => setResult(value.trim()), 300); return () => clearTimeout(timer); }, [value]); return result; }
 function ChoicePicker({ mode, busy, onSelect }: { mode: "customers" | "services"; busy: boolean; onSelect: (row: PackageChoice) => void }) {
   const { session, user, scope } = useManagement(); const [search, setSearch] = useState(""); const q = useSearch(search);
-  const query = useInfiniteQuery({ queryKey: ["business-package-choice", user?.id, scope, mode, q], initialPageParam: 0, queryFn: ({ pageParam, signal }) => getPackagePage<PackageChoice>(session!.access_token, scope, mode, q, pageParam, signal), getNextPageParam: (last, pages) => last.hasMore ? pages.length * 25 : undefined, enabled: Boolean(session && scope.businessId), retry: false });
+  const query = useInfiniteQuery({ queryKey: ["business-package-choice", user?.id, session?.access_token, scope, mode, q], initialPageParam: 0, queryFn: ({ pageParam, signal }) => getPackagePage<PackageChoice>(session!.access_token, scope, mode, q, pageParam, signal), getNextPageParam: (last, pages) => last.hasMore ? pages.length * 25 : undefined, enabled: Boolean(session && scope.businessId), retry: false });
   return <View style={styles.group}>
     <FormField label={mode === "customers" ? "Paket için müşteri ara" : "Paket için hizmet ara"} placeholder="Adı yaz" value={search} onChangeText={setSearch} maxLength={120} editable={!busy} />
     {query.isPending ? <LoadingState label="Seçenekler yükleniyor..." /> : null}
@@ -63,11 +63,38 @@ function AssignForm({ template, busy, onSave, onDirty }: { template: PackageTemp
   </View>;
 }
 
+function LedgerView({ grantId }: { grantId: string }) {
+  const { session, user, scope } = useManagement(); const [offset, setOffset] = useState(0);
+  const query = useQuery({ queryKey: ["business-package-ledger", user?.id, session?.access_token, scope, grantId, offset], queryFn: ({ signal }) => getPackageLedger(session!.access_token, scope, grantId, offset, signal), enabled: Boolean(session && scope.businessId), retry: false, staleTime: 0, gcTime: 0 });
+  if (query.isPending || query.isFetching) return <LoadingState label="Seans geçmişi yükleniyor..." />;
+  if (query.error) return <View style={styles.group}><Text accessibilityRole="alert" style={styles.error}>{query.error.message}</Text><AppButton label="Seans geçmişini yeniden yükle" onPress={() => void query.refetch()} /></View>;
+  const ledger = query.data; if (!ledger) return null; const grant = ledger.grant;
+  const date = (value: string) => new Date(value).toLocaleString("tr-TR");
+  return <View style={styles.group}>
+    <View style={styles.info}><Text style={styles.heading}>{grant.packageName}</Text><Text style={styles.balance}>{grant.remainingSessions} seans kaldı</Text>
+      {grant.origin === "grant" ? <><Text style={styles.label}>Başlangıç: {grant.initialSessions} seans · Kullanılan: {grant.usedSessions} seans</Text><Text style={styles.note}>Tanımlama anındaki içerik korunur: {grant.validityDays} gün geçerlilik.</Text></> : <><Text style={styles.label}>Geçmiş toplam kullanım bilinmiyor</Text><Text style={styles.note}>Eski kayıtların başlangıç bakiyesi saklanmamış. Geçmiş kullanım tahmin edilmez.</Text><Text style={styles.note}>Yeni kayıt sistemiyle izlenen kullanım: {grant.recordedUsedSessions} seans</Text></>}
+      <Text style={styles.note}>Son geçerlilik: {date(grant.expiresAt)}</Text><Text style={styles.note}>Paket fiyatı veya tahsilat kaydı tutulmamış; ödeme bilgisi gösterilmez.</Text>
+    </View>
+    <Text style={styles.label}>Seans hareketleri · {ledger.total} kayıt</Text><Text style={styles.note}>Tarih ve saatler cihazının saat diliminde gösterilir.</Text><AppButton label="Seans geçmişini yenile" variant="ghost" onPress={() => void query.refetch()} />
+    {ledger.rows.length === 0 ? <Text style={styles.note}>Bu paket için henüz izlenebilir seans hareketi yok.</Text> : null}
+    {ledger.rows.map((row) => <View key={row.id} style={styles.card}><Text style={styles.label}>{row.kind === "grant" ? "Paket tanımlandı" : row.kind === "baseline" ? "Eski bakiye kaydı başlatıldı" : "Tamamlanan randevuda seans kullanıldı"}</Text><Text style={styles.note}>{date(row.occurredAt)}</Text><Text style={styles.label}>{row.sessionsDelta > 0 ? `+${row.sessionsDelta}` : row.sessionsDelta} seans · İşlem sonrası {row.balanceAfter} seans</Text>{row.serviceName ? <Text style={styles.note}>{row.serviceName}</Text> : null}{row.appointmentId ? <Text style={styles.note}>Randevu: {row.appointmentId}</Text> : null}</View>)}
+    <View style={styles.wrap}>{offset > 0 ? <AppButton label="Önceki seans hareketleri" variant="secondary" onPress={() => setOffset((old) => Math.max(0, old - 25))} /> : null}{ledger.hasMore ? <AppButton label="Sonraki seans hareketleri" variant="secondary" onPress={() => setOffset((old) => old + 25)} /> : null}</View>
+  </View>;
+}
+
+/** Unmount all forms and requests while identity/scope selection is unsettled. */
 export function PackageManager({ onClose }: { onClose: () => void }) {
+  const { session, user, scope, context } = useManagement();
+  if (!session || !user || !scope.businessId || !scope.branchId || context.isPlaceholderData || context.isPending || !context.data || !["OWNER", "MANAGER"].includes(context.data.role) || !context.data.permissions.operations) return <Modal visible onRequestClose={onClose}><View style={[styles.screen, styles.body]}><LoadingState label="İşletme paket yetkisi doğrulanıyor..." /><AppButton label="Paket ekranını kapat" onPress={onClose} /></View></Modal>;
+  return <PackageManagerContent key={`${user.id}:${session.access_token}:${scope.businessId}:${scope.branchId}`} onClose={onClose} />;
+}
+
+function PackageManagerContent({ onClose }: { onClose: () => void }) {
   const { session, user, scope } = useManagement(); const client = useQueryClient(); const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"templates" | "assignments">("templates"); const [search, setSearch] = useState(""); const q = useSearch(search);
   const [form, setForm] = useState<{ kind: "create" } | { kind: "update" | "assign"; template: PackageTemplate } | null>(null); const [dirty, setDirty] = useState(false); const [success, setSuccess] = useState("");
-  const query = useInfiniteQuery({ queryKey: ["business-packages", user?.id, scope, tab, q], initialPageParam: 0, queryFn: ({ pageParam, signal }) => getPackagePage<PackageTemplate | PackageGrant>(session!.access_token, scope, tab, q, pageParam, signal), getNextPageParam: (last, pages) => last.hasMore ? pages.length * 25 : undefined, enabled: Boolean(session && scope.businessId), retry: false });
+  const [ledgerId, setLedgerId] = useState<string | null>(null);
+  const query = useInfiniteQuery({ queryKey: ["business-packages", user?.id, session?.access_token, scope, tab, q], initialPageParam: 0, queryFn: ({ pageParam, signal }) => getPackagePage<PackageTemplate | PackageGrant>(session!.access_token, scope, tab, q, pageParam, signal), getNextPageParam: (last, pages) => last.hasMore ? pages.length * 25 : undefined, enabled: Boolean(session && scope.businessId), retry: false });
   const mutation = useMutation({ mutationFn: (values: PackageWrite) => savePackage(session!.access_token, scope, values), retry: false, onSuccess: async (_, values) => {
     setDirty(false); setForm(null); setSuccess(values.action === "assign" ? "Paket müşteriye tanımlandı." : "Paket kaydedildi.");
     await Promise.all([client.invalidateQueries({ queryKey: ["business-packages", user?.id] }), client.invalidateQueries({ queryKey: ["business-panel"] })]);
@@ -78,11 +105,11 @@ export function PackageManager({ onClose }: { onClose: () => void }) {
   const save = (values: PackageWrite) => { if (!busy) mutation.mutate(values); };
   return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={() => leave(onClose)}>
     <KeyboardAvoidingView style={[styles.screen, { paddingTop: Math.max(16, insets.top) }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <View style={styles.header}><Package size={23} color={theme.colors.primary} /><View style={{ flex: 1 }}><Text style={styles.heading}>{form?.kind === "create" ? "Yeni seans paketi" : form?.kind === "update" ? "Paket bilgileri" : form?.kind === "assign" ? "Müşteriye paket tanımla" : "Paketler ve seanslar"}</Text><Text style={styles.note}>İşletmenin tüm şubelerinde ortak</Text></View><Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="Paket ekranını kapat" disabled={busy} onPress={() => leave(onClose)}><X size={23} color={theme.colors.text} /></Pressable></View>
+      <View style={styles.header}><Package size={23} color={theme.colors.primary} /><View style={{ flex: 1 }}><Text style={styles.heading}>{ledgerId ? "Paket seans geçmişi" : form?.kind === "create" ? "Yeni seans paketi" : form?.kind === "update" ? "Paket bilgileri" : form?.kind === "assign" ? "Müşteriye paket tanımla" : "Paketler ve seanslar"}</Text><Text style={styles.note}>İşletmenin tüm şubelerinde ortak</Text></View><Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="Paket ekranını kapat" disabled={busy} onPress={() => leave(onClose)}><X size={23} color={theme.colors.text} /></Pressable></View>
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {mutation.error ? <Text accessibilityRole="alert" style={styles.error}>{mutation.error.message}</Text> : null}
         {success ? <Text accessibilityRole="alert" style={styles.success}>{success}</Text> : null}
-        {form ? <>
+        {ledgerId ? <><AppButton label="Müşteri seanslarına dön" variant="ghost" onPress={() => setLedgerId(null)} /><LedgerView key={ledgerId} grantId={ledgerId} /></> : form ? <>
           <AppButton label="Paket listesine dön" variant="ghost" disabled={busy} onPress={() => leave(() => { setForm(null); mutation.reset(); })} />
           {form.kind === "assign" ? <AssignForm key={form.template.id} template={form.template} busy={busy} onSave={save} onDirty={() => setDirty(true)} /> : <TemplateForm key={form.kind === "update" ? form.template.id : "new"} template={form.kind === "update" ? form.template : undefined} busy={busy} onSave={save} onDirty={() => setDirty(true)} />}
         </> : <>
@@ -91,7 +118,7 @@ export function PackageManager({ onClose }: { onClose: () => void }) {
           {tab === "templates" ? <AppButton label="Yeni seans paketi" disabled={!query.data || Boolean(query.error)} onPress={() => open({ kind: "create" })} /> : <View style={styles.info}><Text style={styles.note}>Kalan seans kayıtlı bakiyedir. Başlangıç bakiyesi eski kayıtlarda saklanmadığı için kullanılan seans sayısı tahmin edilmez. Tamamlanan uygun randevular mevcut sistemde seans düşer; bu ekranda bakiye elle değiştirilmez.</Text></View>}
           {query.isPending ? <LoadingState label="Paketler yükleniyor..." /> : null}
           {query.error ? <><Text accessibilityRole="alert" style={styles.error}>{query.error.message}</Text><AppButton label="Paketleri yeniden yükle" onPress={() => void query.refetch()} /></> : null}
-          {query.data?.pages.flatMap((page) => page.rows).map((row) => "sessionCount" in row ? <View key={row.id} style={styles.card}><Text style={styles.heading}>{row.name}</Text><Text style={styles.note}>{row.sessionCount} seans · {row.validityDays} gün · {row.serviceName ?? "Tüm hizmetler"}</Text><Text style={styles.note}>{row.active ? "Yeni tanımlamalara açık" : "Yeni tanımlamalara kapalı"}</Text><AppButton label="Paket bilgilerini düzenle" variant="secondary" onPress={() => open({ kind: "update", template: row })} /><AppButton label="Müşteriye tanımla" disabled={!row.active} onPress={() => open({ kind: "assign", template: row })} /></View> : <View key={row.id} style={styles.card}><Text style={styles.heading}>{row.customerName}</Text><Text style={styles.label}>{row.packageName}</Text><Text style={styles.balance}>{row.remainingSessions} seans kaldı</Text><Text style={styles.note}>Son geçerlilik: {new Date(row.expiresAt).toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul" })}</Text><Text style={styles.note}>{row.expired ? "Süresi doldu · randevuda kullanılamaz" : row.remainingSessions === 0 ? "Seanslar tükendi" : "Kullanılabilir"}</Text></View>)}
+          {query.data?.pages.flatMap((page) => page.rows).map((row) => "sessionCount" in row ? <View key={row.id} style={styles.card}><Text style={styles.heading}>{row.name}</Text><Text style={styles.note}>{row.sessionCount} seans · {row.validityDays} gün · {row.serviceName ?? "Tüm hizmetler"}</Text><Text style={styles.note}>{row.active ? "Yeni tanımlamalara açık" : "Yeni tanımlamalara kapalı"}</Text><AppButton label="Paket bilgilerini düzenle" variant="secondary" onPress={() => open({ kind: "update", template: row })} /><AppButton label="Müşteriye tanımla" disabled={!row.active} onPress={() => open({ kind: "assign", template: row })} /></View> : <View key={row.id} style={styles.card}><Text style={styles.heading}>{row.customerName}</Text><Text style={styles.label}>{row.packageName}</Text><Text style={styles.balance}>{row.remainingSessions} seans kaldı</Text><Text style={styles.note}>Son geçerlilik: {new Date(row.expiresAt).toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul" })}</Text><Text style={styles.note}>{row.expired ? "Süresi doldu · randevuda kullanılamaz" : row.remainingSessions === 0 ? "Seanslar tükendi" : "Kullanılabilir"}</Text><AppButton label={`Seans geçmişi: ${row.customerName}`} variant="secondary" onPress={() => setLedgerId(row.id)} /></View>)}
           {query.data && !query.data.pages[0].rows.length ? <Text style={styles.note}>{q ? "Aramana uygun kayıt yok." : tab === "templates" ? "Henüz seans paketi eklenmemiş." : "Henüz müşteriye paket tanımlanmamış."}</Text> : null}
           {query.hasNextPage ? <AppButton label="Daha fazla paket kaydı" variant="secondary" busy={query.isFetchingNextPage} onPress={() => void query.fetchNextPage()} /> : null}
         </>}

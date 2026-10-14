@@ -4,6 +4,7 @@ import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { BusinessAccessError, getBusinessRequestContext, requirePanelPermission } from "@/lib/business-request-context";
 import type { BusinessContext } from "@/lib/business-context";
+import { customerCareDirectoryQuery, customerCareDirectorySchema } from "@/lib/customer-care-contract";
 
 const sections = new Set(["context", "dashboard", "appointments", "calendar", "customers", "services", "employees", "reports", "inventory", "campaigns", "operations", "settings"]);
 const reply = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -84,6 +85,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
       if (waitlist.error || resources.error) throw new Error("Operations query failed");
       return reply({ rows: [...(waitlist.data ?? []).map((row) => ({ id: row.id, title: one(row.customers)?.full_name ?? "Müşteri", subtitle: `Bekleme listesi · ${one(row.services)?.name ?? "Hizmet"}`, status: row.status, startsAt: row.desired_from, endsAt: row.desired_to, kind: "waitlist" })), ...(resources.data ?? []).map((row) => ({ id: row.id, title: row.name, subtitle: `Kaynak · ${row.kind} · Kapasite ${row.capacity}`, active: row.active, kind: "resource" }))], hasMore: false });
     }
+    if (section === "customers") {
+      const checked = customerCareDirectoryQuery.safeParse(Object.fromEntries(search));
+      if (!checked.success || new Set([...search.keys()]).size !== [...search.keys()].length) throw new BusinessAccessError("Müşteri listesinin kapsamını ve sayfasını kontrol et.", 422);
+      const selected = checked.data;
+      const careLimit = await apiRateLimit(request, "business-customer-directory-read", 60, 60_000, { critical: true });
+      if (careLimit) { careLimit.headers.set("Cache-Control", "private, no-store"); return careLimit; }
+      if (selected.businessId !== business.id || selected.branchId !== branch.id) throw new BusinessAccessError("Bu müşteri kapsamına erişimin yok.", 403);
+      const result = await client.rpc("native_customer_care_directory", { p_business_id: business.id, p_branch_id: branch.id, p_q: selected.q, p_offset: Number(selected.offset) })
+        .abortSignal(AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]));
+      if (result.error?.code === "42501") throw new BusinessAccessError("Bu müşteri listesine erişimin yok.", 403);
+      if (result.error?.code === "22023") throw new BusinessAccessError("Müşteri listesinin sayfasını kontrol et.", 422);
+      if (result.error) throw new BusinessAccessError("Müşteri bakım altyapısı henüz kullanılamıyor. Yeniden dene.", 503);
+      const parsed = customerCareDirectorySchema.safeParse(result.data);
+      if (!parsed.success || parsed.data.scope.businessId !== business.id || parsed.data.scope.branchId !== branch.id || parsed.data.q !== selected.q || parsed.data.offset !== Number(selected.offset)
+        || parsed.data.scope.financialVisible !== context.financialVisibility || parsed.data.scope.canWrite !== ["OWNER", "MANAGER"].includes(context.role)
+        || (context.role === "EMPLOYEE") !== (parsed.data.scope.employeeId !== null)) throw new BusinessAccessError("Müşteri listesi doğrulanamadı. Yeniden dene.", 503);
+      // Private care text, balances and media are fetched only when the user
+      // opens that customer's card. Never send them with the generic list.
+      return reply({ rows: parsed.data.rows.map((row) => ({ id: row.id, title: row.fullName, full_name: row.fullName, subtitle: row.phone, phone: row.phone, email: row.email ?? "", notes: row.notes ?? "", total_visits: row.totalVisits, created_at: row.createdAt })), total: parsed.data.total, hasMore: parsed.data.hasMore });
+    }
     const selections = {
       customers: ["customers", "id,full_name,phone,email,notes,total_visits,created_at"],
       services: ["services", "id,name,description,duration_minutes,price_minor,active"],
@@ -94,14 +115,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
     const selection = selections[section as keyof typeof selections];
     let query = client.from(selection[0]).select(selection[1], { count: "exact" }).eq("business_id", business.id);
     if (q) query = query.ilike(section === "customers" ? "full_name" : section === "employees" ? "display_name" : "name", `%${q}%`);
-    if (section === "customers" && context.customerVisibility === "assigned") {
-      const employeeId = await ownEmployee(context);
-      const assigned = await client.from("appointments").select("customer_id").eq("business_id", business.id).eq("employee_id", employeeId).limit(5000);
-      if (assigned.error) throw assigned.error;
-      const ids = [...new Set((assigned.data ?? []).map((item) => item.customer_id))];
-      if (!ids.length) return reply({ rows: [], total: 0, hasMore: false });
-      query = query.in("id", ids);
-    }
     const result = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
     if (result.error) throw result.error;
     const rows = (result.data ?? []) as unknown as Record<string, unknown>[];

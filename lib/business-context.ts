@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerClientOptional } from "@/lib/supabase/server";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { memberBoolean, memberCustomerVisibility } from "@/lib/business-permissions";
 
 export type BusinessMemberRole = "OWNER" | "MANAGER" | "EMPLOYEE";
 export type BusinessPermission =
@@ -91,6 +92,7 @@ export const getBusinessContext = cache(
       branchRows.find((item) => item.id === selectedBranchId) ?? branchRows[0];
 
     const role = membership.role as BusinessMemberRole;
+    if (!["OWNER", "MANAGER", "EMPLOYEE"].includes(role)) return null;
     const permissionRelation =
       membership.business_member_permissions as unknown;
     const permissionRow = (
@@ -110,7 +112,7 @@ export const getBusinessContext = cache(
     const permissions = Object.fromEntries(
       Object.entries(defaults).map(([key, fallback]) => [
         key,
-        elevated || (permissionRow?.permissions?.[key] ?? fallback),
+        elevated || memberBoolean(permissionRow?.permissions?.[key], fallback),
       ]),
     ) as Record<BusinessPermission, boolean>;
 
@@ -128,9 +130,9 @@ export const getBusinessContext = cache(
       permissions,
       customerVisibility: elevated
         ? "all"
-        : (permissionRow?.customer_visibility ?? "assigned"),
+        : memberCustomerVisibility(permissionRow?.customer_visibility),
       financialVisibility:
-        elevated || (permissionRow?.financial_visibility ?? false),
+        elevated || memberBoolean(permissionRow?.financial_visibility),
       business,
       branch,
       branches: branchRows,

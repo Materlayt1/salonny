@@ -29,6 +29,7 @@
       "expo-router",
       "expo-secure-store",
       "@maplibre/maplibre-react-native",
+      ["expo-image-picker", { "photosPermission": "İşletme profilinde yayınlamak üzere yalnız seçtiğin fotoğrafı kullanırız.", "cameraPermission": false, "microphonePermission": false }],
       ["expo-location", { "locationWhenInUsePermission": "Yakınındaki işletmeleri sıralamak için yaklaşık konumunu kullanırız. Arka planda konum takibi yapılmaz.", "isIosBackgroundLocationEnabled": false, "isAndroidBackgroundLocationEnabled": false, "isAndroidForegroundServiceEnabled": false }],
       [
         "expo-splash-screen",
