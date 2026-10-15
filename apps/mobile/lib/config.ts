@@ -1,7 +1,6 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
-
-const trimSlash = (value: string) => value.replace(/\/+$/, "");
+import { resolveApiOrigin } from "./api-origin";
 
 const developmentHost = Constants.expoConfig?.hostUri?.split(":")[0];
 const developmentApi = Platform.OS !== "web" && developmentHost
@@ -9,7 +8,13 @@ const developmentApi = Platform.OS !== "web" && developmentHost
   : "http://localhost:3001";
 
 export const config = {
-  apiUrl: trimSlash(process.env.EXPO_PUBLIC_API_URL ?? (__DEV__ ? developmentApi : "")),
+  apiUrl: resolveApiOrigin({
+    hostedWeb: Platform.OS === "web" && process.env.EXPO_PUBLIC_API_SAME_ORIGIN === "1",
+    browserOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
+    configuredUrl: process.env.EXPO_PUBLIC_API_URL,
+    development: __DEV__,
+    developmentUrl: developmentApi,
+  }),
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "",
   supabasePublishableKey:
     process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()

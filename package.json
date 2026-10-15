@@ -25,6 +25,7 @@
     "mobile:export": "pnpm --filter @salonny/mobile exec expo export --platform web --clear",
     "mobile:preview": "node scripts/mobile-preview.mjs",
     "mobile:export:preview": "node scripts/export-mobile-preview.mjs",
+    "mobile:export:hosted": "node scripts/export-hosted-mobile-preview.mjs",
     "mobile:bundle": "pnpm --filter @salonny/mobile exec expo export --platform all --clear",
     "mobile:test:e2e": "playwright test --config playwright.mobile.config.ts"
   },

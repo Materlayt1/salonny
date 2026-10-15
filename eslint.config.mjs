@@ -14,5 +14,6 @@ export default defineConfig([
     "artifacts/**",
     "apps/mobile/.expo/**",
     "apps/mobile/dist/**",
+    "public/mobile/**",
   ]),
 ]);

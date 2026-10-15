@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { hostedMobileRewrites } from "./lib/hosted-mobile-routes";
 
 const isProduction = process.env.NODE_ENV === "production";
 const isHttpsDeployment = isProduction && process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://");
@@ -31,6 +32,9 @@ const nextConfig: NextConfig = {
     ],
   },
   poweredByHeader: false,
+  async rewrites() {
+    return hostedMobileRewrites;
+  },
   async headers() {
     return [
       {
@@ -47,6 +51,10 @@ const nextConfig: NextConfig = {
           { key: "Cross-Origin-Resource-Policy", value: "same-site" },
           ...(isHttpsDeployment ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }] : []),
         ],
+      },
+      {
+        source: "/mobile/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
       {
         source: "/brand/:path*",
