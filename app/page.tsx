@@ -226,18 +226,27 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div className="relative hidden min-h-[450px] overflow-hidden rounded-[36px] border border-[#EEE9F5] bg-[#F0EBF7] shadow-[0_20px_60px_rgba(62,38,105,.07)] lg:block">
-              <div className="absolute inset-0">
+            <div data-testid="home-hero-artwork" className="relative hidden min-h-[450px] lg:block">
+              <svg aria-hidden="true" focusable="false" className="pointer-events-none absolute h-0 w-0">
+                <defs>
+                  <clipPath id="salonny-hero-organic" clipPathUnits="objectBoundingBox">
+                    <path d="M .29 .02 C .12 -.01 .025 .11 .025 .27 C .025 .41 .23 .45 .16 .59 C -.015 .80 .045 .97 .28 .98 C .47 1.01 .65 .965 .82 .985 C .96 1 .99 .91 .98 .77 C .97 .62 1.015 .43 .985 .27 C .965 .105 .93 .025 .80 .025 C .64 .025 .47 .045 .29 .02 Z" />
+                  </clipPath>
+                </defs>
+              </svg>
+              <div aria-hidden="true" className="pointer-events-none absolute inset-2 translate-x-2 rotate-[-3deg] bg-[#EDE6F9]/60" style={{ clipPath: "url(#salonny-hero-organic)" }} />
+              <div data-testid="home-hero-photo" className="absolute inset-0 overflow-hidden bg-[#F4EFF7]" style={{ clipPath: "url(#salonny-hero-organic)" }}>
                 <Image
                   src="/images/salonny-hero-salon-v1.webp"
                   alt="Aydınlık bir salonda müşterisinin saçını şekillendiren kuaför"
                   fill
                   preload
-                  className="object-cover object-[60%_center]"
+                  className="object-cover object-[60%_center] opacity-90"
+                  style={{ filter: "saturate(.72) contrast(.94) brightness(1.04)" }}
                   sizes="(min-width: 1024px) 620px, 16px"
                 />
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(244,236,255,.2),rgba(255,252,246,.06)_60%,rgba(238,229,249,.2))]" />
               </div>
-              <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#30203F]/20 via-transparent to-transparent" />
               <HomeLocationCard />
             </div>
           </div>

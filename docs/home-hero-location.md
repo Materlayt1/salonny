@@ -2,7 +2,11 @@
 
 The desktop homepage now uses `public/images/salonny-hero-salon-v1.webp`
 (1280 × 853, 96,386 bytes), replacing the enlarged logo and irregular mask with
-a rounded editorial photograph. The brand logo remains unchanged in navigation.
+a softly toned editorial photograph in an asymmetric, wavy organic mask. A pale
+lavender silhouette sits behind it; the location card remains outside the mask
+so its text, focus ring and actions cannot be clipped. The photograph is softly
+desaturated with CSS, leaving the original asset unchanged. The brand logo
+remains unchanged in navigation.
 The image is illustrative, not a photograph of a listed business.
 
 Generated with the built-in imagegen tool, then resized and WebP-encoded for the
