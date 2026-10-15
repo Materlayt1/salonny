@@ -8,19 +8,26 @@ const branchId = "10000000-0000-4000-8000-000000000004";
 const item = (extra: Partial<NotificationItem> = {}): NotificationItem => ({ id, type: "appointment_confirmed", title: "Randevunuz onaylandı", body: "Randevunuz oluşturuldu.", createdAt: "2026-10-14T09:00:00Z", readAt: null, appointmentId: id, businessId, branchId, ...extra });
 
 describe("notification destinations shared by web and native", () => {
-  it.each(["appointment_confirmed", "appointment_pending", "appointment_cancelled", "appointment_rescheduled", "appointment_status_changed", "appointment_reminder", "review_requested"])("opens the exact customer appointment for %s", (type) => {
-    expect(notificationDestination(item({ type }), "mobile")).toEqual({ href: `/appointment/${id}`, label: "Randevuyu görüntüle" });
-    expect(notificationDestination(item({ type, readAt: "2026-10-14T10:00:00Z" }), "web").href).toBe(`/appointments?appointmentId=${id}`);
+  it.each(["appointment_confirmed", "appointment_pending", "appointment_cancelled", "appointment_rescheduled", "appointment_status_changed", "appointment_reminder", "review_requested"])("opens the existing customer appointment list for %s", (type) => {
+    expect(notificationDestination(item({ type }), "mobile")).toEqual({ href: "/appointments", label: "Randevularıma git" });
+    expect(notificationDestination(item({ type, readAt: "2026-10-14T10:00:00Z" }), "web").href).toBe("/appointments");
   });
   it.each(["new_appointment", "appointment_cancelled_by_customer", "appointment_rescheduled_by_customer"])("keeps %s in the correct business/branch panel", (type) => {
     for (const platform of ["mobile", "web"] as const) {
       const url = new URL(notificationDestination(item({ type }), platform).href, "https://salonny.test");
       expect(url.pathname).toBe(platform === "mobile" ? "/manage/appointments" : "/business/appointments");
-      expect(Object.fromEntries(url.searchParams)).toEqual({ businessId, branchId, appointmentId: id });
+      expect(Object.fromEntries(url.searchParams)).toEqual({ businessId, branchId });
     }
   });
   it("does not classify a business user's personal appointment as a staff notice", () => {
-    expect(notificationDestination(item({ type: "appointment_confirmed" }), "mobile").href).toBe(`/appointment/${id}`);
+    expect(notificationDestination(item({ type: "appointment_confirmed" }), "mobile").href).toBe("/appointments");
+  });
+  it.each(["mobile", "web"] as const)("sends new reviews to the business review list, never a customer appointment: %s", (platform) => {
+    const result = notificationDestination(item({ type: "new_review" }), platform);
+    const url = new URL(result.href, "https://salonny.test");
+    expect(url.pathname).toBe(platform === "mobile" ? "/manage/reviews" : "/business/reviews");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ businessId, branchId });
+    expect(result.label).toBe("Değerlendirmelere git");
   });
   it("opens old appointment notices and missing references at the list", () => {
     expect(notificationDestination(item({ appointmentId: null }), "mobile").href).toBe("/appointments");
@@ -29,6 +36,7 @@ describe("notification destinations shared by web and native", () => {
   it.each(["campaign", "special_offer", "discount_available"])("opens the related business for %s, with safe discovery fallback", (type) => {
     expect(notificationDestination(item({ type, appointmentId: null, businessSlug: "gogo-varol" }), "mobile").href).toBe("/business/gogo-varol");
     expect(notificationDestination(item({ type, appointmentId: null }), "web").href).toBe("/kesfet");
+    expect(notificationDestination(item({ type, businessSlug: "gogo-varol" }), "mobile").href).toBe("/business/gogo-varol");
   });
   it.each(["javascript:alert(1)", "https://evil.test", "//evil.test", "../auth", "a/b", "%2Fauth", "bad?next=/admin", "<script>", ""])("does not use injected identifiers or URLs: %s", (value) => {
     expect(notificationUuid(value)).toBeNull(); expect(notificationSlug(value)).toBeNull();

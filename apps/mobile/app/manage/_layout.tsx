@@ -1,14 +1,14 @@
 import { Slot, router, usePathname } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Menu, X, ChevronDown, ChevronRight, Bell, LayoutDashboard, CalendarDays, CalendarCheck, Workflow, Users, Scissors, UserRound, ChartNoAxesCombined, Package, Megaphone, Settings, ArrowLeft, type LucideIcon } from "lucide-react-native";
+import { Menu, X, ChevronDown, ChevronRight, Bell, LayoutDashboard, CalendarDays, CalendarCheck, Workflow, Users, Scissors, UserRound, ChartNoAxesCombined, Package, Megaphone, Settings, ArrowLeft, Star, type LucideIcon } from "lucide-react-native";
 import { AppButton, EmptyState, LoadingState, Screen } from "@/components/app-ui";
 import { BrandLogo } from "@/components/brand-logo";
 import { ManagementProvider, useManagement } from "@/providers/management-provider";
 import { panelSections, canViewSection, type PanelSection } from "@/lib/management";
 import { theme } from "@/constants/theme";
 
-const icons: Record<PanelSection, LucideIcon> = { dashboard: LayoutDashboard, calendar: CalendarDays, appointments: CalendarCheck, operations: Workflow, customers: Users, services: Scissors, employees: UserRound, reports: ChartNoAxesCombined, inventory: Package, campaigns: Megaphone, settings: Settings };
+const icons: Record<PanelSection, LucideIcon> = { dashboard: LayoutDashboard, calendar: CalendarDays, appointments: CalendarCheck, operations: Workflow, customers: Users, services: Scissors, employees: UserRound, reports: ChartNoAxesCombined, reviews: Star, inventory: Package, campaigns: Megaphone, settings: Settings };
 function Shell() {
   const { context, setBranchId, setBusinessId, session } = useManagement();
   const [drawer, setDrawer] = useState(false);

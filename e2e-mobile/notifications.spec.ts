@@ -5,12 +5,13 @@ import { appointmentId, business, businessId, mockApi, signIn } from "./fixtures
 const notice = (extra: Partial<NotificationItem> = {}): NotificationItem => ({ id: appointmentId, type: "appointment_confirmed", title: "Randevunuz onaylandı", body: "Saç kesimi randevunuz oluşturuldu.", readAt: null, createdAt: new Date().toISOString(), appointmentId, businessId, branchId: business.branchId, ...extra });
 
 for (const type of ["appointment_confirmed", "appointment_status_changed", "appointment_cancelled", "appointment_rescheduled"]) {
-  test(`${type} opens the exact customer appointment, independently of the read receipt`, async ({ page }) => {
+  test(`${type} opens the regular appointments tab, independently of the read receipt`, async ({ page }) => {
     const writes = await mockApi(page, { notifications: [notice({ type })] });
     await signIn(page); await page.goto("/notifications");
     await page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/appointment/${appointmentId}$`));
-    await expect(page.getByRole("button", { name: "İşletmeyi görüntüle" })).toBeVisible();
+    await expect(page).toHaveURL(/\/appointments$/);
+    await expect(page.getByText("Randevularım", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: `${business.name} randevusunu yönet` })).toBeVisible();
     await expect.poll(() => writes.filter((write) => write.path === "/api/notifications").length).toBe(1);
     expect(writes.find((write) => write.path === "/api/notifications")?.body).toEqual({ ids: [appointmentId] });
     expect(writes.find((write) => write.path === "/api/notifications")?.authorization).toMatch(/^Bearer /);
@@ -20,8 +21,8 @@ test("already-read notifications still open without another write", async ({ pag
   const writes = await mockApi(page, { notifications: [notice({ readAt: new Date().toISOString() })] });
   await signIn(page); await page.goto("/notifications");
   await page.getByRole("button", { name: "Randevunuz onaylandı", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/appointment/${appointmentId}$`));
-  await expect(page.getByRole("button", { name: "İşletmeyi görüntüle" })).toBeVisible();
+  await expect(page).toHaveURL(/\/appointments$/);
+  await expect(page.getByText("Randevularım", { exact: true })).toBeVisible();
   expect(writes).toHaveLength(0);
 });
 test("failed read receipts cannot block appointment navigation or cause modal alerts", async ({ page }) => {
@@ -29,8 +30,8 @@ test("failed read receipts cannot block appointment navigation or cause modal al
   const writes = await mockApi(page, { notifications: [notice()], notificationReadFailure: true });
   await signIn(page); await page.goto("/notifications");
   await page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı" }).click();
-  await expect(page).toHaveURL(new RegExp(`/appointment/${appointmentId}$`));
-  await expect(page.getByRole("button", { name: "İşletmeyi görüntüle" })).toBeVisible();
+  await expect(page).toHaveURL(/\/appointments$/);
+  await expect(page.getByText("Randevularım", { exact: true })).toBeVisible();
   await expect.poll(() => writes.length).toBe(1); expect(dialogs).toEqual([]);
 });
 test("old notices without a relationship open the appointments list", async ({ page }) => {
@@ -38,26 +39,25 @@ test("old notices without a relationship open the appointments list", async ({ p
   await signIn(page); await page.goto("/notifications"); await page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı" }).click();
   await expect(page).toHaveURL(/\/appointments$/); await expect(page.getByText("Randevularım", { exact: true })).toBeVisible();
 });
-test("removed or inaccessible appointments provide a safe return to the list", async ({ page }) => {
+test("stale appointment references still open the regular list without a missing-detail screen", async ({ page }) => {
   const missingId = "10000000-0000-4000-8000-000000000099";
   await mockApi(page, { notifications: [notice({ appointmentId: missingId })] });
   await signIn(page); await page.goto("/notifications"); await page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı" }).click();
-  await expect(page).toHaveURL(new RegExp(`/appointment/${missingId}$`)); await expect(page.getByText("Randevu bulunamadı", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Randevularımı göster" }).click(); await expect(page).toHaveURL(/\/appointments$/);
+  await expect(page).toHaveURL(/\/appointments$/); await expect(page.getByText("Randevularım", { exact: true })).toBeVisible();
+  await expect(page.getByText("Randevu bulunamadı", { exact: true })).toHaveCount(0);
 });
 for (const type of ["new_appointment", "appointment_cancelled_by_customer", "appointment_rescheduled_by_customer"]) {
-  test(`${type} opens the staff appointment with explicit business and branch scope`, async ({ page }) => {
+  test(`${type} opens the full staff appointment list with explicit business and branch scope`, async ({ page }) => {
     const requests: string[] = [];
     page.on("request", (req) => { if (new URL(req.url()).pathname === "/api/business-management/appointments") requests.push(req.url()); });
     await mockApi(page, { businessAccount: true, notifications: [notice({ type })] });
     await signIn(page); await page.goto("/notifications"); await page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı" }).click();
     await expect(page).toHaveURL(/\/manage\/appointments\?/);
-    await expect(page.getByText("Bildirimdeki randevu", { exact: true })).toBeVisible();
+    await expect(page.getByText("Randevular", { exact: true })).toBeVisible();
+    await expect(page.getByText("Bildirimdeki randevu", { exact: true })).toHaveCount(0);
     await expect.poll(() => requests.length).toBeGreaterThan(0);
     const params = new URL(requests.at(-1)!).searchParams;
-    expect(params.get("businessId")).toBe(businessId); expect(params.get("branchId")).toBe(business.branchId); expect(params.get("appointmentId")).toBe(appointmentId);
-    await page.getByRole("button", { name: "Tüm işletme randevularını göster" }).click();
-    await expect.poll(() => new URL(requests.at(-1)!).searchParams.has("appointmentId")).toBe(false);
+    expect(params.get("businessId")).toBe(businessId); expect(params.get("branchId")).toBe(business.branchId); expect(params.has("appointmentId")).toBe(false);
   });
 }
 test("campaign notices stay native and open the related business", async ({ page }) => {
@@ -88,6 +88,38 @@ for (const branchId of ["10000000-0000-4000-8000-000000000088", null]) {
     await expect(page.getByText("İkinci test işletmesi", { exact: true })).toBeVisible();
     await expect.poll(() => requests.some((url) => new URL(url).searchParams.get("businessId") === secondBusinessId)).toBe(true);
     const params = new URL(requests.at(-1)!).searchParams;
-    expect(params.get("businessId")).toBe(secondBusinessId); expect(params.get("branchId")).toBe(secondBranchId); expect(params.get("appointmentId")).toBe(appointmentId);
+    expect(params.get("businessId")).toBe(secondBusinessId); expect(params.get("branchId")).toBe(secondBranchId); expect(params.has("appointmentId")).toBe(false);
   });
 }
+
+test("new review notices open the native review list, including moderation status", async ({ page }) => {
+  const writes = await mockApi(page, { businessAccount: true, notifications: [notice({ type: "new_review", title: "Yeni doğrulanmış değerlendirme" })] });
+  await signIn(page); await page.goto("/notifications");
+  await expect(page.getByText("Değerlendirmelere git", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Yeni doğrulanmış değerlendirme, okunmadı" }).click();
+  await expect(page).toHaveURL(/\/manage\/reviews\?/);
+  await expect(page.getByText("Değerlendirmeler", { exact: true })).toBeVisible();
+  await expect(page.getByText("Kontrollü müşteri değerlendirmesi", { exact: true })).toBeVisible();
+  await expect(page.getByText("İncelemede", { exact: true })).toBeVisible();
+  expect(writes.every((write) => write.path === "/api/notifications")).toBe(true);
+});
+
+test("long notification content stays inside the mobile viewport", async ({ page }) => {
+  await mockApi(page, { notifications: [notice({ title: "Randevunuzun yeni tarihi ve saati işletme tarafından güncellendi", body: "Uzun bildirim açıklaması. ".repeat(16) })] });
+  await signIn(page); await page.goto("/notifications");
+  await expect(page.getByText("Randevularıma git", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("notification list and regular appointments tab have a readable mobile layout", async ({ page }, testInfo) => {
+  await mockApi(page, { notifications: [notice(), notice({ id: business.branchId, type: "new_review", title: "Yeni doğrulanmış değerlendirme", body: "5 yıldızlı bir değerlendirme aldınız.", readAt: new Date().toISOString() }), notice({ id: businessId, type: "campaign", title: "İşletmenden yeni kampanya", body: "Güncel fırsatları inceleyebilirsin.", businessSlug: business.slug, appointmentId: null })] });
+  await signIn(page); await page.goto("/notifications");
+  const card = page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı", exact: true });
+  await expect(card).toBeVisible();
+  const box = await card.boundingBox();
+  expect(box?.x).toBeGreaterThanOrEqual(16); expect(box?.width).toBeLessThanOrEqual(358);
+  await page.screenshot({ path: testInfo.outputPath("notifications.png"), fullPage: true });
+  await card.click(); await expect(page).toHaveURL(/\/appointments$/);
+  await expect(page.getByRole("button", { name: `${business.name} randevusunu yönet` })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("appointments.png"), fullPage: true });
+});

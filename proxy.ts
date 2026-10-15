@@ -73,7 +73,7 @@ export const config = {
     "/business/onboarding/:path*",
     "/business/dashboard/:path*", "/business/calendar/:path*", "/business/appointments/:path*",
     "/business/customers/:path*", "/business/services/:path*", "/business/employees/:path*",
-    "/business/reports/:path*", "/business/inventory/:path*", "/business/campaigns/:path*", "/business/settings/:path*",
+    "/business/reports/:path*", "/business/reviews/:path*", "/business/inventory/:path*", "/business/campaigns/:path*", "/business/settings/:path*",
     "/appointments/:path*", "/notifications/:path*", "/favorites/:path*", "/profile/:path*", "/delete-account/:path*",
   ],
 };

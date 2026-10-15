@@ -129,6 +129,7 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
       if (section === "team") return respond({ employee: { id: business.employees[0].id, name: "Test uzmanı" }, services: [{ id: business.services[0].id, name: "Saç kesimi", active: true, assigned }], periods, hasAdvancedSchedule: options.advancedSchedule ?? false, timeOff, hasMore: false });
       if (section === "appointments" || section === "calendar") return respond({ rows: [{ id: appointmentId, title: "Test Müşteri", subtitle: "Saç kesimi · Test uzmanı", status: "confirmed", startsAt: appointment.startsAt, endsAt: appointment.endsAt, amountMinor: options.employee ? undefined : 40000 }], hasMore: false });
       if (section === "settings") return respond({ rows: [], settings: { booking_window_days: 60, minimum_notice_minutes: 120, cancellation_notice_minutes: 1440, auto_confirm: true, allow_waitlist: false } });
+      if (section === "reviews") return respond({ rows: [{ id: appointmentId, rating: 5, comment: "Kontrollü müşteri değerlendirmesi", business_reply: null, moderation_status: "pending", created_at: "2026-10-14T09:00:00Z" }], hasMore: false });
       if (section === "campaigns") return respond({ rows: [{ id: campaign.id, title: campaign.name, status: campaign.status, subtitle: campaign.audience }], total: 1, hasMore: false });
       if (section === "campaign-editor") {
         if (options.campaignWrongScope) return respond({ error: "Seçili işletme veya şube doğrulanamadı." }, 403);

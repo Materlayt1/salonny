@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Bell, CalendarDays, ChevronDown, ClipboardList, LayoutDashboard, Megaphone, Menu, Package, Scissors, Settings, Store, UserRound, UsersRound, Workflow, X } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, ChevronDown, ClipboardList, LayoutDashboard, Megaphone, Menu, Package, Scissors, Settings, Star, Store, UserRound, UsersRound, Workflow, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useTransition } from "react";
@@ -9,7 +9,7 @@ import { selectBusinessBranch } from "@/app/business/actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 
-const nav = [
+const navigation = [
   { href: "/business/dashboard", label: "Özet", icon: LayoutDashboard },
   { href: "/business/calendar", label: "Takvim", icon: CalendarDays },
   { href: "/business/appointments", label: "Randevular", icon: ClipboardList },
@@ -18,6 +18,7 @@ const nav = [
   { href: "/business/services", label: "Hizmetler", icon: Scissors },
   { href: "/business/employees", label: "Çalışanlar", icon: UserRound },
   { href: "/business/reports", label: "Raporlar", icon: BarChart3 },
+  { href: "/business/reviews", label: "Değerlendirmeler", icon: Star },
   { href: "/business/inventory", label: "Stok", icon: Package },
   { href: "/business/campaigns", label: "Pazarlama", icon: Megaphone },
   { href: "/business/settings", label: "Ayarlar", icon: Settings },
@@ -26,6 +27,7 @@ const nav = [
 type DashboardBusiness = { name: string; slug: string; branch: string; branchId: string; branches: { id: string; name: string }[]; role: "OWNER" | "MANAGER" | "EMPLOYEE"; person: string };
 
 export function DashboardShell({ children, business }: { children: React.ReactNode; business: DashboardBusiness }) {
+  const nav = navigation.filter((item) => item.href !== "/business/reviews" || business.role !== "EMPLOYEE");
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [switchingBranch, startBranchTransition] = useTransition();

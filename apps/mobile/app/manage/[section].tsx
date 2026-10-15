@@ -17,6 +17,7 @@ import { WaitlistManager } from "@/components/waitlist-manager";
 import { ResourceManager } from "@/components/resource-manager";
 import { EmployeeScheduleManager } from "@/components/employee-schedule-manager";
 import { BusinessReport } from "@/components/business-report";
+import { BusinessReviews } from "@/components/business-reviews";
 import { CustomerCareManager } from "@/components/customer-care-manager";
 import { notificationUuid } from "@salonny/contracts";
 
@@ -99,7 +100,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => getPanelPage(section, session!.access_token, scope, { offset: pageParam, q: settledSearch, status, date: section === "calendar" ? date : undefined, appointmentId }, signal),
     getNextPageParam: (last, pages) => last.hasMore ? pages.length * (section === "customers" ? 25 : 50) : undefined,
-    enabled: Boolean(session && scope.businessId && allowed && definition && !["reports", "campaigns"].includes(section)), retry: false,
+    enabled: Boolean(session && scope.businessId && allowed && definition && !["reports", "reviews", "campaigns"].includes(section)), retry: false,
   });
   const mutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => savePanelRecord(section === "calendar" || section === "dashboard" ? "appointments" : section, session!.access_token, scope, values),
@@ -111,6 +112,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const first = page.data?.pages[0];
   if (!definition || !allowed) return <EmptyState title="Bölüm açılamadı" detail="Bu bölüm mevcut değil veya erişim yetkin bulunmuyor." />;
   if (section === "reports") return <BusinessReport />;
+  if (section === "reviews") return <BusinessReviews />;
   if (section === "campaigns") return <BusinessCampaignsPanel />;
   if (careCustomerId && section === "customers") return <CustomerCareManager customerId={careCustomerId} onBack={() => setCareCustomerId(null)} />;
   const shiftDay = (delta: number) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + delta); setDate(next.toISOString().slice(0, 10)); };

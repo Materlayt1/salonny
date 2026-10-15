@@ -1,6 +1,6 @@
 import { requestJson } from "@/lib/api";
 
-export type PanelSection = "dashboard" | "calendar" | "appointments" | "operations" | "customers" | "services" | "employees" | "reports" | "inventory" | "campaigns" | "settings";
+export type PanelSection = "dashboard" | "calendar" | "appointments" | "operations" | "customers" | "services" | "employees" | "reports" | "reviews" | "inventory" | "campaigns" | "settings";
 export const panelSections: { key: PanelSection; label: string; description: string }[] = [
   { key: "dashboard", label: "Özet", description: "İşletmenin günlük görünümü" },
   { key: "calendar", label: "Takvim", description: "Günün randevu akışı" },
@@ -10,6 +10,7 @@ export const panelSections: { key: PanelSection; label: string; description: str
   { key: "services", label: "Hizmetler", description: "Hizmetler, süreler ve fiyatlar" },
   { key: "employees", label: "Çalışanlar", description: "Ekibini yönet" },
   { key: "reports", label: "Raporlar", description: "Tam dönem özeti, karşılaştırmalar ve planlanan doluluk" },
+  { key: "reviews", label: "Değerlendirmeler", description: "Doğrulanmış müşteri yorumları" },
   { key: "inventory", label: "Stok", description: "Ürünler ve stok hareketleri" },
   { key: "campaigns", label: "Pazarlama", description: "Kampanyalarının durumunu yönet" },
   { key: "settings", label: "Ayarlar", description: "Randevu ve bekleme listesi ayarları" },
@@ -50,7 +51,7 @@ export const getTeamPage = (token: string, scope: PanelScope, employeeId: string
 export const saveTeam = (token: string, scope: PanelScope, employeeId: string, values: Record<string, unknown>) => requestJson<{ saved: boolean }>(path("team", scope), { method: "POST", body: JSON.stringify({ ...values, employeeId }) }, token);
 export function canViewSection(context: PanelContext, section: PanelSection) {
   const permission: Partial<Record<PanelSection, string>> = { calendar: "calendar", appointments: "calendar", customers: "customers", operations: "operations", reports: "reports", inventory: "inventory", campaigns: "campaigns" };
-  if (section === "settings") return context.role !== "EMPLOYEE";
+  if (section === "settings" || section === "reviews") return context.role !== "EMPLOYEE";
   if (section === "customers" && context.customerVisibility === "none") return false;
   if (section === "reports" && !context.financialVisibility) return false;
   return !permission[section] || context.permissions[permission[section]!] === true;

@@ -14,7 +14,11 @@ const appointment: CustomerAppointment = { id, businessId: id, businessSlug: "te
 describe("web notification and appointment entry UI", () => {
   it.each([null, "2026-10-14T10:01:00Z"])("renders a keyboard-accessible real link for read/unread notices: %s", (readAt) => {
     const html = renderToStaticMarkup(createElement(NotificationsClient, { initialNotifications: [{ ...notice, readAt }] }));
-    expect(html).toContain(`href="/appointments?appointmentId=${id}"`); expect(html).toContain("Randevuyu görüntüle");
+    expect(html).toContain('href="/appointments"'); expect(html).toContain("Randevularıma git");
+  });
+  it("links business review notifications to reviews rather than an appointment", () => {
+    const html = renderToStaticMarkup(createElement(NotificationsClient, { initialNotifications: [{ ...notice, type: "new_review" }] }));
+    expect(html).toContain('href="/business/reviews"'); expect(html).toContain("Değerlendirmelere git"); expect(html).not.toContain('href="/appointments');
   });
   it.each(["confirmed", "completed", "cancelled", "no_show"] as const)("focuses the linked %s appointment instead of hiding it in another tab", (status) => {
     const html = renderToStaticMarkup(createElement(CustomerAppointmentsClient, { initialAppointmentId: id, initialAppointments: [{ ...appointment, status }, { ...appointment, id: "10000000-0000-4000-8000-000000000099", businessName: "Başka salon" }] }));
