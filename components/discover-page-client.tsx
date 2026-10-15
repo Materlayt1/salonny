@@ -23,6 +23,7 @@ import { CategoryGrid } from "@/components/category-grid";
 import { DiscoverMap } from "@/components/discover-map";
 import { MobileNav } from "@/components/mobile-nav";
 import { SiteHeader } from "@/components/site-header";
+import { useBrowserLocation } from "@/components/use-browser-location";
 import { Button } from "@/components/ui/button";
 import type { Business, Category } from "@/lib/types";
 import { seoSlug } from "@/lib/seo";
@@ -75,8 +76,7 @@ export default function DiscoverPage({
   const [maxDistance, setMaxDistance] = useState(25);
   const [maxPrice, setMaxPrice] = useState(5000);
   const [minRating, setMinRating] = useState(0);
-  const [location, setLocation] = useState<{ lat: number; lng: number }>();
-  const [locationError, setLocationError] = useState("");
+  const { position: location, error: locationError, requestPosition } = useBrowserLocation();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -94,27 +94,7 @@ export default function DiscoverPage({
         setSort(requestedSort!);
       setOpenNow(params.get("open") === "1");
       if (params.get("nearby") === "1") {
-        if (!navigator.geolocation)
-          setLocationError("Tarayıcın konum paylaşımını desteklemiyor.");
-        else
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              if (active) {
-                setLocation({
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                });
-                setSort("distance");
-              }
-            },
-            () => {
-              if (active)
-                setLocationError(
-                  "Konum alınamadı. Tarayıcı iznini kontrol et.",
-                );
-            },
-            { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 },
-          );
+        void requestPosition().then((granted) => { if (active && granted) setSort("distance"); });
       }
     });
     if (initialBusinesses) {
@@ -153,7 +133,7 @@ export default function DiscoverPage({
     return () => {
       active = false;
     };
-  }, [initialBusinesses]);
+  }, [initialBusinesses, requestPosition]);
 
   const filtered = useMemo(() => {
     let result = businesses
@@ -252,20 +232,7 @@ export default function DiscoverPage({
   }
 
   function locate() {
-    if (!navigator.geolocation) {
-      setLocationError("Tarayıcın konum paylaşımını desteklemiyor.");
-      return;
-    }
-    setLocationError("");
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        }),
-      () => setLocationError("Konum alınamadı. Tarayıcı iznini kontrol et."),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 },
-    );
+    void requestPosition().then((granted) => { if (granted) setSort("distance"); });
   }
 
   const results = loading ? (

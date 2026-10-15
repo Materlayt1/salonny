@@ -20,6 +20,7 @@ import { CategoryGrid } from "@/components/category-grid";
 import { Footer } from "@/components/footer";
 import { HomeBusinessFeed } from "@/components/home-business-feed";
 import { HomeMapPreview } from "@/components/home-map-preview";
+import { HomeLocationCard } from "@/components/home-location-card";
 import { MobileHomeHeader } from "@/components/mobile-home-header";
 import { MobileNav } from "@/components/mobile-nav";
 import { SectionHeading } from "@/components/section-heading";
@@ -161,16 +162,6 @@ export default async function HomePage() {
 
       <main className="overflow-hidden bg-white">
         <section className="relative border-b border-[#EEEAF8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] pb-8 pt-3 md:pb-12 md:pt-10">
-          <svg aria-hidden="true" className="absolute h-0 w-0">
-            <defs>
-              <clipPath
-                id="salonny-hero-shape"
-                clipPathUnits="objectBoundingBox"
-              >
-                <path d="M .27 0 H 1 V 1 H .28 C .08 1 -.04 .82 .15 .62 C .29 .47 .04 .40 .06 .21 C .08 .08 .15 0 .27 0 Z" />
-              </clipPath>
-            </defs>
-          </svg>
           <div className="container-shell grid items-center gap-8 lg:min-h-[430px] lg:grid-cols-[.96fr_1.04fr]">
             <div className="max-w-[610px]">
               <Badge className="hidden bg-[#F0ECFF] text-[#5B3BE7] md:inline-flex">
@@ -235,34 +226,19 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div className="relative hidden min-h-[430px] lg:block">
-              <div
-                className="absolute inset-0 overflow-hidden bg-[#EEE9FF]"
-                style={{ clipPath: "url(#salonny-hero-shape)" }}
-              >
+            <div className="relative hidden min-h-[450px] overflow-hidden rounded-[36px] border border-[#EEE9F5] bg-[#F0EBF7] shadow-[0_20px_60px_rgba(62,38,105,.07)] lg:block">
+              <div className="absolute inset-0">
                 <Image
-                  src="/brand/salonny-mark.png"
-                  alt="Salonny hizmet ve konum simgesi"
+                  src="/images/salonny-hero-salon-v1.webp"
+                  alt="Aydınlık bir salonda müşterisinin saçını şekillendiren kuaför"
                   fill
-                  priority
-                  className="object-cover object-center"
+                  preload
+                  className="object-cover object-[60%_center]"
                   sizes="(min-width: 1024px) 620px, 16px"
                 />
               </div>
-              <div className="surface soft-shadow absolute bottom-14 left-[20%] w-[230px] p-4">
-                <strong className="block text-sm">
-                  Yakınındaki işletmeleri keşfet
-                </strong>
-                <p className="mt-2 text-xs leading-5 text-[#686872]">
-                  Konumunu aç, çevrendeki yayınlanmış işletmeleri haritada gör.
-                </p>
-                <Link
-                  href="/kesfet?nearby=1"
-                  className="mt-3 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#6C4BF4] text-xs font-semibold text-white"
-                >
-                  <LocateFixed className="h-3.5 w-3.5" /> Konumumu Aç
-                </Link>
-              </div>
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#30203F]/20 via-transparent to-transparent" />
+              <HomeLocationCard />
             </div>
           </div>
         </section>

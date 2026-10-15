@@ -32,8 +32,15 @@ test("nearby uses an explicitly requested, approximate synthetic location", asyn
   await expect.poll(() => queries.some((query) => query.searchParams.get("sort") === "nearest")).toBeTruthy();
   const located = queries.find((query) => query.searchParams.get("sort") === "nearest")!;
   expect(located.searchParams.get("lat")).toBe("38.42"); expect(located.searchParams.get("lng")).toBe("27.14");
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Yakınındaki işletmeleri gör", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Yakınındaki işletmeleri gör", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Yakınındaki işletmeleri gör", exact: true }).click();
   await page.getByRole("button", { name: "Konumu kapat", exact: true }).click();
   await expect(page.getByRole("button", { name: "En yakın", exact: true })).toHaveCount(0);
+  await page.goto("/"); await page.reload();
+  await expect(page.getByRole("button", { name: "Konumumu aç", exact: true })).toBeVisible();
 });
 
 test("map loading is opt-in and list navigation remains available", async ({ page }) => {

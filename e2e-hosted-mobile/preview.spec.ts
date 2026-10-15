@@ -65,3 +65,26 @@ test("missing module assets return 404, not a successful HTML fallback", async (
   expect(asset.status()).toBe(200);
   expect(asset.headers()["content-type"]).toMatch(/javascript/);
 });
+
+test("location consent restores the active CTA after reload and explicit disable stays disabled", async ({ page, context }) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 38.4237, longitude: 27.1428 });
+  await mockApi(page);
+  const queries: URL[] = [];
+  page.on("request", (request) => { if (new URL(request.url()).pathname === "/api/businesses") queries.push(new URL(request.url())); });
+  await page.goto("/mobile/discover?nearby=1");
+  const action = page.getByRole("button", { name: "Konumumu kullan", exact: true });
+  await expect(action).toBeVisible();
+  expect(queries.some((query) => query.searchParams.has("lat"))).toBe(false);
+  page.on("dialog", (dialog) => dialog.accept());
+  await action.click();
+  await expect.poll(() => queries.some((query) => query.searchParams.get("sort") === "nearest")).toBe(true);
+  await page.goto("/mobile");
+  const activeAction = page.getByRole("button", { name: "Yakınındaki işletmeleri gör", exact: true });
+  await expect(activeAction).toBeVisible();
+  await page.reload(); await expect(activeAction).toBeVisible();
+  await activeAction.click();
+  await page.getByRole("button", { name: "Konumu kapat", exact: true }).click();
+  await page.goto("/mobile"); await page.reload();
+  await expect(page.getByRole("button", { name: "Konumumu aç", exact: true })).toBeVisible();
+});
