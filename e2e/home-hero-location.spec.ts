@@ -8,7 +8,10 @@ test("hero uses the new service photograph without causing horizontal overflow",
     await expect(image).toHaveAttribute("src", /salonny-hero-salon-v1/);
     await expect.poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     await expect(page.getByTestId("home-hero-photo")).toHaveCSS("clip-path", /salonny-hero-organic/);
-    await expect(image).toHaveCSS("filter", "saturate(0.72) contrast(0.94) brightness(1.04)");
+    await expect(image).toHaveCSS("filter", "saturate(0.96) contrast(0.97)");
+    await expect(image).toHaveCSS("opacity", "1");
+    await expect(page.getByTestId("home-hero-tone")).toHaveCSS("mix-blend-mode", "multiply");
+    await expect(page.getByTestId("home-hero-tone")).toHaveCSS("pointer-events", "none");
     // Only the photograph is masked; the location button must remain usable.
     await expect(page.getByTestId("home-location-card")).toHaveCSS("clip-path", "none");
   }

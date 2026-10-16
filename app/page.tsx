@@ -235,17 +235,17 @@ export default async function HomePage() {
                 </defs>
               </svg>
               <div aria-hidden="true" className="pointer-events-none absolute inset-2 translate-x-2 rotate-[-3deg] bg-[#EDE6F9]/60" style={{ clipPath: "url(#salonny-hero-organic)" }} />
-              <div data-testid="home-hero-photo" className="absolute inset-0 overflow-hidden bg-[#F4EFF7]" style={{ clipPath: "url(#salonny-hero-organic)" }}>
+              <div data-testid="home-hero-photo" className="absolute inset-0 isolate overflow-hidden bg-[#F4EFF7]" style={{ clipPath: "url(#salonny-hero-organic)" }}>
                 <Image
                   src="/images/salonny-hero-salon-v1.webp"
                   alt="Aydınlık bir salonda müşterisinin saçını şekillendiren kuaför"
                   fill
                   preload
-                  className="object-cover object-[60%_center] opacity-90"
-                  style={{ filter: "saturate(.72) contrast(.94) brightness(1.04)" }}
+                  className="object-cover object-[60%_center]"
+                  style={{ filter: "saturate(.96) contrast(.97)" }}
                   sizes="(min-width: 1024px) 620px, 16px"
                 />
-                <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(244,236,255,.2),rgba(255,252,246,.06)_60%,rgba(238,229,249,.2))]" />
+                <div data-testid="home-hero-tone" aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(139,116,171,.08),rgba(190,166,145,.015)_55%,rgba(139,116,171,.07))] mix-blend-multiply" />
               </div>
               <HomeLocationCard />
             </div>
