@@ -106,6 +106,13 @@ export async function readBoundedJson(
 }
 
 export function rateLimitKeyFromHeaders(headers: Pick<Headers, "get">) {
+  if (process.env.HOSTING_PLATFORM === "netlify") {
+    // Netlify sets this header at its edge. Do not trust client-supplied
+    // Vercel/Cloudflare/X-Forwarded-For headers on a different host, or let a
+    // rotating user-agent reset the anonymous IP limit.
+    const address = headers.get("x-nf-client-connection-ip") ?? "unknown";
+    return createHash("sha256").update(`netlify:${address}`).digest("base64url").slice(0, 32);
+  }
   const address = headers.get("x-vercel-forwarded-for")
     ?? headers.get("cf-connecting-ip")
     ?? headers.get("x-forwarded-for")?.split(",")[0]?.trim()
