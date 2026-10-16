@@ -9,6 +9,8 @@ import { isValidCoordinate } from "@/lib/geo";
 import { createSalonnyMapStyle } from "@/lib/map-theme";
 import { canonicalBusinessPath } from "@/lib/seo";
 import type { Business } from "@/lib/types";
+import { browserLocation } from "@/lib/browser-location";
+import { browseAreaStore } from "@/lib/browse-area-store";
 
 const TURKEY_CENTER: [number, number] = [35.24, 38.96];
 type MapLibreModule = typeof import("maplibre-gl");
@@ -153,13 +155,16 @@ export function DiscoverMap({
         new maplibregl.NavigationControl({ showCompass: false }),
         "bottom-right",
       );
-      map.addControl(
-        new maplibregl.GeolocateControl({
-          positionOptions: { enableHighAccuracy: true },
-          trackUserLocation: true,
-        }),
-        "bottom-right",
-      );
+      const geolocate = new maplibregl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: false },
+        trackUserLocation: false,
+      });
+      // The map's location button uses the same approximate in-memory scope as
+      // the header/hero, rather than centering on Izmir while listing Istanbul.
+      geolocate.on("geolocate", (event) => {
+        if (browserLocation.acceptPosition(event.coords.latitude, event.coords.longitude)) browseAreaStore.select("auto");
+      });
+      map.addControl(geolocate, "bottom-right");
       map.on("load", () => {
         if (disposed) return;
         syncMarkers();

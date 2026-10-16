@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   RefreshControl,
   FlatList,
@@ -21,21 +21,27 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { BusinessFilterSheet, DirectorySearch } from "@/components/business-filters";
 import { defaultBusinessFilters, filterCount, filterSummary, type BusinessFilters } from "@/lib/business-filters";
 import { BusinessListSkeleton } from "@/components/business-list-skeleton";
+import { BrowseAreaSelector } from "@/components/browse-area-selector";
+import { useBrowseArea } from "@/providers/browse-area-provider";
+import { canonicalCity } from "@salonny/contracts/browse-area";
 
 export default function DiscoverScreen() {
-  const params = useLocalSearchParams<{ category?: string; q?: string; open?: string; sort?: string; nearby?: string; map?: string }>();
+  const params = useLocalSearchParams<{ category?: string; q?: string; city?: string; open?: string; sort?: string; nearby?: string; map?: string }>();
   // Expo's static HTML has no URL query params. Match it on first hydration.
   const hydrated = useHydrated();
   const hydratedParams = hydrated ? params : {};
   return <DiscoverContent key={JSON.stringify(hydratedParams)} params={hydratedParams} />;
 }
-function DiscoverContent({ params }: { params: { category?: string; q?: string; open?: string; sort?: string; nearby?: string; map?: string } }) {
+function DiscoverContent({ params }: { params: { category?: string; q?: string; city?: string; open?: string; sort?: string; nearby?: string; map?: string } }) {
   const ready = useHydrated();
   const location = useLocation();
   const [mapVisible, setMapVisible] = useState(params.map === "1");
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState(params.q ?? "");
-  const [city, setCity] = useState("");
+  const browse = useBrowseArea();
+  const selectArea = browse.select;
+  useEffect(() => { if (params.city) selectArea(params.city); else if (params.nearby === "1") selectArea("auto"); }, [params.city, params.nearby, selectArea]);
+  const city = canonicalCity(browse.selection) ?? "";
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categorySelection, setCategorySelection] = useState<{ source: string; value: string } | null>(null);
   const categorySource = params.category ?? "";
@@ -51,12 +57,13 @@ function DiscoverContent({ params }: { params: { category?: string; q?: string; 
   );
   const selected = businesses.find((business) => business.id === selectedId);
   const filters: BusinessFilters = { category, city, sort: sort ?? "recommended", open: openNow };
-  const applyFilters = (values: BusinessFilters) => { setCategory(values.category); setCity(values.city); setSort(values.sort); setOpenNow(values.open); setFiltersOpen(false); setSelectedId(""); };
+  const applyFilters = (values: BusinessFilters) => { setCategory(values.category); browse.select(values.city.trim() || "auto"); setSort(values.sort); setOpenNow(values.open); setFiltersOpen(false); setSelectedId(""); };
   const resetFilters = () => { setQuery(""); applyFilters({ ...defaultBusinessFilters }); };
 
   return (
     <Screen>
       <BrandHeader />
+      <BrowseAreaSelector />
       <DirectorySearch ready={ready} value={query} onChange={setQuery} onFilters={() => setFiltersOpen(true)} count={filterCount(filters)} />
       {filterCount(filters) ? <View style={styles.activeFilters}><Text style={styles.activeSummary} numberOfLines={2}>{filterSummary(filters, categories.data?.categories ?? [])}</Text><Pressable accessibilityRole="button" onPress={resetFilters} style={styles.reset}><Text style={styles.resetText}>Temizle</Text></Pressable></View> : null}
       <FlatList

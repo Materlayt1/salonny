@@ -1,6 +1,8 @@
 # Salonny üretim hazırlığı ve ürün TO-DO listesi
 
-Son güncelleme: 14 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+Son güncelleme: 17 Ekim 2026. Ödeme ve online depozito bu çalışmanın kapsamı dışındadır.
+
+**Güncel denetim:** [17 Ekim öncelikli yapılacaklar](docs/qa-todo-2026-10-17.md). Web/native şehir ve 25 km yakınlık kapsamı eklendi; 039 canlıda kaynak/geçmiş/yetki eşleşmesiyle doğrulandı. Önceki maddelerin tamamlanmış olması genel yayın onayı değildir: çalışan yetkileri, web dashboard kapsamı ve 038'in canlı dağıtımı için yeni P0 kapıları açıktır. Aşağıdaki eski sonuçlar kendi tarihli sürümlerine aittir.
 
 Mobil native arayüz ve işletme paneli ilerlemesi: [ayrıntılı tamamlananlar ve kalan eşleşmeler](docs/native-interface-parity.md), [ileri panel yapılacaklar](docs/advanced-panel-todo.md). 11 Ekim'de 028–033 canlı kuruldu; 033 rapor için 10/10 kurulum/kaynak/veri koruma kontrolü geçti. Rapor kod kapısı 521 birim, 61 izole SQL ve 145/145 mobil E2E (143 kontrollü + 2 canlı public görsel); bu, mağaza veya yüksek trafik yayın onayı değildir. Sonraki yeni özellikler için bu sabit export'un sonuçları tekrar kullanılamaz.
 

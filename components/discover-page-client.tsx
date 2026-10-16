@@ -28,6 +28,10 @@ import { Button } from "@/components/ui/button";
 import type { Business, Category } from "@/lib/types";
 import { seoSlug } from "@/lib/seo";
 import { cn } from "@/lib/utils";
+import { BrowseAreaSelector } from "@/components/browse-area-selector";
+import { useBrowseArea } from "@/components/use-browse-area";
+import { useMarketplaceDirectory } from "@/components/use-marketplace-directory";
+import { businessInArea } from "@salonny/contracts/browse-area";
 
 function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const radius = 6371;
@@ -50,13 +54,7 @@ export default function DiscoverPage({
   initialCategories,
 }: DiscoverPageProps = {}) {
   const [query, setQuery] = useState("");
-  const [businesses, setBusinesses] = useState<Business[]>(
-    initialBusinesses ?? [],
-  );
-  const [categories, setCategories] = useState<Category[]>(
-    initialCategories ?? [],
-  );
-  const [loading, setLoading] = useState(!initialBusinesses);
+  const categories = initialCategories ?? [];
   const [selectedCategory, setSelectedCategory] = useState("");
   const [desktopListOnly, setDesktopListOnly] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<"peek" | "half" | "full">(
@@ -77,6 +75,17 @@ export default function DiscoverPage({
   const [maxPrice, setMaxPrice] = useState(5000);
   const [minRating, setMinRating] = useState(0);
   const { position: location, error: locationError, requestPosition } = useBrowserLocation();
+  const browse = useBrowseArea();
+  const selectArea = browse.select;
+  const { city: areaCity, lat: areaLat, lng: areaLng, radius: areaRadius } = browse.area;
+  const area = useMemo(() => ({ city: areaCity, lat: areaLat, lng: areaLng, ...(areaRadius ? { radius: maxDistance } : {}) }), [areaCity, areaLat, areaLng, areaRadius, maxDistance]);
+  const params = new URLSearchParams({ sort: sort === "distance" ? (area.lat !== undefined ? "nearest" : "recommended") : sort, q: query, category: selectedCategory });
+  for (const [key, value] of Object.entries(area)) if (value !== undefined) params.set(key, String(value));
+  if (openNow) params.set("open", "1");
+  if (maxPrice < 5000) params.set("maxPrice", String(maxPrice));
+  if (minRating > 0) params.set("minRating", String(minRating));
+  const directory = useMarketplaceDirectory(params.toString(), initialBusinesses);
+  const { businesses, loading } = directory;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -93,47 +102,16 @@ export default function DiscoverPage({
       )
         setSort(requestedSort!);
       setOpenNow(params.get("open") === "1");
+      if (params.has("city")) selectArea(params.get("city") || "all");
       if (params.get("nearby") === "1") {
+        selectArea("auto");
         void requestPosition().then((granted) => { if (active && granted) setSort("distance"); });
       }
     });
-    if (initialBusinesses) {
-      return () => {
-        active = false;
-      };
-    }
-    void Promise.all([fetch("/api/businesses"), fetch("/api/categories")])
-      .then(async ([businessResponse, categoryResponse]) => ({
-        businessResponse,
-        categoryResponse,
-        businessesResult: (await businessResponse.json()) as {
-          businesses?: Business[];
-        },
-        categoriesResult: (await categoryResponse.json()) as {
-          categories?: Category[];
-        },
-      }))
-      .then(
-        ({
-          businessResponse,
-          categoryResponse,
-          businessesResult,
-          categoriesResult,
-        }) => {
-          if (!active || !businessResponse.ok) return;
-          const items = businessesResult.businesses ?? [];
-          setBusinesses(items);
-          if (categoryResponse.ok)
-            setCategories(categoriesResult.categories ?? []);
-        },
-      )
-      .finally(() => {
-        if (active) setLoading(false);
-      });
     return () => {
       active = false;
     };
-  }, [initialBusinesses, requestPosition]);
+  }, [requestPosition, selectArea]);
 
   const filtered = useMemo(() => {
     let result = businesses
@@ -153,6 +131,7 @@ export default function DiscoverPage({
             }
           : business,
       )
+      .filter((business) => businessInArea(business, area))
       .filter((business) =>
         `${business.name} ${business.category} ${business.services.map((service) => service.name).join(" ")}`
           .toLocaleLowerCase("tr")
@@ -163,15 +142,12 @@ export default function DiscoverPage({
         (business) => seoSlug(business.category) === selectedCategory,
       );
     if (openNow) result = result.filter((business) => business.open);
-    if (location)
+    if (area.radius)
       result = result.filter(
         (business) =>
           business.distance !== null && business.distance <= maxDistance,
       );
-    result = result.filter(
-      (business) =>
-        business.startingPrice <= maxPrice && business.rating >= minRating,
-    );
+    result = result.filter((business) => (maxPrice >= 5000 || business.startingPrice <= maxPrice) && business.rating >= minRating);
     if (sort === "distance")
       result = [...result].sort(
         (a, b) =>
@@ -193,6 +169,7 @@ export default function DiscoverPage({
     maxDistance,
     maxPrice,
     minRating,
+    area,
   ]);
 
   const activeBusiness = filtered.find(
@@ -203,7 +180,7 @@ export default function DiscoverPage({
   const activeFilterCount = [
     Boolean(selectedCategory),
     openNow,
-    Boolean(location),
+    Boolean(browse.area.radius || browse.area.city),
     maxDistance < 25,
     maxPrice < 5000,
     minRating > 0,
@@ -232,7 +209,7 @@ export default function DiscoverPage({
   }
 
   function locate() {
-    void requestPosition().then((granted) => { if (granted) setSort("distance"); });
+    void requestPosition().then((granted) => { if (granted) { browse.select("auto"); setSort("distance"); } });
   }
 
   const results = loading ? (
@@ -244,7 +221,7 @@ export default function DiscoverPage({
         />
       ))}
     </div>
-  ) : filtered.length ? (
+  ) : directory.error ? <div role="alert" className="rounded-2xl bg-white p-5 text-sm text-[#A43A4C]">İşletmeler yüklenemedi. Başka bölgenin sonuçları gösterilmez.<button type="button" onClick={() => void directory.retry()} className="ml-2 min-h-11 font-medium text-[#5B3BE7]">Tekrar dene</button></div> : filtered.length ? (
     <div
       className={cn(
         "grid gap-2.5",
@@ -266,6 +243,7 @@ export default function DiscoverPage({
           />
         </div>
       ))}
+      {directory.hasMore && <Button onClick={() => void directory.loadMore()} disabled={loading}>Daha fazla işletme göster</Button>}
     </div>
   ) : (
     <div className="grid min-h-44 place-items-center rounded-2xl border border-dashed border-[#D9D4F3] bg-white p-6 text-center">
@@ -297,6 +275,7 @@ export default function DiscoverPage({
             </Link>
             <button
               type="button"
+              onClick={() => setFilterOpen(true)}
               className="flex items-center gap-1 text-base font-bold"
             >
               {pageTitle}
@@ -320,17 +299,18 @@ export default function DiscoverPage({
               )}
             </button>
           </header>
+          <div className="px-4 py-2"><BrowseAreaSelector compact /></div>
 
           <div className="relative border-b border-[#ECECF1] bg-white">
             <div className="flex scroll-px-4 gap-2 overflow-x-auto px-4 py-2.5 pr-12 hide-scrollbar">
             <select
-              value={sort}
+              value={sort === "distance" && area.lat === undefined ? "recommended" : sort}
               onChange={(event) => setSort(event.target.value)}
               aria-label="Sırala"
               className="h-9 shrink-0 rounded-xl border border-[#E3E3E9] bg-white px-3 text-[11px] font-medium outline-none"
             >
               <option value="recommended">Sırala</option>
-              <option value="distance">En yakın</option>
+              <option value="distance" disabled={area.lat === undefined}>En yakın</option>
               <option value="rating">En yüksek puan</option>
               <option value="price">En ucuz</option>
             </select>
@@ -377,7 +357,7 @@ export default function DiscoverPage({
             <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white via-white/90 to-transparent" />
           </div>
 
-          <section className="relative h-[calc(100dvh-183px)] min-h-[430px] overflow-hidden bg-[#E9EAE6]">
+          <section className="relative h-[calc(100dvh-239px)] min-h-[300px] overflow-hidden bg-[#E9EAE6]">
             <div className="absolute inset-0">
                 <DiscoverMap
                   items={filtered}
@@ -432,7 +412,7 @@ export default function DiscoverPage({
                     </span>
                   </span>
                   <span className="rounded-full bg-[#EEEAFD] px-2.5 py-1 text-[10px] font-semibold text-[#5B3BE7]">
-                    {loading ? "Yükleniyor" : `${filtered.length} sonuç`}
+                    {loading ? "Yükleniyor" : `${directory.total} sonuç`}
                   </span>
                 </span>
               </button>
@@ -448,13 +428,14 @@ export default function DiscoverPage({
           </section>
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex md:h-[calc(100dvh-72px)] md:flex-col">
           <div className="border-b border-[#E8E8EE] bg-white py-3">
             <div className="container-shell">
               <CategoryGrid categories={categories} compact />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-b border-[#E8E8EE] px-8 py-3">
+            <BrowseAreaSelector compact />
             <button
               type="button"
               onClick={() => setOpenNow((value) => !value)}
@@ -499,12 +480,12 @@ export default function DiscoverPage({
             </button>
             <div className="ml-auto flex items-center gap-2">
               <select
-                value={sort}
+                value={sort === "distance" && area.lat === undefined ? "recommended" : sort}
                 onChange={(event) => setSort(event.target.value)}
                 className="rounded-xl border border-[#E8E8EE] bg-white px-3 py-2 text-xs font-medium outline-none"
               >
                 <option value="recommended">Önerilen</option>
-                <option value="distance">En yakın</option>
+                <option value="distance" disabled={area.lat === undefined}>En yakın</option>
                 <option value="rating">En yüksek puan</option>
                 <option value="price">En ucuz</option>
               </select>
@@ -523,7 +504,7 @@ export default function DiscoverPage({
           </div>
           <div
             className={cn(
-              "grid h-[calc(100vh-178px)] min-h-[620px]",
+              "grid min-h-[320px] flex-1",
               desktopListOnly
                 ? "grid-cols-1"
                 : "grid-cols-[minmax(0,1.55fr)_minmax(380px,.8fr)]",
@@ -538,14 +519,14 @@ export default function DiscoverPage({
               <div className="mb-4 flex items-end justify-between">
                 <div>
                   <p className="text-[10px] text-[#8A8A94]">
-                    {location ? "Konumuna göre sıralanabilir" : "Tüm konumlar"}
+                    {browse.label}
                   </p>
                   <h1 className="mt-1 text-lg font-bold">
                     Yayınlanmış işletmeler
                   </h1>
                 </div>
                 <span className="text-[10px] text-[#686872]">
-                  {loading ? "Yükleniyor" : `${filtered.length} sonuç`}
+                  {loading ? "Yükleniyor" : `${directory.total} sonuç`}
                 </span>
               </div>
               {results}
@@ -587,6 +568,7 @@ export default function DiscoverPage({
               </button>
             </div>
             <div className="mt-8 grid gap-7">
+              <BrowseAreaSelector />
               <div>
                 <h3 className="text-sm font-semibold">Kategori</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -646,7 +628,7 @@ export default function DiscoverPage({
                     En yüksek başlangıç fiyatı
                   </h3>
                   <span className="text-xs text-[#6C4BF4]">
-                    {maxPrice.toLocaleString("tr-TR")} TL
+                    {maxPrice >= 5000 ? "Sınırsız" : `${maxPrice.toLocaleString("tr-TR")} TL`}
                   </span>
                 </div>
                 <input

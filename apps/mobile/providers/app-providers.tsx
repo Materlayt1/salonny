@@ -3,6 +3,7 @@ import { useState, type PropsWithChildren } from "react";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ApiError } from "@/lib/api";
 import { LocationProvider } from "@/providers/location-provider";
+import { BrowseAreaProvider } from "@/providers/browse-area-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(() => new QueryClient({
@@ -17,7 +18,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   }));
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider><LocationProvider>{children}</LocationProvider></AuthProvider>
+      <AuthProvider><LocationProvider><BrowseAreaProvider>{children}</BrowseAreaProvider></LocationProvider></AuthProvider>
     </QueryClientProvider>
   );
 }

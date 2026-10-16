@@ -2,7 +2,6 @@
 
 import {
   LoaderCircle,
-  MapPin,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -10,6 +9,9 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BusinessCard } from "@/components/business-card";
 import type { Business, Category } from "@/lib/types";
+import { BrowseAreaSelector } from "@/components/browse-area-selector";
+import { useBrowseArea } from "@/components/use-browse-area";
+import { businessInArea } from "@salonny/contracts/browse-area";
 
 const PAGE_SIZE = 12;
 
@@ -30,7 +32,7 @@ export function HomeBusinessFeed({
   const [businesses, setBusinesses] = useState(initialBusinesses);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
-  const [city, setCity] = useState("");
+  const browse = useBrowseArea();
   const [openNow, setOpenNow] = useState(false);
   const [sort, setSort] = useState("recommended");
   const [total, setTotal] = useState<number | null>(null);
@@ -40,6 +42,7 @@ export function HomeBusinessFeed({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef(0);
+  const invalidateRequest = useCallback(() => { requestId.current++; }, []);
 
   const loadPage = useCallback(
     async (offset: number, replace: boolean) => {
@@ -53,7 +56,7 @@ export function HomeBusinessFeed({
       });
       if (query.trim()) params.set("q", query.trim());
       if (category) params.set("category", category);
-      if (city.trim()) params.set("city", city.trim());
+      new URLSearchParams(browse.key).forEach((value, key) => params.set(key, value));
       if (openNow) params.set("open", "1");
 
       try {
@@ -81,24 +84,23 @@ export function HomeBusinessFeed({
         if (currentRequest === requestId.current) setLoading(false);
       }
     },
-    [category, city, openNow, query, sort],
+    [category, browse.key, openNow, query, sort],
   );
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadPage(0, true), 300);
-    return () => window.clearTimeout(timer);
-  }, [loadPage]);
+    return () => { window.clearTimeout(timer); invalidateRequest(); };
+  }, [loadPage, invalidateRequest]);
 
   function resetFilters() {
     setQuery("");
     setCategory("");
-    setCity("");
     setOpenNow(false);
     setSort("recommended");
   }
 
   const filtersActive = Boolean(
-    query || category || city || openNow || sort !== "recommended",
+    query || category || openNow || sort !== "recommended",
   );
 
   return (
@@ -142,15 +144,7 @@ export function HomeBusinessFeed({
               </option>
             ))}
           </select>
-          <label className="flex h-11 items-center gap-2 rounded-xl border border-[#DDD8EC] bg-white px-3">
-            <MapPin className="h-4 w-4 shrink-0 text-[#8B849C]" />
-            <input
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-              placeholder="Şehir"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-[#9B96A8]"
-            />
-          </label>
+          <BrowseAreaSelector compact />
           <select
             aria-label="Sıralama"
             value={sort}
@@ -190,7 +184,7 @@ export function HomeBusinessFeed({
 
       {businesses.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          {businesses.map((business, index) => (
+          {businesses.filter((business) => businessInArea(business, browse.area)).map((business, index) => (
             <BusinessCard
               key={business.id}
               business={business}

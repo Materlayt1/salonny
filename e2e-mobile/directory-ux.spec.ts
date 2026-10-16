@@ -44,7 +44,7 @@ test("closing filters discards drafts and narrow sheet stays in bounds", async (
 test("empty discovery has a direct way back to real results", async ({ page }) => {
   await mockApi(page, { emptyDirectory: true }); await page.goto("/discover");
   await page.getByRole("button", { name: "Filtreler", exact: true }).click();
-  await page.getByLabel("Şehir filtresi").fill("Bilinmeyen şehir");
+  await page.getByLabel("Şehir filtresi").fill("Ankara");
   await page.getByRole("button", { name: "Filtreleri uygula", exact: true }).click();
   await expect(page.getByText("Sonuç bulunamadı", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Filtreleri temizle", exact: true }).click();

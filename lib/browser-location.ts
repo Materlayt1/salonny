@@ -21,6 +21,12 @@ export function createBrowserLocationStore(getNavigator = () => typeof navigator
     acquiredAt = 0;
     update({ position: null, status: denied ? "denied" : "idle", error: denied ? "Konum izni kapalı. Tarayıcı ayarlarından izin verebilir veya konumsuz keşfedebilirsin." : "" });
   };
+  function acceptPosition(latitude: number, longitude: number) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) return false;
+    acquiredAt = Date.now();
+    update({ position: { lat: Math.round(latitude * 100) / 100, lng: Math.round(longitude * 100) / 100 }, status: "ready", error: "" });
+    return true;
+  }
   function requestPosition(): Promise<boolean> {
     if (pending) return pending;
     if (state.position && Date.now() - acquiredAt < maximumAge) return Promise.resolve(true);
@@ -42,9 +48,7 @@ export function createBrowserLocationStore(getNavigator = () => typeof navigator
         geo.getCurrentPosition((value) => {
           if (generation !== version) { resolve(false); return; }
           const { latitude, longitude } = value.coords;
-          if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) { failure(); return; }
-          acquiredAt = Date.now();
-          update({ position: { lat: Math.round(latitude * 100) / 100, lng: Math.round(longitude * 100) / 100 }, status: "ready", error: "" });
+          if (!acceptPosition(latitude, longitude)) { failure(); return; }
           resolve(true);
         }, failure, { enableHighAccuracy: false, timeout: 10_000, maximumAge });
       } catch { failure(); }
@@ -56,10 +60,12 @@ export function createBrowserLocationStore(getNavigator = () => typeof navigator
   function observePermission() {
     let active = true;
     let permission: PermissionStatus | undefined;
-    const sync = () => {
+    const sync = (event?: Event) => {
       if (!active || !permission) return;
       if (permission.state === "granted") void requestPosition();
-      else clear(permission.state === "denied");
+      // A late initial permission read must not cancel an explicit pending click.
+      // Real permission-change events still invalidate an in-flight request.
+      else if (event || permission.state === "denied" || !pending) clear(permission.state === "denied");
     };
     // Reading permission never prompts. Only restore a previously granted
     // location; first-time visitors opt in through the visible button.
@@ -75,7 +81,7 @@ export function createBrowserLocationStore(getNavigator = () => typeof navigator
     getSnapshot: () => state,
     getServerSnapshot: () => initialState,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    requestPosition, observePermission, clear,
+    requestPosition, observePermission, clear, acceptPosition,
   };
 }
 

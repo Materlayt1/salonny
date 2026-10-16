@@ -17,6 +17,16 @@ function environment(state: PermissionState = "prompt") {
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("shared browser location", () => {
+  it("the map control shares only a valid approximate fix with the same store", () => {
+    const env = environment(); expect(env.store.acceptPosition(38.42373, 27.14282)).toBe(true);
+    expect(env.store.getSnapshot().position).toEqual({ lat: 38.42, lng: 27.14 });
+    for (const [lat, lng] of [[0, 0], [NaN, 27], [91, 27]]) expect(env.store.acceptPosition(lat, lng)).toBe(false);
+  });
+  it("a late prompt-permission observation cannot cancel an explicit in-flight request", async () => {
+    const env = environment(); const request = env.store.requestPosition(); const dispose = env.store.observePermission();
+    await Promise.resolve(); expect(env.store.getSnapshot().status).toBe("loading");
+    env.succeed(); expect(await request).toBe(true); dispose();
+  });
   it("does not request first-time permission automatically", async () => {
     const env = environment(); const dispose = env.store.observePermission();
     await Promise.resolve();

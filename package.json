@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:sql": "node scripts/test-sql-engines.mjs",
+    "test:sql:area": "node scripts/test-marketplace-area-engine.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:browser-performance": "node scripts/browser-performance.mjs",

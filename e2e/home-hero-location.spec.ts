@@ -50,7 +50,7 @@ test("unknown permission does not trigger geolocation until an explicit click", 
   await expect(button).toBeEnabled();
   expect(await page.evaluate(() => Reflect.get(window, "__locationRequests"))).toBe(0);
   await button.click();
-  await expect(page.getByRole("button", { name: "Konum alınıyor…", exact: true })).toBeDisabled();
+  await expect(page.getByTestId("home-location-card").getByRole("button", { name: "Konum alınıyor…", exact: true })).toBeDisabled();
   expect(await page.evaluate(() => Reflect.get(window, "__locationRequests"))).toBe(1);
 });
 

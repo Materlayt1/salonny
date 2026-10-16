@@ -1,4 +1,5 @@
 import "server-only";
+import { businessInArea } from "@salonny/contracts/browse-area";
 
 import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -140,6 +141,9 @@ export type MarketplacePageOptions = {
   sort?: MarketplacePageSort;
   latitude?: number;
   longitude?: number;
+  radiusKm?: number;
+  maxPrice?: number;
+  minRating?: number;
 };
 
 export class MarketplaceSearchUnavailableError extends Error {}
@@ -185,23 +189,27 @@ async function queryMarketplaceBusinessPage(
   options: MarketplacePageOptions = {},
 ): Promise<MarketplaceBusinessPage> {
   const supabase = createPublicSupabaseClientOptional();
-  const advanced = options.sort === "price" || options.sort === "nearest" || Boolean(options.query?.trim());
+  const areaSearch = options.radiusKm !== undefined || Boolean(options.city?.trim()) || options.maxPrice !== undefined || options.minRating !== undefined;
+  const advanced = areaSearch || options.sort === "price" || options.sort === "nearest" || Boolean(options.query?.trim());
   if (!supabase) {
     if (advanced) throw new MarketplaceSearchUnavailableError();
     return fallbackMarketplaceBusinessPage(options);
   }
 
   if (advanced) {
-    const result = await awaitPublicRequest(supabase.rpc("marketplace_search_page", {
+    const result = await awaitPublicRequest(supabase.rpc(areaSearch ? "marketplace_search_area_page" : "marketplace_search_page", {
       p_offset: options.offset ?? 0, p_limit: options.limit ?? 12,
       p_query: options.query?.replace(/[%_\\]/g, "") || null,
       p_category: options.category || null, p_city: options.city || null,
       p_open_now: Boolean(options.openNow), p_sort: options.sort ?? "recommended",
       p_latitude: options.latitude ?? null, p_longitude: options.longitude ?? null,
+      ...(areaSearch ? { p_radius_km: options.radiusKm ?? null, p_max_price_minor: options.maxPrice === undefined ? null : Math.round(options.maxPrice * 100), p_min_rating: options.minRating ?? null } : {}),
     }));
     if (!result || result.error || !result.data) throw new MarketplaceSearchUnavailableError();
     const data = result.data as { ids: string[]; total: number; distances: Record<string, number> };
     const businesses = await getMarketplaceBusinessSummaries(supabase, data.ids);
+    // Never expose an out-of-area summary after a concurrent primary-location edit.
+    if (areaSearch && businesses.some((business) => !businessInArea(business, { city: options.city, lat: options.latitude, lng: options.longitude, radius: options.radiusKm }))) throw new MarketplaceSearchUnavailableError();
     return { businesses: businesses.map((business) => ({ ...business, distance: Number.isFinite(data.distances?.[business.id]) ? Math.round(data.distances[business.id] * 10) / 10 : null })), total: Number(data.total), hasMore: (options.offset ?? 0) + (options.limit ?? 12) < Number(data.total) };
   }
 
@@ -302,6 +310,9 @@ export async function listMarketplaceBusinessPage(
     sort: options.sort ?? "recommended",
     latitude: options.latitude === undefined ? undefined : Math.round(options.latitude * 100) / 100,
     longitude: options.longitude === undefined ? undefined : Math.round(options.longitude * 100) / 100,
+    radiusKm: options.radiusKm,
+    maxPrice: options.maxPrice,
+    minRating: options.minRating,
   };
   const key = JSON.stringify(normalized);
   const now = Date.now();

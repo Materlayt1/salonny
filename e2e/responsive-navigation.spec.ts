@@ -87,12 +87,12 @@ test("home keeps curated rails above a filtered paged directory", async ({ page,
   expect(payload.total).toBeGreaterThanOrEqual(payload.businesses.length);
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Yakınındaki popüler işletmeler" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Popüler işletmeler", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Yeni eklenen işletmeler" })).toBeVisible();
   const directory = page.getByTestId("home-business-directory");
   await expect(directory.getByPlaceholder("İşletme ara")).toBeVisible();
   await expect(directory.getByLabel("Kategori filtresi")).toBeVisible();
-  await expect(directory.getByPlaceholder("Şehir")).toBeVisible();
+  await expect(directory.getByLabel("Şehir seçimi")).toBeVisible();
   await expect(directory.getByLabel("Sıralama")).toBeVisible();
   await expect(directory.getByRole("button", { name: "Şu an açık" })).toBeVisible();
 });

@@ -5,6 +5,18 @@ vi.mock("@/lib/marketplace", () => ({ listMarketplaceBusinessPage: vi.fn(), Mark
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(listMarketplaceBusinessPage).mockResolvedValue({ businesses: [], total: 0, hasMore: false }); });
 const request = (query: string) => new Request(`http://localhost:3001/api/businesses?${query}`);
 describe("public marketplace API", () => {
+  it("bounds nearby results rather than simply sorting distant cities last", async () => {
+    const response = await GET(request("sort=nearest&lat=38.42&lng=27.14"));
+    expect(response.status).toBe(200); expect(listMarketplaceBusinessPage).toHaveBeenCalledWith(expect.objectContaining({ radiusKm: 25 }));
+  });
+  it("normalizes a selected city and passes price/rating restrictions before pagination", async () => {
+    expect((await GET(request("city=izmir&maxPrice=450&minRating=4.5&offset=12&limit=12"))).status).toBe(200);
+    expect(listMarketplaceBusinessPage).toHaveBeenCalledWith(expect.objectContaining({ city: "İzmir", maxPrice: 450, minRating: 4.5, offset: 12 }));
+  });
+  it("rejects malformed geographic/price/rating filters without database requests", async () => {
+    for (const query of ["radius=25", "lat=38&lng=27&radius=", "lat=38&lng=27&radius=101", "lat=38&lng=27&radius=NaN", "minRating=6", "maxPrice=-1", "minRating=", "maxPrice=Infinity"]) expect((await GET(request(query))).status).toBe(422);
+    expect(listMarketplaceBusinessPage).not.toHaveBeenCalled();
+  });
   it("passes global price ordering and service-name search to the database-backed directory", async () => {
     expect((await GET(request("sort=price&q=kesim&offset=12&limit=12"))).status).toBe(200);
     expect(listMarketplaceBusinessPage).toHaveBeenCalledWith(expect.objectContaining({ sort: "price", query: "kesim", offset: 12, limit: 12 }));

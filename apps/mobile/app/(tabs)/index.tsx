@@ -27,6 +27,9 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { BusinessFilterSheet, DirectorySearch } from "@/components/business-filters";
 import { defaultBusinessFilters, filterCount, filterSummary, type BusinessFilters } from "@/lib/business-filters";
 import { BusinessListSkeleton } from "@/components/business-list-skeleton";
+import { BrowseAreaSelector } from "@/components/browse-area-selector";
+import { useBrowseArea } from "@/providers/browse-area-provider";
+import { canonicalCity } from "@salonny/contracts/browse-area";
 
 function BusinessRail({ title, subtitle, businesses, sort = "recommended", loading = false }: {
   title: string;
@@ -63,7 +66,8 @@ export default function HomeScreen() {
   const location = useLocation();
   const highlights = useQuery({ queryKey: ["home-highlights"], queryFn: getHomeHighlights });
   const [category, setCategory] = useState("");
-  const [city, setCity] = useState("");
+  const browse = useBrowseArea();
+  const city = canonicalCity(browse.selection) ?? "";
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [openNow, setOpenNow] = useState(false);
   const [sort, setSort] = useState<BusinessFilters["sort"]>("recommended");
@@ -74,13 +78,15 @@ export default function HomeScreen() {
   const categories = useCategories();
   const directory = useBusinessDirectory({ q: query, category, city, open: openNow, sort, ...(sort === "nearest" && location.position ? { lat: location.position.latitude, lng: location.position.longitude } : {}) });
   const filters: BusinessFilters = { category, city, open: openNow, sort };
-  const applyFilters = (values: BusinessFilters) => { setCategory(values.category); setCity(values.city); setSort(values.sort); setOpenNow(values.open); setFiltersOpen(false); };
+  const applyFilters = (values: BusinessFilters) => { setCategory(values.category); browse.select(values.city.trim() || "auto"); setSort(values.sort); setOpenNow(values.open); setFiltersOpen(false); };
   const resetFilters = () => { setQuery(""); applyFilters({ ...defaultBusinessFilters }); };
   const businesses = useMemo(
     () => directory.data?.pages.flatMap((page) => page.businesses) ?? [],
     [directory.data],
   );
   const refreshing = popular.isRefetching || newest.isRefetching || directory.isRefetching;
+  const scopedServices = browse.key ? [...new Map((recommended.data?.businesses ?? []).flatMap((business) => business.services).map((service) => [service.name, service])).values()].slice(0, 6) : highlights.data?.services ?? [];
+  const scopedReviews = (highlights.data?.reviews ?? []).filter((review) => !browse.key || recommended.data?.businesses.some((business) => business.slug === review.businessSlug));
   const refresh = () => {
     void Promise.all([popular.refetch(), newest.refetch(), recommended.refetch(), highlights.refetch(), ...(location.position ? [nearest.refetch()] : []), categories.refetch(), directory.refetch()]);
   };
@@ -103,6 +109,7 @@ export default function HomeScreen() {
         )} />
 
         <Text style={styles.greeting}>Merhaba{user ? `, ${String(user.user_metadata.full_name ?? "").split(" ")[0] || "hoş geldin"}` : ""} 👋</Text>
+        <BrowseAreaSelector />
         <LinearGradient colors={["#FFFFFF", "#FBFAFF"]} style={styles.hero}>
           <Text style={styles.heroTitle}>Bugün neye ihtiyacın var?</Text>
           <Text style={styles.heroText}>Kuaför, berber, güzellik, veteriner ve daha fazlasını keşfet; sana uygun randevuyu kolayca oluştur.</Text>
@@ -138,13 +145,13 @@ export default function HomeScreen() {
           />
         )}
 
-        <BusinessRail title={location.position ? "Sana en yakın işletmeler" : "En popüler işletmeler"} subtitle={location.position ? "Yaklaşık konumuna göre sıralandı" : "Yüksek puanlı ve çok tercih edilenler"} businesses={(location.position ? nearest : popular).data?.businesses ?? []} loading={(location.position ? nearest : popular).isPending} sort={location.position ? "nearest" : "rating"} />
+        <BusinessRail title={browse.area.radius ? "Sana en yakın işletmeler" : "En popüler işletmeler"} subtitle={browse.area.radius ? "Yalnız 25 km içindeki işletmeler" : `${browse.label} · yüksek puanlı işletmeler`} businesses={(browse.area.radius ? nearest : popular).data?.businesses ?? []} loading={(browse.area.radius ? nearest : popular).isPending} sort={browse.area.radius ? "nearest" : "rating"} />
         {location.error ? <Text style={styles.locationError}>{location.error}</Text> : null}
         <View style={styles.mapBlock}><Text style={styles.mapEyebrow}>CANLI KEŞİF HARİTASI</Text><Text style={styles.mapTitle}>Çevrendeki seçenekleri tek bakışta gör.</Text><Text style={styles.heroText}>Gerçek işletme konumları. Bir noktaya dokun, işletmeyi seç ve ayrıntılara geç.</Text>{mapOpen ? <><BusinessMap items={recommended.data?.businesses ?? []} selectedId={mapSelectedId} onSelect={(business) => setMapSelectedId(business.id)} height={280} />{recommended.data?.businesses.find((business) => business.id === mapSelectedId) ? <BusinessCard compact business={recommended.data.businesses.find((business) => business.id === mapSelectedId)!} /> : null}<AppButton label="Haritada keşfet" variant="secondary" onPress={() => router.push({ pathname: "/discover", params: { map: "1" } })} /></> : <AppButton label="Haritayı aç" variant="secondary" onPress={() => setMapOpen(true)} />}<LocationAction label={location.position ? "Yakınındaki işletmeleri gör" : "Konumumu aç"} onGranted={() => router.push({ pathname: "/discover", params: { nearby: "1", map: "1" } })} /></View>
-        {highlights.data?.services.length ? <View><SectionHeader title="Popüler hizmet ve kategoriler" subtitle="Aradığın hizmete doğrudan ulaş" /><View style={styles.serviceGrid}>{highlights.data.services.map((service) => <Pressable accessibilityRole="button" key={service.name} style={styles.serviceTile} onPress={() => router.push({ pathname: "/discover", params: { q: service.name } })}><Text style={styles.serviceName}>{service.name}</Text><Text style={styles.servicePrice}>{service.price.toLocaleString("tr-TR")} TL&apos;den başlayan</Text><ChevronRight size={17} color={theme.colors.primary} /></Pressable>)}</View></View> : null}
+        {scopedServices.length ? <View><SectionHeader title="Popüler hizmet ve kategoriler" subtitle="Aradığın hizmete doğrudan ulaş" /><View style={styles.serviceGrid}>{scopedServices.map((service) => <Pressable accessibilityRole="button" key={service.name} style={styles.serviceTile} onPress={() => router.push({ pathname: "/discover", params: { q: service.name } })}><Text style={styles.serviceName}>{service.name}</Text><Text style={styles.servicePrice}>{service.price.toLocaleString("tr-TR")} TL&apos;den başlayan</Text><ChevronRight size={17} color={theme.colors.primary} /></Pressable>)}</View></View> : null}
         <BusinessRail title="Yeni eklenen işletmeler" subtitle="Platforma yeni katılanları keşfet" businesses={newest.data?.businesses ?? []} loading={newest.isPending} sort="newest" />
         <BusinessRail title="En yüksek puanlılar" subtitle="Doğrulanmış değerlendirmelerde öne çıkanlar" businesses={(popular.data?.businesses ?? []).filter((business) => business.reviews > 0)} loading={popular.isPending} sort="rating" />
-        {highlights.data?.reviews.length ? <View><SectionHeader title="Müşteriler ne diyor?" subtitle="Tamamlanan randevulardan gelen gerçek değerlendirmeler" /><FlatList horizontal data={highlights.data.reviews} keyExtractor={(review) => review.id} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} ItemSeparatorComponent={() => <View style={{ width: 12 }} />} renderItem={({ item: review }) => <Pressable accessibilityRole="button" onPress={() => router.push(`/business/${review.businessSlug}`)} style={styles.reviewCard}><Text style={styles.reviewVerified}>Doğrulanmış</Text><Text style={styles.reviewStars}>{"★".repeat(review.rating)}</Text><Text numberOfLines={4} style={styles.reviewComment}>{review.comment}</Text><Text style={styles.serviceName}>{review.businessName}</Text><Text style={styles.servicePrice}>İşletmeye git →</Text></Pressable>} /></View> : null}
+        {scopedReviews.length ? <View><SectionHeader title="Müşteriler ne diyor?" subtitle="Tamamlanan randevulardan gelen gerçek değerlendirmeler" /><FlatList horizontal data={scopedReviews} keyExtractor={(review) => review.id} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} ItemSeparatorComponent={() => <View style={{ width: 12 }} />} renderItem={({ item: review }) => <Pressable accessibilityRole="button" onPress={() => router.push(`/business/${review.businessSlug}`)} style={styles.reviewCard}><Text style={styles.reviewVerified}>Doğrulanmış</Text><Text style={styles.reviewStars}>{"★".repeat(review.rating)}</Text><Text numberOfLines={4} style={styles.reviewComment}>{review.comment}</Text><Text style={styles.serviceName}>{review.businessName}</Text><Text style={styles.servicePrice}>İşletmeye git →</Text></Pressable>} /></View> : null}
 
         <View style={styles.directoryHeader}>
           <SectionHeader title="Tüm işletmeler" subtitle="Filtrele, sırala ve sayfa sayfa keşfet" />

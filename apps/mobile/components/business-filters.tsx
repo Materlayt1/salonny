@@ -5,6 +5,7 @@ import { SlidersHorizontal, X, Search } from "lucide-react-native";
 import { AppButton, Chip } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
 import { defaultBusinessFilters, filterCount, sortLabels, type BusinessFilters } from "@/lib/business-filters";
+import { canonicalCity, cityKey, TURKEY_CITIES } from "@salonny/contracts/browse-area";
 
 export function DirectorySearch({ value, onChange, onFilters, count, label = "İşletme veya hizmet ara", ready = true }: { value: string; onChange: (value: string) => void; onFilters: () => void; count: number; label?: string; ready?: boolean }) {
   return <View style={styles.toolbar}>
@@ -16,6 +17,8 @@ export function DirectorySearch({ value, onChange, onFilters, count, label = "İ
 /** Mounted only while open: cancelling discards the draft, not the applied search. */
 export function BusinessFilterSheet({ value, categories, allowNearest = false, onApply, onClose }: { value: BusinessFilters; categories: { id: string; name: string }[]; allowNearest?: boolean; onApply: (value: BusinessFilters) => void; onClose: () => void }) {
   const [draft, setDraft] = useState<BusinessFilters>(() => ({ ...value }));
+  const [cityError, setCityError] = useState("");
+  const cityOptions = draft.city.trim() ? TURKEY_CITIES.filter((city) => cityKey(city).includes(cityKey(draft.city))).slice(0, 6) : ["İstanbul", "İzmir", "Ankara", "Bursa", "Antalya"];
   return <Modal visible transparent animationType="slide" onRequestClose={onClose}>
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
       <Pressable accessibilityRole="button" accessibilityLabel="Filtre panelini kapat" onPress={onClose} style={StyleSheet.absoluteFill} />
@@ -24,11 +27,14 @@ export function BusinessFilterSheet({ value, categories, allowNearest = false, o
         <View style={styles.header}><View style={{ flex: 1 }}><Text accessibilityRole="header" style={styles.title}>Filtreler</Text><Text style={styles.note}>{filterCount(draft)} etkin filtre · değişiklikler uygulayınca kaydedilir</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Filtreleri kapat" onPress={onClose} style={styles.clear}><X size={23} color={theme.colors.text} /></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
           <Text style={styles.label}>Kategori</Text><View style={styles.wrap}><Chip label="Tümü" selected={!draft.category} onPress={() => setDraft((prev) => ({ ...prev, category: "" }))} />{categories.map((category) => <Chip key={category.id} label={category.name} selected={draft.category === category.id} onPress={() => setDraft((prev) => ({ ...prev, category: category.id }))} />)}</View>
-          <Text style={styles.label}>Şehir</Text><TextInput accessibilityLabel="Şehir filtresi" placeholder="Örn. İzmir" placeholderTextColor={theme.colors.muted} value={draft.city} onChangeText={(city) => setDraft((prev) => ({ ...prev, city }))} autoCapitalize="words" maxLength={80} style={styles.city} />
+          <Text style={styles.label}>Şehir</Text><TextInput accessibilityLabel="Şehir filtresi" placeholder="Örn. İzmir" placeholderTextColor={theme.colors.muted} value={draft.city} onChangeText={(city) => { setCityError(""); setDraft((prev) => ({ ...prev, city })); }} autoCapitalize="words" maxLength={80} style={styles.city} />
+          <View style={styles.wrap}>{cityOptions.map((city) => <Chip key={city} label={city} selected={canonicalCity(draft.city) === city} onPress={() => { setCityError(""); setDraft((prev) => ({ ...prev, city })); }} />)}</View>
+          {cityError ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, fontSize: 12 }}>{cityError}</Text> : null}
+          <Text style={styles.note}>Şehir seçimi ana sayfa ve keşfette ortaktır. Boş bırakırsan açık konumunda yalnız 25 km içindeki işletmeler gösterilir.</Text>
           <Text style={styles.label}>Sıralama</Text><View style={styles.wrap}>{(Object.entries(sortLabels) as [BusinessFilters["sort"], string][]).filter(([sort]) => sort !== "nearest" || allowNearest).map(([sort, label]) => <Chip key={sort} label={label} selected={draft.sort === sort} onPress={() => setDraft((prev) => ({ ...prev, sort }))} />)}</View>
           <View style={styles.openRow}><View style={{ flex: 1 }}><Text style={styles.label}>Şu an açık</Text><Text style={styles.note}>Yalnız açık işletmeleri göster</Text></View><Switch accessibilityLabel="Yalnız şu an açık işletmeler" value={draft.open} onValueChange={(open) => setDraft((prev) => ({ ...prev, open }))} trackColor={{ true: theme.colors.primary }} /></View>
         </ScrollView>
-        <View style={styles.actions}><AppButton label="Sıfırla" variant="ghost" onPress={() => setDraft({ ...defaultBusinessFilters })} style={{ flex: 1 }} /><AppButton label="Filtreleri uygula" onPress={() => { Keyboard.dismiss(); onApply({ ...draft, city: draft.city.trim(), sort: !allowNearest && draft.sort === "nearest" ? "recommended" : draft.sort }); }} style={{ flex: 2 }} /></View>
+        <View style={styles.actions}><AppButton label="Sıfırla" variant="ghost" onPress={() => { setDraft({ ...defaultBusinessFilters }); setCityError(""); }} style={{ flex: 1 }} /><AppButton label="Filtreleri uygula" onPress={() => { const city = canonicalCity(draft.city); if (draft.city.trim() && !city) { setCityError("Geçerli bir şehir seç. Örneğin İzmir, İstanbul veya Ankara."); return; } Keyboard.dismiss(); onApply({ ...draft, city: city ?? "", sort: !allowNearest && draft.sort === "nearest" ? "recommended" : draft.sort }); }} style={{ flex: 2 }} /></View>
       </SafeAreaView>
     </KeyboardAvoidingView>
   </Modal>;
