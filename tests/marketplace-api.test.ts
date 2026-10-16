@@ -5,6 +5,17 @@ vi.mock("@/lib/marketplace", () => ({ listMarketplaceBusinessPage: vi.fn(), Mark
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(listMarketplaceBusinessPage).mockResolvedValue({ businesses: [], total: 0, hasMore: false }); });
 const request = (query: string) => new Request(`http://localhost:3001/api/businesses?${query}`);
 describe("public marketplace API", () => {
+  it("keeps CDN variants separate for cities, pages, filters and GPS, including errors", async () => {
+    for (const query of ["city=İzmir", "city=İstanbul&offset=12", "maxPrice=100", "lat=38.42&lng=27.14", "limit=-1", "radius=25"]) {
+      expect((await GET(request(query))).headers.get("netlify-vary")).toBe("query");
+    }
+    vi.mocked(listMarketplaceBusinessPage).mockRejectedValueOnce(new MarketplaceSearchUnavailableError());
+    expect((await GET(request("city=İzmir"))).headers.get("netlify-vary")).toBe("query");
+    vi.mocked(listMarketplaceBusinessPage).mockRejectedValueOnce(new Error("unavailable"));
+    const failed = await GET(request("city=İzmir"));
+    expect(failed.headers.get("netlify-vary")).toBe("query");
+    expect(failed.headers.get("cache-control")).toBe("no-store");
+  });
   it("bounds nearby results rather than simply sorting distant cities last", async () => {
     const response = await GET(request("sort=nearest&lat=38.42&lng=27.14"));
     expect(response.status).toBe(200); expect(listMarketplaceBusinessPage).toHaveBeenCalledWith(expect.objectContaining({ radiusKm: 25 }));
