@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     if (rule) return NextResponse.json({ error: rule.message, code: rule.code }, { status: rule.status, headers: { "Cache-Control": "private, no-store" } });
     const conflict = error.code === "23P01" || error.message.includes("appointment_conflict") || error.message.includes("slot_not_available");
     if (withCoupon && !conflict) { const failure = couponFailure(error); return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status, headers: { "Cache-Control": "private, no-store" } }); }
-    return NextResponse.json({ error: conflict ? "Bu saat az önce doldu. Lütfen başka bir saat seçin." : "Randevu oluşturulamadı." }, { status: conflict ? 409 : 500 });
+    return NextResponse.json({ error: conflict ? "Bu saat az önce doldu. Lütfen başka bir saat seçin." : "Randevu oluşturulamadı.", ...(conflict ? { code: "slot_not_available" } : {}) }, { status: conflict ? 409 : 500, headers: { "Cache-Control": "private, no-store" } });
   }
   if (withCoupon) {
     const result = couponBookingResult.safeParse(data);

@@ -14,7 +14,7 @@ import { useBusiness } from "@/hooks/use-marketplace";
 import { ApiError, createBooking, getAvailability, getCustomerProfile } from "@/lib/api";
 import { dateKey, formatDate, formatTime, upcomingDates } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
-import { validBookingName, validBookingPhone, type CustomerBookingPolicy } from "@salonny/contracts";
+import { validBookingName, validBookingPhone, bookingErrorRequiresNewSlot, type CustomerBookingPolicy } from "@salonny/contracts";
 import { getCustomerBookingPolicy } from "@/lib/api";
 
 const steps = ["Hizmet", "Uzman", "Tarih", "Onay"] as const;
@@ -127,7 +127,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
     onError: (error) => {
       setBookingFailure(error instanceof Error ? error.message : "İşlem tamamlanamadı. Lütfen yeniden dene.");
       if (error instanceof ApiError && error.code === "self_booking_forbidden") void policy.refetch();
-      if (error instanceof ApiError && error.status === 409 && !error.code?.startsWith("coupon_")) {
+      if (error instanceof ApiError && bookingErrorRequiresNewSlot(error.status, error.code)) {
         setSlotSelection({ key: "", value: "" });
         moveTo(2);
         void availability.refetch();
@@ -180,7 +180,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
             </Pressable>;
           })}
         </View>
-        <ScrollView ref={scroll} style={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
+        <ScrollView ref={scroll} style={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "web" ? "none" : "on-drag"} contentContainerStyle={styles.content}>
           <View style={styles.stepHeading}>
             <Text style={styles.stepTitle} accessibilityRole="header" accessibilityLiveRegion="polite">{titles[step]}</Text>
             <Text style={styles.stepDescription}>{descriptions[step]}</Text>

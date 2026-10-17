@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createWaitlistEntry, saveBusinessResource, setWaitlistStatus } from "@/app/business/actions";
+import { createWaitlistEntry, saveBusinessResource, setWaitlistStatus, importCustomers, createStaffAppointmentSeries } from "@/app/business/actions";
 import { requireBusinessPermissionMutation, type BusinessContext } from "@/lib/business-context";
 import { revalidatePath } from "next/cache";
 
@@ -30,6 +30,22 @@ beforeEach(() => {
 });
 
 describe("web operations actions delegate scoped mutations to hardened atomic RPCs", () => {
+  it("imports into the selected verified business, never a first-membership definer", async () => {
+    rpc.mockResolvedValue({data:{jobId:entryId,total:1,imported:1,rejected:0},error:null});
+    expect((await importCustomers([{fullName:"Test müşteri",phone:"05555555555"}])).ok).toBe(true);
+    expect(requireBusinessPermissionMutation).toHaveBeenCalledWith("customers",["OWNER","MANAGER"]);
+    expect(rpc).toHaveBeenCalledWith("import_business_customers",expect.objectContaining({p_business_id:businessId}));expect(from).not.toHaveBeenCalled();
+  });
+  it.each([null,{jobId:entryId,total:2,imported:1,rejected:0},{jobId:entryId,total:1,imported:99,rejected:0}])("malformed import acknowledgement never fabricates success: %j",async(data)=>{
+    rpc.mockResolvedValue({data,error:null});expect((await importCustomers([{fullName:"Test müşteri",phone:"05555555555"}])).ok).toBe(false);expect(revalidatePath).not.toHaveBeenCalled();
+  });
+  it("series creation requires owner/manager and preserves selected branch scope",async()=>{
+    rpc.mockResolvedValue({data:[entryId],error:null});expect((await createStaffAppointmentSeries({customerId,employeeId,serviceId,startsAt:draft.desiredFrom,partySize:1,repeatCount:1,intervalDays:7,source:"staff"})).ok).toBe(true);
+    expect(requireBusinessPermissionMutation).toHaveBeenCalledWith("calendar",["OWNER","MANAGER"]);expect(rpc).toHaveBeenCalledWith("create_staff_appointment_series",expect.objectContaining({p_branch_id:branchId}));
+  });
+  it("series acknowledgement cannot substitute the requested count for missing created IDs",async()=>{
+    rpc.mockResolvedValue({data:null,error:null});expect((await createStaffAppointmentSeries({customerId,employeeId,serviceId,startsAt:draft.desiredFrom,partySize:1,repeatCount:1,intervalDays:7,source:"staff"})).ok).toBe(false);expect(revalidatePath).not.toHaveBeenCalled();
+  });
   it("takes business and branch from verified server context, not untrusted extra fields", async () => {
     const input = { ...draft, businessId: customerId, branchId: serviceId };
     expect(await createWaitlistEntry(input)).toMatchObject({ ok: true, id: entryId });

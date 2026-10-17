@@ -3,14 +3,14 @@ import { CalendarDays, Check, Search, UserX, X } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { updateBusinessAppointmentStatus } from "@/app/business/actions";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatMoney as visibleMoney, formatTime } from "@/lib/format";
+import { formatDate as visibleDate, formatMoney as visibleMoney } from "@/lib/format";
 export type ManagedAppointment = {
     id: string;
     startsAt: string;
     endsAt: string;
     status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
-    totalMinor: number;
-    currency: string;
+    totalMinor?: number | null;
+    currency?: string | null;
     customerName: string;
     customerPhone: string;
     employeeName: string;
@@ -18,9 +18,10 @@ export type ManagedAppointment = {
 };
 const labels = { pending: "Bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal", no_show: "Gelmedi" } as const;
 const tones = { pending: "amber", confirmed: "green", completed: "purple", cancelled: "red", no_show: "gray" } as const;
-export function BusinessAppointmentsManager({ initialAppointments, financialVisible = true, scope }: {
+export function BusinessAppointmentsManager({ initialAppointments, financialVisible = false, timezone = "Europe/Istanbul", scope }: {
     initialAppointments: ManagedAppointment[];
     financialVisible?: boolean;
+    timezone?: string;
     scope?: {
         businessId: string;
         branchId: string;
@@ -31,7 +32,9 @@ export function BusinessAppointmentsManager({ initialAppointments, financialVisi
     const [filter, setFilter] = useState("all");
     const [message, setMessage] = useState("");
     const [pending, startTransition] = useTransition();
-    const formatMoney = (minor: number, currency: string) => financialVisible ? visibleMoney(minor, currency) : "—";
+    const formatMoney = (minor: number | null | undefined, currency: string | null | undefined) => financialVisible && minor != null && currency ? visibleMoney(minor, currency) : "—";
+    const formatTime = (value: string) => new Intl.DateTimeFormat("tr-TR", { timeZone: timezone, hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+    const formatDate = (value: string, options: Intl.DateTimeFormatOptions) => visibleDate(value, { ...options, timeZone: timezone });
     const filtered = useMemo(() => appointments.filter((item) => `${item.customerName} ${item.customerPhone} ${item.serviceName} ${item.employeeName}`.toLocaleLowerCase("tr-TR").includes(query.toLocaleLowerCase("tr-TR")) && (filter === "all" || item.status === filter)), [appointments, query, filter]);
     function change(item: ManagedAppointment, status: ManagedAppointment["status"]) {
         startTransition(async () => {

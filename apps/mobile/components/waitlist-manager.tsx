@@ -156,7 +156,7 @@ export function WaitlistManager({ onClose }: { onClose: () => void }) {
   return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={() => leave(onClose)}>
     <SafeAreaView style={styles.screen} edges={["top", "bottom", "left", "right"]}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.header}><Clock3 size={22} color={theme.colors.primary} /><View style={{ flex: 1 }}><Text style={styles.heading}>{form?.kind === "create" ? "Yeni bekleme kaydı" : form?.kind === "update" ? "Bekleme kaydını düzenle" : form?.kind === "offer" ? "Bekleme teklifi hazırla" : "Bekleme listesi"}</Text><Text style={styles.note}>{context.data?.business.name} · {context.data?.branch.name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Bekleme listesini kapat" disabled={busy} onPress={() => leave(onClose)} style={styles.close}><X size={23} color={theme.colors.text} /></Pressable></View>
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "web" ? "none" : "on-drag"}>
         {mutation.error ? <Text accessibilityRole="alert" style={styles.error}>{mutation.error.message} Yanıt belirsizse aynı taslakla tekrar dene; işlem anahtarı korunur.</Text> : null}
         {refreshError ? <Text accessibilityRole="alert" style={styles.error}>{refreshError}</Text> : null}
         {success ? <Text accessibilityRole="alert" style={styles.success}>{success}</Text> : null}

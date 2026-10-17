@@ -1045,16 +1045,18 @@ export async function importCustomers(
       .min(1)
       .max(5000)
       .parse(rows);
-    const { supabase } = await requireBusinessPermissionMutation("customers");
-    const { data, error } = await supabase.rpc("bulk_import_customers", {
+    const { supabase, business } = await requireBusinessPermissionMutation("customers", ["OWNER", "MANAGER"]);
+    const { data, error } = await supabase.rpc("import_business_customers", {
+      p_business_id: business.id,
       p_rows: parsed,
     });
     if (error) throw error;
-    const result = data as { imported?: number; rejected?: number } | null;
+    const result = z.object({ jobId: idSchema, total: z.number().int().positive(), imported: z.number().int().nonnegative(), rejected: z.number().int().nonnegative() }).strict()
+      .refine((value) => value.total === parsed.length && value.imported + value.rejected === value.total).parse(data);
     refreshBusiness(["/business/customers", "/business/operations"]);
     return {
       ok: true,
-      message: `${result?.imported ?? parsed.length} müşteri içe aktarıldı${result?.rejected ? `, ${result.rejected} satır reddedildi` : ""}.`,
+      message: `${result.imported} müşteri içe aktarıldı${result.rejected ? `, ${result.rejected} satır reddedildi` : ""}.`,
     };
   } catch (error) {
     return failure(error, "Müşteri dosyası içe aktarılamadı.");
@@ -1124,7 +1126,7 @@ export async function createStaffAppointmentSeries(
   try {
     const values = staffSeriesSchema.parse(input);
     const { supabase, branch } =
-      await requireBusinessPermissionMutation("calendar");
+      await requireBusinessPermissionMutation("calendar", ["OWNER", "MANAGER"]);
     const { data, error } = await supabase.rpc(
       "create_staff_appointment_series",
       {
@@ -1140,6 +1142,7 @@ export async function createStaffAppointmentSeries(
       },
     );
     if (error) throw error;
+    const created = z.array(idSchema).length(values.repeatCount).refine((ids) => new Set(ids).size === ids.length).parse(data);
     refreshBusiness([
       "/business/operations",
       "/business/appointments",
@@ -1148,7 +1151,7 @@ export async function createStaffAppointmentSeries(
     ]);
     return {
       ok: true,
-      message: `${Array.isArray(data) ? data.length : values.repeatCount} randevu oluşturuldu.`,
+      message: `${created.length} randevu oluşturuldu.`,
     };
   } catch (error) {
     return failure(

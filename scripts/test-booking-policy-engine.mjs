@@ -131,6 +131,21 @@ try {
   assert("private replay ledger and helper/anonymous RPC privileges closed", !acl.r && !acl.w && !acl.a && !acl.helper);
   const constraints = (await db.query("select count(*) n from pg_constraint where conrelid='public.appointments'::regclass and conname in('appointments_customer_no_overlap','appointments_customer_record_no_overlap') and contype='x' and convalidated")).rows[0].n;
   assert("two actual validated GiST exclusion constraints installed", Number(constraints) === 2);
+  // Integrate 041's identity trigger with the actual 038 booking upsert. The
+  // full 040/041 table/RLS migration is exercised by business-access-engine.
+  const accessBoundary = await source("202610170041_private_business_access_boundary.sql");
+  await db.exec(`create table auth.users(id uuid primary key,phone text,phone_confirmed_at timestamptz); create function auth.role() returns text language sql stable as $$ select 'authenticated'::text $$; insert into auth.users(id) select id from public.users;`);
+  await db.exec(accessBoundary.slice(accessBoundary.indexOf("create function public.customer_identity_phone_key"), accessBoundary.indexOf("notify pgrst")));
+  await db.query("insert into customers(id,business_id,user_id,phone) values($1,$2,null,'05554444444')",[id(23),business]);
+  await actorAs(actor);
+  const bookingSnapshot = async () => (await db.query("select (select count(*) from appointments) appointments,(select count(*) from appointment_items) items,(select count(*) from customers) customers,(select count(*) from notifications) notifications,(select count(*) from audit_logs) audit,(select count(*) from customer_booking_requests) requests")).rows[0];
+  const beforeClaim = await bookingSnapshot();
+  await failure("unverified old CRM phone cannot be claimed through actual booking RPC",()=>book("policy-unverified-01",{starts:at(8),phone:"05554444444"}),"customer_identity_verification_required");
+  assert("identity refusal rolls back booking, items, ledger, contact, notification and audit",JSON.stringify(beforeClaim)===JSON.stringify(await bookingSnapshot()));
+  await db.query("update auth.users set phone='905554444444',phone_confirmed_at=now() where id=$1",[actor]);
+  const verifiedBooking=await book("policy-verified-0001",{starts:at(8),phone:"05554444444"});
+  assert("verified phone links the existing CRM row without replacing its identity",(await db.query("select customer_id,customer_user_id from appointments where id=$1",[verifiedBooking])).rows[0].customer_id===id(23));
+  assert("verified identity path retains original booking replay",await book("policy-verified-0001",{starts:at(8),phone:"05554444444"})===verifiedBooking);
   process.stdout.write(`${JSON.stringify({ engine: "isolated PostgreSQL WASM with real GiST booking constraints", checks, realCustomerWrites: false, realJwtOrConcurrency: false }, null, 2)}\n`);
 } catch (error) { process.stderr.write(`${JSON.stringify({ event: "booking_policy_fixture_failed", code: error.code, message: error.message })}\n`); process.exitCode = 1; }
 finally { await db.close(); }

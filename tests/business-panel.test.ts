@@ -10,7 +10,7 @@ vi.mock("@/lib/api-security", async (original) => ({ ...await original<typeof im
 const id = "10000000-0000-4000-8000-000000000001";
 const branchId = "10000000-0000-4000-8000-000000000002";
 const entityId = "10000000-0000-4000-8000-000000000003";
-const query = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), range: vi.fn(), limit: vi.fn(), gte: vi.fn(), lt: vi.fn(), ilike: vi.fn(), in: vi.fn(), update: vi.fn(), insert: vi.fn(), upsert: vi.fn(), maybeSingle: vi.fn(), single: vi.fn(), then: vi.fn() };
+const query = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), range: vi.fn(), limit: vi.fn(), gte: vi.fn(), lt: vi.fn(), ilike: vi.fn(), in: vi.fn(), update: vi.fn(), insert: vi.fn(), upsert: vi.fn(), maybeSingle: vi.fn(), single: vi.fn(), then: vi.fn(), abortSignal: vi.fn() };
 const from = vi.fn(); const rpc = vi.fn();
 let context: BusinessContext;
 let rows: Record<string, unknown>[];
@@ -19,7 +19,7 @@ const params = (section: string) => ({ params: Promise.resolve({ section }) });
 beforeEach(() => {
   vi.clearAllMocks();
   rows = [{ id: entityId, status: "confirmed", starts_at: "2026-10-05T09:00:00Z", ends_at: "2026-10-05T09:30:00Z", customer_id: id, employee_id: entityId, total_minor: 50000, currency: "TRY", customers: { full_name: "Müşteri", phone: "05555555555" }, employees: { display_name: "Uzman" }, appointment_items: [{ name_snapshot: "Saç kesimi" }] }];
-  for (const method of ["select", "eq", "order", "range", "limit", "gte", "lt", "ilike", "in", "update", "insert", "upsert"] as const) query[method].mockReturnValue(query);
+  for (const method of ["select", "eq", "order", "range", "limit", "gte", "lt", "ilike", "in", "update", "insert", "upsert", "abortSignal"] as const) query[method].mockReturnValue(query);
   query.then.mockImplementation((resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, count: rows.length, error: null }).then(resolve));
   query.maybeSingle.mockResolvedValue({ data: { id: entityId, status: "confirmed" }, error: null });
   query.single.mockResolvedValue({ data: { id: entityId }, error: null });
@@ -40,6 +40,7 @@ describe("native business panel API", () => {
     expect(query.eq).toHaveBeenCalledWith("business_id", id);
     expect(query.eq).toHaveBeenCalledWith("branch_id", branchId);
     expect(query.range).toHaveBeenCalledWith(0, 49);
+    expect(from).toHaveBeenCalledWith("business_calendar_appointments");
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect((await response.json()).rows[0].amountMinor).toBe(50000);
   });
@@ -66,6 +67,11 @@ describe("native business panel API", () => {
     rows = [{ id: entityId, name: "Ürün", sku: "P1", purchase_price_minor: 10000, sale_price_minor: 20000 }];
     const response = await GET(request("inventory"), params("inventory"));
     expect((await response.json()).rows[0]).not.toHaveProperty("purchase_price_minor");
+    expect(from).toHaveBeenCalledWith("business_inventory_access");
+    expect(query.select.mock.calls[0][0]).not.toContain("purchase_price_minor");
+  });
+  it.each(["?offset=-1","?offset=1.5","?offset=Infinity","?offset=100001","?offset=0&offset=50","?date=","?date=2026-10-05&date=2026-10-06","?status=bad","?status=confirmed&status=completed"])("rejects ambiguous or malformed appointment paging/filter %s", async (queryString) => {
+    const response = await GET(request("appointments", undefined, queryString), params("appointments")); expect(response.status).toBe(422); expect(query.range).not.toHaveBeenCalled();
   });
   it("rejects client-supplied ownership fields before writes", async () => {
     const response = await POST(request("services", { name: "Kesim", durationMinutes: 30, price: 500, active: true, business_id: "attacker" }), params("services"));
@@ -90,5 +96,12 @@ describe("native business panel API", () => {
     vi.mocked(apiRateLimit).mockResolvedValue(new Response(null, { status: 503 }) as Awaited<ReturnType<typeof apiRateLimit>>);
     expect((await POST(request("appointments", { id: entityId, status: "completed" }), params("appointments"))).status).toBe(503);
     expect(rpc).not.toHaveBeenCalled();
+  });
+  it("retries an already-applied status through the idempotent RPC", async () => {
+    query.maybeSingle.mockResolvedValue({data:{id:entityId,status:"completed"},error:null});
+    expect((await POST(request("appointments", {id:entityId,status:"completed"}),params("appointments"))).status).toBe(200); expect(rpc).toHaveBeenCalled();
+  });
+  it.each([["42501",403],["22023",409]])("keeps an authoritative status race %s actionable", async (code,status) => {
+    rpc.mockResolvedValue({error:{code,message:"PRIVATE SQL"}}); const response=await POST(request("appointments",{id:entityId,status:"completed"}),params("appointments")); expect(response.status).toBe(status); expect(await response.text()).not.toContain("PRIVATE");
   });
 });

@@ -29,6 +29,7 @@ export function bookingRuleFailure(error: { code?: string; message?: string }): 
   const markers: Array<[string, number, string]> = [
     ["self_booking_forbidden", 403, selfBookingMessage],
     ["customer_identity_conflict", 409, "Bu telefon başka bir müşteri hesabına bağlı. Kendi iletişim bilgilerini kullan veya işletmeyle iletişime geç."],
+    ["customer_identity_verification_required", 409, "Bu numarayla mevcut müşteri kaydını hesabına bağlamak için doğrulanmış telefon gerekiyor. Randevunu işletmeden oluşturmasını isteyebilirsin."],
     ["customer_appointment_conflict", 409, "Bu saat aralığında başka bir randevun var. Çakışmayan bir saat seç."],
     ["BOOKING_KEY_CONFLICT", 409, "Bu işlem anahtarı farklı bir randevu için kullanılmış. Mevcut randevularını kontrol et."],
     ["idempotency_key_conflict", 409, "Bu işlem anahtarı başka bir işlem için kullanılmış. Randevularını kontrol et."],

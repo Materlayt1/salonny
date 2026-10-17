@@ -16,7 +16,7 @@ export async function getBusinessRequestContext(request: Request, options: { all
   const businessId = params.get("businessId");
   const branchId = params.get("branchId");
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if ((businessId && !uuid.test(businessId)) || (branchId && !uuid.test(branchId))) throw new BusinessAccessError("Geçersiz işletme veya şube.", 422);
+  if ((businessId !== null && !uuid.test(businessId)) || (branchId !== null && !uuid.test(branchId)) || params.getAll("businessId").length > 1 || params.getAll("branchId").length > 1) throw new BusinessAccessError("Geçersiz işletme veya şube.", 422);
   let query = client.from("business_members").select("business_id,role,business_member_permissions(permissions,customer_visibility,financial_visibility)").eq("user_id", user.id).eq("active", true);
   if (businessId) query = query.eq("business_id", businessId);
   const membership = await query.order("created_at").limit(1).maybeSingle();

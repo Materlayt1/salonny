@@ -49,7 +49,7 @@ describe("customer booking policy API enforcement", () => {
     expect(response.status).toBe(201); expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(rpc).toHaveBeenCalledWith("create_appointment_atomic", expect.objectContaining({ p_customer_name: "Test müşteri", p_customer_phone: "05555555555", p_customer_email: "fixture@example.invalid" })); expect(builder.eq).toHaveBeenCalledWith("customer_user_id", actorId);
   });
-  it.each([["self_booking_forbidden", 403], ["customer_identity_conflict", 409], ["customer_appointment_conflict", 409], ["BOOKING_KEY_CONFLICT", 409], ["booking_configuration_not_found", 422], ["invalid_booking_input", 422]])("keeps authoritative %s errors actionable on plain and coupon paths", async (marker, status) => {
+  it.each([["self_booking_forbidden", 403], ["customer_identity_conflict", 409], ["customer_identity_verification_required", 409], ["customer_appointment_conflict", 409], ["BOOKING_KEY_CONFLICT", 409], ["booking_configuration_not_found", 422], ["invalid_booking_input", 422]])("keeps authoritative %s errors actionable on plain and coupon paths", async (marker, status) => {
     rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: `${marker}: private diagnostic` } });
     for (const body of [booking, { ...booking, couponCode: "TEST10" }]) { const response = await book(write("bookings", body)); expect(response.status).toBe(status); expect(await response.text()).not.toContain("private"); }
   });
@@ -57,6 +57,10 @@ describe("customer booking policy API enforcement", () => {
     rpc.mockResolvedValueOnce({ data: "bad", error: null }); expect((await book(write("bookings", booking))).status).toBe(503);
     maybeSingle.mockResolvedValueOnce({ data: null, error: null }); expect((await book(write("bookings", booking))).status).toBe(503);
     maybeSingle.mockResolvedValueOnce({ data: { status: "invented" }, error: null }); expect((await book(write("bookings", booking))).status).toBe(503);
+  });
+  it("labels actual slot conflicts explicitly instead of conflating all HTTP 409 errors", async () => {
+    rpc.mockResolvedValue({data:null,error:{code:"23P01",message:"PRIVATE EXCLUSION"}});
+    const response=await book(write("bookings",booking));expect(response.status).toBe(409);expect(response.headers.get("cache-control")).toBe("private, no-store");expect(await response.json()).toEqual({code:"slot_not_available",error:expect.stringContaining("başka bir saat")});
   });
   it("enforces write rate limits before any policy/data access", async () => {
     vi.mocked(apiRateLimit).mockResolvedValue(new Response(null, { status: 429 }) as Awaited<ReturnType<typeof apiRateLimit>>); expect((await book(write("bookings", booking))).status).toBe(429); expect(rpc).not.toHaveBeenCalled(); expect(getCustomerBookingPolicy).not.toHaveBeenCalled();

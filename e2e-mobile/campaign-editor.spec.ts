@@ -75,6 +75,22 @@ test("unused campaign edits all conditions with revision CAS", async ({ page }) 
   await expect(page.getByRole("button", { name: "Kampanya ekranını kapat", exact: true })).toHaveCount(0);
   expect(writes[0].body).toMatchObject({ action: "save", id: campaignId, revision: 3, terms: { code: "NEW30", value: 30, audience: "new" } });
 });
+
+test("validation layout and programmatic scrolling do not steal browser keyboard focus", async ({ page }) => {
+  const writes=await setup(page);await page.getByRole("button",{name:"Yeni kampanya",exact:true}).click();
+  await page.getByRole("button",{name:"Kampanyayı oluştur",exact:true}).click();
+  const field=page.getByLabel("Kampanya indirim değeri",{exact:true});await field.scrollIntoViewIfNeeded();await field.click();await expect(field).toBeFocused();
+  // Dispatch the actual DOM event that RN Web's ScrollView turns into a blur
+  // with keyboardDismissMode=on-drag, even without a user dragging anything.
+  await field.evaluate((input)=>{
+    let scroller=input.parentElement;
+    while(scroller&&!['auto','scroll'].includes(getComputedStyle(scroller).overflowY))scroller=scroller.parentElement;
+    if(!scroller)throw new Error("Campaign scroll container not found");
+    scroller.dispatchEvent(new Event('scroll',{bubbles:false}));
+  });
+  await page.keyboard.type("20",{delay:75});await expect(field).toHaveValue("20");await expect(field).toBeFocused();
+  expect(writes).toHaveLength(0);
+});
 test("used coupon freezes segment and terms but allows name/status CAS", async ({ page }) => {
   const writes = await setup(page, { used: true }); await page.getByRole("button", { name: "Test kampanyası kampanyasını düzenle", exact: true }).click();
   await expect(page.getByText("İndirim koşulları korunuyor", { exact: true })).toBeVisible(); await expect(page.getByLabel("Kampanya kodu", { exact: true })).toHaveCount(0); await expect(page.getByRole("button", { name: "Yeni müşteriler", exact: true })).toHaveCount(0);

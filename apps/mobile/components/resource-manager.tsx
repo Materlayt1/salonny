@@ -102,7 +102,7 @@ export function ResourceManager({ onClose }: { onClose: () => void }) {
   return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={() => leave(onClose)}>
     <KeyboardAvoidingView style={[styles.screen, { paddingTop: Math.max(16, insets.top) }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.header}><Layers size={23} color={theme.colors.primary} /><View style={{ flex: 1 }}><Text style={styles.heading}>{view?.kind === "create" ? "Yeni şube kaynağı" : view?.kind === "update" ? "Kaynak bilgileri" : "Kaynak yönetimi"}</Text><Text style={styles.note}>{context.data?.branch.name ?? "Seçili şube"} · oda, koltuk ve cihaz kapasitesi</Text></View><Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="Kaynak ekranını kapat" disabled={busy} onPress={() => leave(onClose)}><X size={23} color={theme.colors.text} /></Pressable></View>
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "web" ? "none" : "on-drag"}>
         {mutation.error ? <Text accessibilityRole="alert" style={styles.error}>{mutation.error.message}</Text> : null}
         {success ? <Text accessibilityRole="alert" style={styles.success}>{success}</Text> : null}
         {view ? <>

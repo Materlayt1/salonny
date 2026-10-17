@@ -29,6 +29,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
     const limit = 50;
     const q = (search.get("q") ?? "").slice(0, 80).replace(/[%_*\\]/g, "");
     if (section === "appointments" || section === "calendar" || section === "reports") {
+      if (search.has("date") && !/^\d{4}-\d{2}-\d{2}$/.test(search.get("date") ?? "")) throw new BusinessAccessError("Geçersiz tarih.", 422);
       let { query } = await appointmentsQuery(context, search.get("date") ?? undefined);
       const appointmentId = search.get("appointmentId");
       if (appointmentId !== null) {
@@ -38,10 +39,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
         query = query.eq("id", appointmentId);
       }
       const status = search.get("status");
-      if (status && ["pending", "confirmed", "completed", "cancelled", "no_show"].includes(status)) query = query.eq("status", status);
-      const result = await query.order("starts_at", { ascending: section === "calendar" }).range(offset, offset + limit - 1);
+      if (status !== null && (! ["pending", "confirmed", "completed", "cancelled", "no_show"].includes(status) || search.getAll("status").length !== 1)) throw new BusinessAccessError("Geçersiz randevu durumu.", 422);
+      if (status) query = query.eq("status", status);
+      if (!/^\d+$/.test(search.get("offset") ?? "0") || Number(search.get("offset") ?? 0) > 100_000 || search.getAll("offset").length > 1 || search.getAll("date").length > 1) throw new BusinessAccessError("Geçersiz randevu sayfası.", 422);
+      const result = await query.order("starts_at", { ascending: section === "calendar" }).order("id").range(offset, offset + limit - 1).abortSignal(AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]));
       if (result.error) throw result.error;
-      return reply({ rows: appointmentRows((result.data ?? []) as unknown as AppointmentRow[], context), total: result.count ?? 0, hasMore: offset + limit < (result.count ?? 0) });
+      if (!Number.isSafeInteger(result.count) || result.count === null || result.count < 0) throw new BusinessAccessError("Randevu toplamı doğrulanamadı.", 503);
+      return reply({ rows: appointmentRows((result.data ?? []) as unknown as AppointmentRow[], context), total: result.count, hasMore: offset + limit < result.count });
     }
     if (section === "dashboard") return reply(await readBusinessDashboard(context));
     if (section === "settings") {
@@ -81,7 +85,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
       customers: ["customers", "id,full_name,phone,email,notes,total_visits,created_at"],
       services: ["services", "id,name,description,duration_minutes,price_minor,active"],
       employees: ["employees", "id,display_name,title,bio,active"],
-      inventory: ["inventory_products", "id,name,sku,stock_quantity,minimum_stock,purchase_price_minor,sale_price_minor,active"],
+      inventory: ["business_inventory_access", `id,name,sku,stock_quantity,minimum_stock,active${context.financialVisibility ? ",purchase_price_minor,sale_price_minor" : ""}`],
       campaigns: ["campaigns", "id,name,status,created_at,discounts(code,kind,value)"],
     } as const;
     const selection = selections[section as keyof typeof selections];
@@ -126,14 +130,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ sec
     const { supabase: client, business, branch } = context;
     const values = parsed.data;
     if (section === "appointments" && "status" in values && "id" in values) {
-      let check = client.from("appointments").select("id,status").eq("id", values.id!).eq("business_id", business.id).eq("branch_id", branch.id);
+      let check = client.from("business_calendar_appointments").select("id,status").eq("id", values.id!).eq("business_id", business.id).eq("branch_id", branch.id);
       if (context.role === "EMPLOYEE") check = check.eq("employee_id", await ownEmployee(context));
       const existing = await check.maybeSingle();
       if (existing.error) throw existing.error;
       if (!existing.data) throw new BusinessAccessError("Randevu bulunamadı.", 404);
       const transitions: Record<string, string[]> = { pending: ["confirmed", "cancelled"], confirmed: ["completed", "cancelled", "no_show"] };
-      if (!transitions[existing.data.status]?.includes(values.status)) throw new BusinessAccessError("Bu durum değişikliği geçerli değil.", 409);
-      const result = await client.rpc("business_update_appointment_status", { p_appointment_id: values.id, p_status: values.status }); if (result.error) throw result.error;
+      if (existing.data.status !== values.status && !transitions[existing.data.status]?.includes(values.status)) throw new BusinessAccessError("Bu durum değişikliği geçerli değil.", 409);
+      const result = await client.rpc("business_update_appointment_status", { p_appointment_id: values.id, p_status: values.status });
+      if (result.error?.code === "42501") throw new BusinessAccessError("Bu randevuyu güncelleme yetkin yok.", 403);
+      if (result.error?.code === "22023") throw new BusinessAccessError("Randevu durumu değişmiş. Listeyi yenileyip yeniden dene.", 409);
+      if (result.error) throw result.error;
     } else if (isStock && "quantity" in values) {
       const existing = await client.from("inventory_products").select("id").eq("id", values.id).eq("business_id", business.id).maybeSingle(); if (!existing.data) throw new BusinessAccessError("Ürün bulunamadı.", 404);
       const result = await client.rpc("adjust_inventory_stock", { p_product_id: values.id, p_quantity_delta: values.quantity, p_note: values.note || null }); if (result.error) throw result.error;

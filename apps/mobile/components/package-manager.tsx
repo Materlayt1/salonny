@@ -106,7 +106,7 @@ function PackageManagerContent({ onClose }: { onClose: () => void }) {
   return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={() => leave(onClose)}>
     <KeyboardAvoidingView style={[styles.screen, { paddingTop: Math.max(16, insets.top) }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.header}><Package size={23} color={theme.colors.primary} /><View style={{ flex: 1 }}><Text style={styles.heading}>{ledgerId ? "Paket seans geçmişi" : form?.kind === "create" ? "Yeni seans paketi" : form?.kind === "update" ? "Paket bilgileri" : form?.kind === "assign" ? "Müşteriye paket tanımla" : "Paketler ve seanslar"}</Text><Text style={styles.note}>İşletmenin tüm şubelerinde ortak</Text></View><Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="Paket ekranını kapat" disabled={busy} onPress={() => leave(onClose)}><X size={23} color={theme.colors.text} /></Pressable></View>
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 32 + insets.bottom }]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "web" ? "none" : "on-drag"}>
         {mutation.error ? <Text accessibilityRole="alert" style={styles.error}>{mutation.error.message}</Text> : null}
         {success ? <Text accessibilityRole="alert" style={styles.success}>{success}</Text> : null}
         {ledgerId ? <><AppButton label="Müşteri seanslarına dön" variant="ghost" onPress={() => setLedgerId(null)} /><LedgerView key={ledgerId} grantId={ledgerId} /></> : form ? <>
