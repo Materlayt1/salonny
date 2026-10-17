@@ -4,6 +4,7 @@ import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { BusinessAccessError, getBusinessRequestContext, requirePanelPermission } from "@/lib/business-request-context";
 import type { BusinessContext } from "@/lib/business-context";
+import { bookingRuleFailure } from "@/lib/customer-booking-policy";
 
 const uuid = z.string().uuid();
 const input = z.object({ customerId: uuid, serviceId: uuid, employeeId: uuid, startsAt: z.iso.datetime({ offset: true }), idempotencyKey: z.string().min(8).max(160).regex(/^[a-zA-Z0-9_-]+$/) }).strict();
@@ -11,6 +12,7 @@ const reply = (data: unknown, status = 200) => NextResponse.json(data, { status,
 function failed(error: unknown) {
   if (error instanceof BusinessAccessError) return reply({ error: error.message }, error.status);
   const failure = error as { code?: string; message?: string };
+  const rule = bookingRuleFailure(failure); if (rule) return reply({ error: rule.message, code: rule.code }, rule.status);
   if (failure.code === "42501") return reply({ error: "Bu işletmede randevu oluşturma yetkin yok." }, 403);
   if (failure.code === "28000") return reply({ error: "Oturumun doğrulanamadı. Yeniden giriş yap." }, 401);
   if (failure.code === "22023") return reply({ error: "Müşteri, hizmet ve şube seçimlerini yenileyip tekrar dene." }, 422);

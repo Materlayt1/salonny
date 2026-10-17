@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
+import { getCustomerBookingPolicy, bookingPolicyStatus } from "@/lib/customer-booking-policy";
 
 const schema = z.object({
   businessId: z.string().uuid(),
@@ -34,6 +35,8 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user)
     return NextResponse.json({ error: "Giriş yapmalısınız." }, { status: 401 });
+  const policy = await getCustomerBookingPolicy(supabase, user.id, parsed.data.businessId);
+  if (!policy.allowed) return NextResponse.json({ error: policy.message, code: policy.code }, { status: bookingPolicyStatus(policy) });
   const { data, error } = await supabase.rpc("join_customer_waitlist", {
     p_business_id: parsed.data.businessId,
     p_branch_id: parsed.data.branchId,

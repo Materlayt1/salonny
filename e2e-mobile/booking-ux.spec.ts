@@ -44,7 +44,7 @@ test("guided booking keeps its summary visible and validates contact fields besi
   await page.getByLabel("Ad soyad", { exact: true }).fill("");
   await page.getByLabel("Telefon", { exact: true }).fill("123");
   await page.getByRole("button", { name: "Randevuyu oluştur" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Ad soyad en az 2 karakter olmalı." })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Ad soyad 2–120 karakter olmalı; kontrol karakteri içermemeli." })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "geçerli bir telefon" })).toBeVisible();
   await expect(page.getByLabel("Ad soyad", { exact: true })).toHaveValue("");
   expect(writes.filter((write) => write.path === "/api/bookings")).toHaveLength(0);

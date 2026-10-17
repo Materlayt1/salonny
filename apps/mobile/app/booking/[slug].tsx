@@ -14,10 +14,15 @@ import { useBusiness } from "@/hooks/use-marketplace";
 import { ApiError, createBooking, getAvailability, getCustomerProfile } from "@/lib/api";
 import { dateKey, formatDate, formatTime, upcomingDates } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
+import { validBookingName, validBookingPhone, type CustomerBookingPolicy } from "@salonny/contracts";
+import { getCustomerBookingPolicy } from "@/lib/api";
 
 const steps = ["Hizmet", "Uzman", "Tarih", "Onay"] as const;
 const titles = ["Hizmetini seç", "Uzmanını seç", "Sana uygun saati seç", "Bilgilerini kontrol et"];
 const descriptions = ["Süre ve fiyatları karşılaştır, sana uygun hizmetle devam et.", "Seçtiğin hizmeti veren uzmanlar aşağıda.", "İşletmenin yerel saatine göre önümüzdeki 14 gün.", "İletişim bilgilerin işletmeyle paylaşılır. Randevu özeti aşağıda."];
+function validPolicy(value: CustomerBookingPolicy) {
+  return typeof value.allowed === "boolean" && (value.allowed || (["self_booking_forbidden", "booking_unavailable", "booking_policy_unavailable"].includes(value.code) && typeof value.message === "string" && value.message.length > 0 && value.message.length <= 1000));
+}
 
 export default function BookingScreen() {
   const { slug = "", service: initialService } = useLocalSearchParams<{ slug: string; service?: string }>();
@@ -37,6 +42,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   const nameInput = useRef<TextInput>(null);
   const phoneInput = useRef<TextInput>(null);
   const business = useBusiness(slug);
+  const policy = useQuery({ queryKey: ["booking-policy", user?.id, session?.access_token, business.data?.id], queryFn: ({ signal }) => getCustomerBookingPolicy(business.data!.id, session!.access_token, signal), enabled: Boolean(session && business.data?.id), retry: false, staleTime: 0 });
   const [step, setStep] = useState(0);
   const [furthestStep, setFurthestStep] = useState(0);
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -63,14 +69,13 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   // A deliberately cleared field must stay empty rather than silently falling back to the profile.
   const customerName = (name ?? defaultName).trim();
   const customerPhone = phone ?? profile.data?.phone ?? "";
-  const nameError = customerName.length < 2 ? "Ad soyad en az 2 karakter olmalı." : customerName.length > 120 ? "Ad soyad en fazla 120 karakter olabilir." : "";
-  const phoneDigits = customerPhone.replace(/\D/g, "");
-  const phoneError = phoneDigits.length < 10 || phoneDigits.length > 15 || customerPhone.trim().length > 24 ? "Ülke koduyla veya başında 0 ile geçerli bir telefon yaz (en az 10 rakam)." : "";
+  const nameError = !validBookingName(customerName) ? "Ad soyad 2–120 karakter olmalı; kontrol karakteri içermemeli." : "";
+  const phoneError = !validBookingPhone(customerPhone) ? "Ülke koduyla veya başında 0 ile geçerli bir telefon yaz (en az 10 rakam)." : "";
 
   const availability = useQuery({
     queryKey: ["availability", business.data?.id, serviceId, employeeId, date],
     queryFn: () => getAvailability({ businessId: business.data!.id, branchId: business.data!.branchId!, serviceId, employeeId, date }),
-    enabled: Boolean(session && business.data?.branchId && serviceId && employeeId && date && step >= 2),
+    enabled: Boolean(session && policy.data?.allowed && business.data?.branchId && serviceId && employeeId && date && step >= 2),
     staleTime: 15_000,
   });
   // A refreshed response may remove a slot without a service/date change. Never submit that stale selection.
@@ -99,6 +104,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
 
   const booking = useMutation({
     mutationFn: () => {
+      if (!policy.data?.allowed || policy.isError || policy.isFetching) throw new ApiError("Randevu yetkini yeniden kontrol et.", 403, "booking_policy_unavailable");
       if (activeCoupon?.pending) throw new ApiError("Kuponu uygula veya kaldırarak devam et.", 422, "coupon_not_applied");
       // Keep this guard independent from the button state and server-side validation.
       if (!session || !user || !business.data?.branchId || !serviceId || !employeeId || !slot || nameError || phoneError) throw new Error("Randevu bilgilerini kontrol et ve uygun bir saat seç.");
@@ -120,6 +126,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
     },
     onError: (error) => {
       setBookingFailure(error instanceof Error ? error.message : "İşlem tamamlanamadı. Lütfen yeniden dene.");
+      if (error instanceof ApiError && error.code === "self_booking_forbidden") void policy.refetch();
       if (error instanceof ApiError && error.status === 409 && !error.code?.startsWith("coupon_")) {
         setSlotSelection({ key: "", value: "" });
         moveTo(2);
@@ -147,6 +154,10 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   if (authLoading || business.isLoading) return <Screen><LoadingState label="Randevu ekranı hazırlanıyor..." /></Screen>;
   if (!session || !user) return <Screen><EmptyState icon="◷" title="Randevu için giriş yap" detail="Bilgilerini güvenle kaydetmek ve randevunu yönetmek için hesabına giriş yap." action={<AppButton label="Giriş yap" onPress={() => router.push("/auth")} />} /></Screen>;
   if (business.isError || !business.data) return <Screen><ErrorState onRetry={() => void business.refetch()} /></Screen>;
+  if (policy.isPending || policy.isFetching) return <Screen><LoadingState label="Randevu yetkin kontrol ediliyor..." /></Screen>;
+  if (policy.isError || !policy.data || policy.data.businessId !== business.data.id) return <Screen><EmptyState title="Randevu yetkisi doğrulanamadı" detail="Bağlantını kontrol edip yeniden dene." action={<AppButton label="Yeniden dene" onPress={() => void policy.refetch()} />} /></Screen>;
+  if (!validPolicy(policy.data)) return <Screen><ErrorState onRetry={() => void policy.refetch()} /></Screen>;
+  if (!policy.data.allowed) return <Screen><EmptyState icon="!" title={policy.data.code === "self_booking_forbidden" ? "Kendi işletmene randevu alamazsın" : "Randevu şu anda açılamıyor"} detail={policy.data.message} action={<>{policy.data.code === "self_booking_forbidden" ? <AppButton label="İşletme paneline git" onPress={() => router.replace({ pathname: "/manage/[section]", params: { section: "appointments", businessId: business.data!.id } })} /> : <AppButton label="Yeniden dene" onPress={() => void policy.refetch()} />}<AppButton label="Başka işletmeleri keşfet" variant="secondary" onPress={() => router.replace("/discover")} /></>} /></Screen>;
   if (!business.data.branchId || !business.data.services.length || !business.data.employees.length) return <Screen><EmptyState icon="!" title="Randevu henüz açık değil" detail="Bu işletme hizmet veya çalışan planını tamamladığında randevu alabilirsin." /></Screen>;
 
   const canContinue = step === 0 ? Boolean(serviceId) : step === 1 ? Boolean(employeeId) : Boolean(slot) && !availability.isError && (step !== 3 || !activeCoupon?.pending);

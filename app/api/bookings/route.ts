@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { couponBookingResult, couponCode, couponFailure } from "@/lib/coupon-contract";
+import { getCustomerBookingPolicy, bookingPolicyStatus, bookingRuleFailure } from "@/lib/customer-booking-policy";
+import { validBookingName, validBookingPhone } from "@salonny/contracts";
 
 const bookingSchema = z.object({
   businessId: z.uuid(),
@@ -10,11 +12,11 @@ const bookingSchema = z.object({
   employeeId: z.uuid(),
   serviceId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
-  customer: z.object({ name: z.string().min(2).max(120), phone: z.string().min(10).max(24), email: z.email() }),
+  customer: z.object({ name: z.string().trim().refine(validBookingName), phone: z.string().trim().refine(validBookingPhone), email: z.string().trim().max(254).pipe(z.email()) }).strict(),
   paymentMethod: z.enum(["business", "online"]),
   bookingToken: z.string().regex(/^[a-f0-9]{18}$/i).optional(),
   couponCode: couponCode.optional(),
-});
+}).strict();
 
 export async function POST(request: Request) {
   const body = await readBoundedJson(request, 65_536);
@@ -33,6 +35,8 @@ export async function POST(request: Request) {
   }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Randevu oluşturmak için giriş yapmanız gerekiyor." }, { status: 401 });
+  const policy = await getCustomerBookingPolicy(supabase, user.id, parsed.data.businessId);
+  if (!policy.allowed) return NextResponse.json({ error: policy.message, code: policy.code }, { status: bookingPolicyStatus(policy), headers: { "Cache-Control": "private, no-store" } });
 
   const parameters = {
     p_business_id: parsed.data.businessId,
@@ -48,6 +52,8 @@ export async function POST(request: Request) {
   const withCoupon = Boolean(parsed.data.couponCode);
   const { data, error } = await supabase.rpc(withCoupon ? "create_appointment_with_coupon" : "create_appointment_atomic", withCoupon ? { ...parameters, p_coupon_code: parsed.data.couponCode } : parameters);
   if (error) {
+    const rule = bookingRuleFailure(error);
+    if (rule) return NextResponse.json({ error: rule.message, code: rule.code }, { status: rule.status, headers: { "Cache-Control": "private, no-store" } });
     const conflict = error.code === "23P01" || error.message.includes("appointment_conflict") || error.message.includes("slot_not_available");
     if (withCoupon && !conflict) { const failure = couponFailure(error); return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status, headers: { "Cache-Control": "private, no-store" } }); }
     return NextResponse.json({ error: conflict ? "Bu saat az önce doldu. Lütfen başka bir saat seçin." : "Randevu oluşturulamadı." }, { status: conflict ? 409 : 500 });
@@ -58,7 +64,9 @@ export async function POST(request: Request) {
     if (parsed.data.bookingToken) await supabase.rpc("track_booking_conversion", { p_token: parsed.data.bookingToken });
     return NextResponse.json(result.data, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   }
-  const { data: appointment } = await supabase.from("appointments").select("status").eq("id", data).eq("customer_user_id", user.id).maybeSingle();
+  if (!z.uuid().safeParse(data).success) return NextResponse.json({ error: "Randevu sonucu doğrulanamadı. Aynı işlemle yeniden dene veya randevularını kontrol et." }, { status: 503 });
+  const { data: appointment, error: appointmentError } = await supabase.from("appointments").select("status").eq("id", data).eq("customer_user_id", user.id).maybeSingle();
+  if (appointmentError || !appointment || !z.enum(["pending", "confirmed", "completed", "cancelled", "no_show"]).safeParse(appointment.status).success) return NextResponse.json({ error: "Randevu durumu doğrulanamadı. Yeniden göndermeden önce randevularını kontrol et." }, { status: 503 });
   if (parsed.data.bookingToken) await supabase.rpc("track_booking_conversion", { p_token: parsed.data.bookingToken });
-  return NextResponse.json({ id: data, status: appointment?.status ?? "pending" }, { status: 201 });
+  return NextResponse.json({ id: data, status: appointment.status }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
 }

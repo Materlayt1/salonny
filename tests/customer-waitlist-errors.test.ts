@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { GET, POST } from "@/app/api/waitlist/route";
 import { apiRateLimit } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
+vi.mock("@/lib/customer-booking-policy", async (original) => ({ ...await original<typeof import("@/lib/customer-booking-policy")>(), getCustomerBookingPolicy: vi.fn(async (_client: unknown, _actor: string, businessId: string) => ({ businessId, allowed: true })) }));
 
 vi.mock("@/lib/api-security", async (original) => ({ ...await original<typeof import("@/lib/api-security")>(), apiRateLimit: vi.fn() }));
 vi.mock("@/lib/supabase/request", () => ({ createRequestClientOptional: vi.fn() }));

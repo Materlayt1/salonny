@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
+import { getCustomerBookingPolicy, bookingPolicyStatus } from "@/lib/customer-booking-policy";
 
-const schema = z.object({ appointmentId: z.uuid(), rating: z.number().int().min(1).max(5), comment: z.string().trim().max(2000).optional().default("") });
+const schema = z.object({ appointmentId: z.uuid(), rating: z.number().int().min(1).max(5), comment: z.string().trim().max(2000).optional().default("") }).strict();
 
 export async function POST(request: Request) {
   const body = await readBoundedJson(request, 16_384);
@@ -16,8 +17,14 @@ export async function POST(request: Request) {
   if (!supabase) return NextResponse.json({ error: "Veritabanı bağlantısı yapılandırılmamış." }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Değerlendirme için giriş yapmalısınız." }, { status: 401 });
+  const appointment = await supabase.from("appointments").select("business_id").eq("id", parsed.data.appointmentId).eq("customer_user_id", user.id).maybeSingle();
+  if (appointment.error) return NextResponse.json({ error: "Randevu doğrulanamadı." }, { status: 503 });
+  if (!appointment.data) return NextResponse.json({ error: "Randevu bulunamadı." }, { status: 404 });
+  const policy = await getCustomerBookingPolicy(supabase, user.id, appointment.data.business_id);
+  if (!policy.allowed && policy.code !== "booking_unavailable") return NextResponse.json({ error: policy.code === "self_booking_forbidden" ? "Kendi işletmeni müşteri olarak değerlendiremezsin." : policy.message, code: policy.code === "self_booking_forbidden" ? "self_review_forbidden" : policy.code }, { status: bookingPolicyStatus(policy) });
   const { data, error } = await supabase.rpc("create_verified_review", { p_appointment_id: parsed.data.appointmentId, p_rating: parsed.data.rating, p_comment: parsed.data.comment || null });
   if (error) {
+    if (error.message.includes("self_review_forbidden")) return NextResponse.json({ error: "Kendi işletmeni müşteri olarak değerlendiremezsin.", code: "self_review_forbidden" }, { status: 403 });
     const message = error.message.includes("appointment_not_completed") ? "Yalnız tamamlanmış randevular değerlendirilebilir." : error.message.includes("review_already_exists") ? "Bu randevuyu daha önce değerlendirdiniz." : error.message.includes("appointment_not_found") ? "Randevu bulunamadı." : "Değerlendirme kaydedilemedi.";
     return NextResponse.json({ error: message }, { status: error.message.includes("review_already_exists") ? 409 : 400 });
   }

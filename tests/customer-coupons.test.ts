@@ -6,6 +6,7 @@ import { createRequestClientOptional } from "@/lib/supabase/request";
 import { createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import { couponCode, couponQuote } from "@/lib/coupon-contract";
 import type { SupabaseClient } from "@supabase/supabase-js";
+vi.mock("@/lib/customer-booking-policy", async (original) => ({ ...await original<typeof import("@/lib/customer-booking-policy")>(), getCustomerBookingPolicy: vi.fn(async (_client: unknown, _actor: string, businessId: string) => ({ businessId, allowed: true })) }));
 vi.mock("@/lib/supabase/request", () => ({ createRequestClientOptional: vi.fn() }));
 vi.mock("@/lib/supabase/public", () => ({ createPublicSupabaseClientOptional: vi.fn() }));
 vi.mock("@/lib/api-security", async (original) => ({ ...await original<typeof import("@/lib/api-security")>(), apiRateLimit: vi.fn() }));
@@ -58,8 +59,10 @@ describe("customer coupon contract and endpoints", () => {
       expect(response.status).toBe(status); const body = await response.json(); expect(body.code).toBe(message.toLowerCase()); expect(body.error).not.toContain("private-email");
     }
   });
-  it("saves only via the atomic coupon RPC; never applies client prices", async () => {
-    const response = await book(request("bookings", { ...booking, totalMinor: 1, discountMinor: 999999 }));
+  it("saves only via the atomic coupon RPC; rejects injected client prices", async () => {
+    expect((await book(request("bookings", { ...booking, totalMinor: 1, discountMinor: 999999 }))).status).toBe(422);
+    expect(rpc).not.toHaveBeenCalled();
+    const response = await book(request("bookings", booking));
     expect(response.status).toBe(201); expect((await response.json()).totalMinor).toBe(11111);
     expect(rpc).toHaveBeenCalledWith("create_appointment_with_coupon", { p_business_id: businessId, p_branch_id: branchId, p_employee_id: employeeId, p_service_id: serviceId, p_starts_at: booking.startsAt, p_customer_name: "Fixture", p_customer_phone: "05555555555", p_customer_email: "fixture@example.invalid", p_idempotency_key: "test-booking-000001", p_coupon_code: "TEST10" });
   });

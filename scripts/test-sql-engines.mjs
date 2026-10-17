@@ -1,6 +1,6 @@
 // Reproducible synthetic SQL gates. No environment secrets or remote database.
 import { spawnSync } from "node:child_process";
-const engines = ["staff-schedule-engine", "coupon-engine", "report-engine", "package-ledger-engine", "campaign-editor", "customer-care-engine", "business-setup-engine"];
+const engines = ["staff-schedule-engine", "coupon-engine", "report-engine", "package-ledger-engine", "campaign-editor", "customer-care-engine", "business-setup-engine", "booking-policy-engine"];
 const summaries = [];
 function countPasses(value) {
   if (Array.isArray(value)) return value.reduce((total, child) => total + countPasses(child), 0);

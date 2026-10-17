@@ -2,6 +2,7 @@ import type {
   Business,
   Category,
   CustomerAppointment,
+  CustomerBookingPolicy,
   MarketplacePage,
   NotificationItem,
   SessionSummary,
@@ -126,6 +127,8 @@ export async function setFavorite(
     method: favorite ? "POST" : "DELETE",
   }, accessToken);
 }
+
+export const getCustomerBookingPolicy = (businessId: string, token: string, signal?: AbortSignal) => requestJson<CustomerBookingPolicy>(`/api/booking-policy?${new URLSearchParams({ businessId })}`, { signal }, token);
 
 export async function getAvailability(input: {
   businessId: string;

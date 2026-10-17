@@ -119,6 +119,7 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
     if (path === "/api/businesses") { if (options.delayedDirectory) await new Promise((resolve) => setTimeout(resolve, 800)); return respond({ businesses: options.emptyDirectory && new URL(req.url()).searchParams.get("city") ? [] : [business], hasMore: false, total: options.emptyDirectory && new URL(req.url()).searchParams.get("city") ? 0 : 1 }); }
     if (path === `/api/businesses/${business.slug}`) return respond({ business: options.gallery ? { ...detailBusiness, gallery: [business.image, "http://localhost:3001/recovered/gogo-varol.webp"], reviewItems: [{ id: appointmentId, rating: 5, comment: "Kontrollü test değerlendirmesi", businessReply: "", createdAt: "2026-10-01T09:00:00Z" }] } : detailBusiness });
     if (path === "/api/session-summary") return respond({ authenticated: true, displayName: "Test Müşteri", city: "İzmir", hasBusiness: options.businessAccount ?? false, isAdmin: false, unreadCount: 1, favoriteBusinessIds: [] });
+    if (path === "/api/booking-policy") return respond({ businessId: new URL(req.url()).searchParams.get("businessId"), allowed: true });
     if (path.startsWith("/api/business-management/")) {
       const section = path.split("/").pop();
       const branchId = new URL(req.url()).searchParams.get("branchId") ?? business.branchId;

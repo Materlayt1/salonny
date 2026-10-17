@@ -4,6 +4,7 @@ import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import { couponFailure, couponOffer, couponQuote, couponSelection } from "@/lib/coupon-contract";
+import { getCustomerBookingPolicy, bookingPolicyStatus, bookingRuleFailure } from "@/lib/customer-booking-policy";
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 export async function GET(request: Request) {
   try {
@@ -29,8 +30,10 @@ export async function POST(request: Request) {
     const user = (await client.auth.getUser()).data.user;
     if (!user) return reply({ error: "Kupon uygulamak için giriş yapmalısın." }, 401);
     const values = parsed.data;
+    const policy = await getCustomerBookingPolicy(client, user.id, values.businessId);
+    if (!policy.allowed) return reply({ error: policy.message, code: policy.code }, bookingPolicyStatus(policy));
     const result = await client.rpc("quote_customer_coupon", { p_business_id: values.businessId, p_branch_id: values.branchId, p_employee_id: values.employeeId, p_service_id: values.serviceId, p_code: values.code });
-    if (result.error) { const failure = couponFailure(result.error); return reply({ error: failure.message, code: failure.code }, failure.status); }
+    if (result.error) { const rule = bookingRuleFailure(result.error); if (rule) return reply({ error: rule.message, code: rule.code }, rule.status); const failure = couponFailure(result.error); return reply({ error: failure.message, code: failure.code }, failure.status); }
     const quote = couponQuote.parse(result.data);
     if (quote.code !== values.code) throw new Error("Unexpected coupon");
     return reply(quote);

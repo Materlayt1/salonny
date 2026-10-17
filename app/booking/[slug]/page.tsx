@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BookingFlow } from "@/components/booking-flow";
 import { getMarketplaceBusiness } from "@/lib/marketplace";
 import { createServerClientOptional } from "@/lib/supabase/server";
+import { getCustomerBookingPolicy } from "@/lib/customer-booking-policy";
 
 export default async function BookingPage({
   params,
@@ -23,6 +24,8 @@ export default async function BookingPage({
   if (!business) notFound();
   const supabase = await createServerClientOptional();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const policy = supabase && user ? await getCustomerBookingPolicy(supabase, user.id, business.id) : null;
+  if (policy && !policy.allowed) return <main className="grid min-h-screen place-items-center bg-[#F8F8FA] p-4"><section className="surface max-w-lg p-8 text-center"><h1 className="text-2xl font-semibold">{policy.code === "self_booking_forbidden" ? "Kendi işletmene müşteri randevusu alamazsın" : "Randevu şu anda açılamıyor"}</h1><p role="status" className="mt-4 text-sm leading-6 text-[#686872]">{policy.message}</p><Link href={policy.code === "self_booking_forbidden" ? "/business/appointments" : `/business/${business.slug}`} className="mt-6 inline-flex rounded-xl bg-[#6C4BF4] px-5 py-3 text-sm font-medium text-white">{policy.code === "self_booking_forbidden" ? "İşletme paneline git" : "İşletmeye dön"}</Link></section></main>;
   if (
     !business.branchId ||
     !business.services.length ||

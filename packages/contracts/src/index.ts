@@ -1,5 +1,7 @@
 export { notificationDestination, notificationUuid, notificationSlug } from "./notifications";
 export type { NotificationItem } from "./notifications";
+export { validBookingName, validBookingPhone } from "./booking-policy";
+export type { CustomerBookingPolicy } from "./booking-policy";
 
 export type Category = {
   id: string;

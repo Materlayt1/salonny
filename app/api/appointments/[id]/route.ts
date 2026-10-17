@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
+import { bookingRuleFailure } from "@/lib/customer-booking-policy";
 
 const idSchema = z.uuid();
 const dateSchema = z.iso.date();
@@ -13,7 +14,7 @@ const actionSchema = z.discriminatedUnion("action", [
 function errorMessage(message: string) {
   if (message.includes("cancellation_window_closed")) return "İşletmenin iptal süresi dolduğu için bu randevu artık iptal edilemiyor.";
   if (message.includes("minimum_notice_required")) return "Seçtiğiniz saat işletmenin minimum bildirim süresine uymuyor.";
-  if (message.includes("appointment_conflict")) return "Bu saat az önce doldu. Lütfen başka bir saat seçin.";
+  if (message.includes("appointment_conflict") || message.includes("slot_not_available")) return "Bu saat az önce doldu. Lütfen başka bir saat seçin.";
   if (message.includes("resource_graph_changed")) return "Hizmetin kaynak ihtiyaçları değişmiş. Randevunu taşımak için işletmeyle iletişime geç; mevcut randevun korunuyor.";
   if (message.includes("resource_conflict")) return "Seçtiğin saatte gerekli oda, koltuk veya cihaz dolu. Başka bir saat seç; mevcut randevun korunuyor.";
   if (message.includes("outside_working_hours")) return "Seçtiğiniz saat çalışma saatlerinin dışında.";
@@ -64,6 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const { data, error } = await supabase.rpc("reschedule_customer_appointment", { p_appointment_id: id, p_new_starts_at: parsed.data.startsAt });
-  if (error) return NextResponse.json({ error: errorMessage(error.message) }, { status: ["appointment_conflict", "resource_conflict", "resource_graph_changed"].some((code) => error.message.includes(code)) ? 409 : 400 });
+  if (error) { const rule = bookingRuleFailure(error); if (rule) return NextResponse.json({ error: rule.message, code: rule.code }, { status: rule.status }); }
+  if (error) return NextResponse.json({ error: errorMessage(error.message) }, { status: ["appointment_conflict", "slot_not_available", "resource_conflict", "resource_graph_changed"].some((code) => error.message.includes(code)) ? 409 : 400 });
   return NextResponse.json({ id: data.id, status: data.status, startsAt: data.starts_at, endsAt: data.ends_at });
 }
