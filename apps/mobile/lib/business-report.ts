@@ -57,20 +57,4 @@ export async function getBusinessReport(token: string, scope: PanelScope, filter
   return decodeBusinessReport(result, scope, filters, offset);
 }
 
-export function formatReportMoney(minor: string, currency: string): string {
-  if (!canonicalMinor(minor) || !/^[A-Z]{3}$/.test(currency)) invalid();
-  const amount = BigInt(minor); const major = amount / BigInt(100); const cents = (amount % BigInt(100)).toString().padStart(2, "0");
-  return `${major.toLocaleString("tr-TR")},${cents} ${currency}`;
-}
-
-export function reportPercentChange(current: number, previous: number): string {
-  return previous === 0 ? "Önceki dönem sıfır; yüzde değişim hesaplanamaz." : `${current >= previous ? "+" : ""}${((current - previous) / previous * 100).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}% önceki döneme göre`;
-}
-
-export function reportValueChange(current: string, previous: string): string {
-  if (!canonicalMinor(current) || !canonicalMinor(previous)) invalid();
-  const base = BigInt(previous); if (base === BigInt(0)) return "Önceki dönem sıfır; yüzde değişim hesaplanamaz.";
-  const change = (BigInt(current) - base) * BigInt(10_000) / base;
-  const absolute = change < BigInt(0) ? -change : change;
-  return `${change < BigInt(0) ? "−" : "+"}${(absolute / BigInt(100)).toLocaleString("tr-TR")},${(absolute % BigInt(100)).toString().padStart(2, "0")}% önceki döneme göre`;
-}
+export { formatReportMoney, reportPercentChange, reportValueChange } from "../../../lib/business-report-format";

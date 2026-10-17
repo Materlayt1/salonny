@@ -5,7 +5,10 @@ const SERVER_REQUEST_TIMEOUT_MS = 2_000;
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const timeoutSignal = AbortSignal.timeout(target.includes("/auth/v1/") ? 12_000 : SERVER_REQUEST_TIMEOUT_MS);
+  // The complete report RPC has its own 12s budget. A cookie-based SSR client
+  // must not silently shorten that to the ordinary 2s metadata request limit.
+  const path = new URL(target).pathname;
+  const timeoutSignal = AbortSignal.timeout(path.startsWith("/auth/v1/") || path === "/rest/v1/rpc/native_business_report" ? 12_000 : SERVER_REQUEST_TIMEOUT_MS);
   const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
   return fetch(input, { ...init, signal });
 }

@@ -3,37 +3,13 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { BusinessAccessError, getBusinessRequestContext, requirePanelPermission } from "@/lib/business-request-context";
-import type { BusinessContext } from "@/lib/business-context";
+import { appointmentRows, appointmentsQuery, ownEmployee, readBusinessDashboard, type AppointmentRow } from "@/lib/business-panel-read";
 import { customerCareDirectoryQuery, customerCareDirectorySchema } from "@/lib/customer-care-contract";
 
 const sections = new Set(["context", "dashboard", "appointments", "calendar", "customers", "services", "employees", "reports", "inventory", "campaigns", "operations", "settings"]);
 const reply = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
 function failed(error: unknown) { return reply({ error: error instanceof BusinessAccessError ? error.message : "İşlem tamamlanamadı. Yeniden dene." }, error instanceof BusinessAccessError ? error.status : 503); }
 function one<T>(value: T | T[] | null) { return Array.isArray(value) ? value[0] : value; }
-async function ownEmployee(context: BusinessContext) {
-  const result = await context.supabase.from("employees").select("id").eq("business_id", context.business.id).eq("user_id", context.user.id).eq("active", true).limit(1).maybeSingle();
-  if (result.error) throw new BusinessAccessError("Çalışan bilgisi alınamadı.", 503);
-  if (!result.data) throw new BusinessAccessError("Çalışan eşleşmesi bulunamadı.", 403);
-  return result.data.id as string;
-}
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-async function appointmentsQuery(context: BusinessContext, date?: string) {
-  let query = context.supabase.from("appointments").select("id,customer_id,employee_id,starts_at,ends_at,status,total_minor,currency,customers(full_name,phone),employees(display_name),appointment_items(name_snapshot)", { count: "exact" }).eq("business_id", context.business.id).eq("branch_id", context.branch.id);
-  if (context.role === "EMPLOYEE") query = query.eq("employee_id", await ownEmployee(context));
-  if (date) {
-    if (!datePattern.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00+03:00`))) throw new BusinessAccessError("Geçersiz tarih.", 422);
-    const start = new Date(`${date}T00:00:00+03:00`);
-    if (new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(start) !== date) throw new BusinessAccessError("Geçersiz tarih.", 422);
-    query = query.gte("starts_at", start.toISOString()).lt("starts_at", new Date(start.getTime() + 86_400_000).toISOString());
-  }
-  // Supabase builders are thenable; wrapping avoids executing before pagination.
-  return { query };
-}
-type AppointmentRow = { id: string; customer_id: string; employee_id: string; starts_at: string; ends_at: string; status: string; total_minor: number; currency: string; customers: { full_name: string; phone: string } | { full_name: string; phone: string }[] | null; employees: { display_name: string } | { display_name: string }[] | null; appointment_items: { name_snapshot: string }[] | null };
-function appointmentRows(rows: AppointmentRow[], context: BusinessContext) {
-  return rows.map((row) => ({ id: row.id, title: context.customerVisibility === "none" ? "Müşteri" : one(row.customers)?.full_name ?? "Müşteri", subtitle: `${row.appointment_items?.[0]?.name_snapshot ?? "Hizmet"} · ${one(row.employees)?.display_name ?? "Çalışan"}`, phone: context.customerVisibility === "none" ? "" : one(row.customers)?.phone ?? "", status: row.status, startsAt: row.starts_at, endsAt: row.ends_at, employeeId: row.employee_id, ...(context.financialVisibility ? { amountMinor: row.total_minor, currency: row.currency } : {}) }));
-}
-
 export async function GET(request: Request, { params }: { params: Promise<{ section: string }> }) {
   try {
     const { section } = await params;
@@ -67,18 +43,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
       if (result.error) throw result.error;
       return reply({ rows: appointmentRows((result.data ?? []) as unknown as AppointmentRow[], context), total: result.count ?? 0, hasMore: offset + limit < (result.count ?? 0) });
     }
-    if (section === "dashboard") {
-      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date());
-      const { query: todayQuery } = context.permissions.calendar ? await appointmentsQuery(context, today) : { query: null };
-      const [appointments, services, employees, customers] = await Promise.all([
-        todayQuery ? todayQuery.order("starts_at").limit(8) : Promise.resolve({ data: [], count: null, error: null }),
-        client.from("services").select("id", { count: "exact", head: true }).eq("business_id", business.id).eq("active", true),
-        client.from("employees").select("id", { count: "exact", head: true }).eq("business_id", business.id).eq("active", true),
-        context.customerVisibility === "all" && context.permissions.customers ? client.from("customers").select("id", { count: "exact", head: true }).eq("business_id", business.id) : Promise.resolve({ count: null, error: null }),
-      ]);
-      if (appointments.error || services.error || employees.error || customers.error) throw new Error("Dashboard query failed");
-      return reply({ rows: appointmentRows((appointments.data ?? []) as unknown as AppointmentRow[], context), total: appointments.count ?? 0, hasMore: false, metrics: [...(appointments.count !== null ? [{ label: "Bugünkü randevular", value: String(appointments.count), icon: "calendar" }] : []), { label: "Aktif hizmetler", value: String(services.count ?? 0), icon: "scissors" }, { label: "Çalışanlar", value: String(employees.count ?? 0), icon: "users" }, ...(customers.count !== null ? [{ label: "Müşteriler", value: String(customers.count), icon: "customer" }] : [])] });
-    }
+    if (section === "dashboard") return reply(await readBusinessDashboard(context));
     if (section === "settings") {
       const result = await client.from("business_settings").select("booking_window_days,minimum_notice_minutes,cancellation_notice_minutes,auto_confirm,allow_waitlist").eq("business_id", business.id).maybeSingle();
       if (result.error) throw result.error;

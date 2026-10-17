@@ -18,7 +18,7 @@ const read = (extra = `&appointmentId=${id}`, section = "appointments") => GET(n
 beforeEach(() => {
   vi.clearAllMocks(); for (const method of [builder.select, builder.eq, builder.order]) method.mockReturnValue(builder);
   builder.range.mockResolvedValue({ data: [], count: 0, error: null });
-  from.mockImplementation((table) => table === "employees" ? { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ maybeSingle: async () => ({ data: { id: employeeId }, error: null }) }) }) }) }) }) } : builder);
+  from.mockImplementation((table) => table === "employees" ? { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: [{ id: employeeId }], error: null }) }) }) }) }) } : builder);
   context = { supabase: { from } as unknown as BusinessContext["supabase"], user: { id }, role: "OWNER", permissions: { calendar: true, customers: true, campaigns: true, inventory: true, reports: true, operations: true }, customerVisibility: "all", financialVisibility: true, business: { id: businessId, name: "Test", slug: "test", status: "published", timezone: "Europe/Istanbul" }, branch: { id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }, branches: [] };
   vi.mocked(getBusinessRequestContext).mockResolvedValue(context); vi.mocked(apiRateLimit).mockResolvedValue(null);
 });

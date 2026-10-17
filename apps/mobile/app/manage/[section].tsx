@@ -23,7 +23,7 @@ import { notificationUuid } from "@salonny/contracts";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif hazırlandı" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
-const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date());
+const today = (timeZone = "Europe/Istanbul") => new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
 const money = (minor: number, currency = "TRY") => `${(minor / 100).toLocaleString("tr-TR")} ${currency === "TRY" ? "₺" : currency}`;
 const editable: PanelSection[] = ["customers", "services", "employees", "inventory"];
 type FormField = { key: string; label: string; numeric?: boolean; multiline?: boolean };
@@ -79,7 +79,9 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   const params = useLocalSearchParams<{ appointmentId?: string }>();
   const appointmentId = section === "appointments" ? notificationUuid(params.appointmentId) ?? undefined : undefined;
   const queryClient = useQueryClient();
-  const [date, setDate] = useState(today);
+  const [selectedDate, setDate] = useState<string | null>(null);
+  const panelTimezone = context.data?.branch.timezone ?? context.data?.business.timezone ?? "Europe/Istanbul";
+  const date = selectedDate ?? today(panelTimezone);
   const [search, setSearch] = useState("");
   const [settledSearch, setSettledSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -128,10 +130,11 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Bekleme listesi yönetimi" variant="secondary" onPress={() => setWaitlistManager(true)} /> : null}
         {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Kaynak yönetimi" variant="secondary" onPress={() => setResourceManager(true)} /> : null}
         {section === "dashboard" && first?.metrics ? <View style={styles.metrics}>{first.metrics.map((metric) => { const Icon = metricIcons[metric.icon] ?? CalendarDays; return <View key={metric.label} style={styles.metric}><View style={styles.metricIcon}><Icon size={22} color={theme.colors.primary} /></View><Text style={styles.metricValue}>{metric.value}</Text><Text style={styles.description}>{metric.label}</Text></View>; })}</View> : null}
-        {section === "calendar" ? <View style={styles.dateRow}><Pressable accessibilityLabel="Önceki gün" onPress={() => shiftDay(-1)} style={styles.dateButton}><ChevronLeft color={theme.colors.primary} size={22} /></Pressable><Text style={styles.label}>{new Date(`${date}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "short" })}</Text><Pressable accessibilityLabel="Sonraki gün" onPress={() => shiftDay(1)} style={styles.dateButton}><ChevronRight color={theme.colors.primary} size={22} /></Pressable><Chip label="Bugün" onPress={() => setDate(today())} /></View> : null}
+        {section === "calendar" ? <View style={styles.dateRow}><Pressable accessibilityRole="button" accessibilityLabel="Önceki gün" onPress={() => shiftDay(-1)} style={styles.dateButton}><ChevronLeft color={theme.colors.primary} size={22} /></Pressable><Text style={styles.label}>{new Date(`${date}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "short", timeZone: "UTC" })}</Text><Pressable accessibilityRole="button" accessibilityLabel="Sonraki gün" onPress={() => shiftDay(1)} style={styles.dateButton}><ChevronRight color={theme.colors.primary} size={22} /></Pressable><Chip label="Bugün" onPress={() => setDate(today(panelTimezone))} /></View> : null}
         {editable.includes(section) ? <View style={styles.search}><Search size={18} color={theme.colors.muted} /><TextInput accessibilityLabel="Panelde ara" placeholder="İsim veya ad ile ara..." value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.colors.text, paddingVertical: 12 }} /></View> : null}
         {section === "appointments" ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}><Chip label="Tümü" selected={!status} onPress={() => setStatus("")} />{["pending", "confirmed", "completed", "cancelled", "no_show"].map((value) => <Chip key={value} label={statuses[value]} selected={status === value} onPress={() => setStatus(value)} />)}</ScrollView> : null}
-        {section === "dashboard" ? <Text style={styles.subheading}>Bugünkü randevular</Text> : null}
+        {section === "dashboard" && first?.timezone ? <Text style={styles.description}>{context.data?.branch.name} · {first.date} · {first.timezone}{context.data?.role === "EMPLOYEE" ? " · yalnız kendi randevuların" : ""}. Hizmet/çalışan sayıları seçili şubeye, işletme müşteri sayısı işletme geneline aittir.</Text> : null}
+        {section === "dashboard" && context.data?.permissions.calendar ? <><Text style={styles.subheading}>Bugünkü randevular</Text>{first && (first.total ?? 0) > rows.length ? <AppButton label="Bugünün tüm randevularını göster" variant="ghost" onPress={() => router.push({ pathname: "/manage/[section]", params: { section: "calendar", ...scope } })} /> : null}</> : null}
         {section === "settings" && first?.settings ? <View style={styles.card}><View style={styles.cardTitle}><CheckCircle2 color={theme.colors.primary} size={22} /><Text style={styles.subheading}>Randevu kuralları</Text></View><Text style={styles.description}>Randevu penceresi: {first.settings.booking_window_days} gün</Text><Text style={styles.description}>En erken randevu: {first.settings.minimum_notice_minutes} dakika</Text><Text style={styles.description}>İptal sınırı: {first.settings.cancellation_notice_minutes} dakika</Text><Text style={styles.description}>Otomatik onay: {first.settings.auto_confirm ? "Açık" : "Kapalı"}</Text><Text style={styles.description}>Bekleme listesi: {first.settings.allow_waitlist ? "Açık" : "Kapalı"}</Text><AppButton label="Ayarları düzenle" onPress={() => { mutation.reset(); setEditor({}); }} /></View> : null}
         {page.isPending ? <LoadingState label="Veriler yükleniyor..." /> : null}
         {page.isError ? <EmptyState title="Veriler alınamadı" detail={page.error.message} action={<AppButton label="Yeniden dene" onPress={() => void page.refetch()} />} /> : null}

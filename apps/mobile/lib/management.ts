@@ -16,9 +16,9 @@ export const panelSections: { key: PanelSection; label: string; description: str
   { key: "settings", label: "Ayarlar", description: "Randevu ve bekleme listesi ayarları" },
 ];
 export type PanelContext = {
-  business: { id: string; name: string; slug: string; status: string };
+  business: { id: string; name: string; slug: string; status: string; timezone?: string };
   businesses: { id: string; name: string }[];
-  branch: { id: string; name: string };
+  branch: { id: string; name: string; timezone?: string };
   branches: { id: string; name: string }[];
   role: "OWNER" | "MANAGER" | "EMPLOYEE";
   permissions: Record<string, boolean>;
@@ -34,7 +34,7 @@ export type PanelRow = {
   sku?: string; purchase_price_minor?: number; sale_price_minor?: number; kind?: string;
 };
 export type PanelSettings = { booking_window_days: number; minimum_notice_minutes: number; cancellation_notice_minutes: number; auto_confirm: boolean; allow_waitlist: boolean };
-export type PanelPage = { rows: PanelRow[]; total?: number; hasMore?: boolean; metrics?: { label: string; value: string; icon: string }[]; settings?: PanelSettings };
+export type PanelPage = { rows: PanelRow[]; total?: number; hasMore?: boolean; date?: string; timezone?: string; metrics?: { label: string; value: string; icon: string }[]; settings?: PanelSettings };
 export type PanelScope = { businessId?: string; branchId?: string };
 function path(section: string, params: Record<string, string | number | undefined>) {
   const search = new URLSearchParams();
