@@ -23,7 +23,7 @@ export function AdminLoginForm() {
     if (!supabase) { setError("Supabase bağlantısı yapılandırılmamış."); setPending(false); return; }
 
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError || !data.user) { setError(authErrorMessage(signInError?.code, "signin")); setPending(false); return; }
+    if (signInError || !data.user) { setError(authErrorMessage(signInError?.code, "signin", signInError?.status)); setPending(false); return; }
     const { data: profile } = await supabase.from("users").select("role").eq("id", data.user.id).maybeSingle();
     if (profile?.role !== "ADMIN") {
       await supabase.auth.signOut();

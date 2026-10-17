@@ -1,9 +1,6 @@
 node_modules
 .next
 out
-demo-site/out
-demo-site/.next
-demo-site/public
 coverage
 playwright-report
 test-results
@@ -13,3 +10,4 @@ test-results
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+/public/mobile/

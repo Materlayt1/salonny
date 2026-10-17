@@ -1,0 +1,108 @@
+[build]
+  # Keep the native browser preview and the full Next.js backend in one deploy.
+  command = "pnpm mobile:export:hosted && pnpm build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "24"
+  PNPM_VERSION = "11.25.0"
+  NETLIFY_NEXT_SKEW_PROTECTION = "true"
+
+# Next.js -> public-file rewrites are not supported by the Netlify adapter.
+# Resolve only native SCREEN paths at the CDN; never add a /mobile/* fallback
+# that would turn missing JavaScript or CSS files into successful HTML.
+[[redirects]]
+  from = "/mobile"
+  to = "/mobile/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/manage"
+  to = "/mobile/manage/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/auth"
+  to = "/mobile/auth.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/discover"
+  to = "/mobile/discover.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/favorites"
+  to = "/mobile/favorites.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/appointments"
+  to = "/mobile/appointments.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/profile"
+  to = "/mobile/profile.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/booking-action"
+  to = "/mobile/booking-action.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/notifications"
+  to = "/mobile/notifications.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/profile-edit"
+  to = "/mobile/profile-edit.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/business-setup"
+  to = "/mobile/business-setup.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/business/:slug"
+  to = "/mobile/business/%5Bslug%5D.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/booking/:slug"
+  to = "/mobile/booking/%5Bslug%5D.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/appointment/:id"
+  to = "/mobile/appointment/%5Bid%5D.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile/manage/:section"
+  to = "/mobile/manage/%5Bsection%5D.html"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/mobile/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Content-Type-Options = "nosniff"

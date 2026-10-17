@@ -18,17 +18,22 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useState, useSyncExternalStore } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { BRAND } from "@/config/brand";
 import { authErrorMessage } from "@/lib/auth/messages";
+import { safeAuthDestination } from "@/lib/auth/redirect";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type AuthMode = "signin" | "signup";
 type AccountRole = "customer" | "business";
 
-function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: AccountRole; next?: string; initialError?: string }) {
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
+function AuthForm({ mode, role, next, initialError, hydrated }: { mode: AuthMode; role: AccountRole; next?: string; initialError?: string; hydrated: boolean }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState(initialError);
@@ -36,6 +41,7 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!hydrated || pending) return;
     setPending(true);
     setErrorMessage(undefined);
 
@@ -46,8 +52,8 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
     const phone = String(form.get("phone") ?? "").trim();
     const city = String(form.get("city") ?? "").trim();
     const businessName = String(form.get("business_name") ?? "").trim();
-    if (!email || password.length < 8) {
-      setErrorMessage("Geçerli bir e-posta ve en az 8 karakterli şifre gir.");
+    if (!email || !password || (mode === "signup" && password.length < 8)) {
+      setErrorMessage(mode === "signup" ? "Geçerli bir e-posta ve en az 8 karakterli şifre gir." : "E-posta ve şifreni gir.");
       setPending(false);
       return;
     }
@@ -62,22 +68,23 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
       return;
     }
 
+    try {
     const supabase = createBrowserSupabaseClient();
     const fallback = role === "business"
       ? mode === "signup" ? "/business/onboarding" : "/business/dashboard"
       : "/";
-    const destination = next?.startsWith("/") && !next.startsWith("//") ? next : fallback;
+    const destination = safeAuthDestination(next, fallback);
 
     if (!supabase) {
-      router.replace(destination);
-      router.refresh();
+      setErrorMessage("Kimlik servisi şu anda çevrimdışı. Supabase projesi geri yüklendiğinde giriş yeniden açılacak.");
+      setPending(false);
       return;
     }
 
     if (mode === "signin") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        setErrorMessage(authErrorMessage(error.code, "signin"));
+        setErrorMessage(authErrorMessage(error.code, "signin", error.status));
         setPending(false);
         return;
       }
@@ -95,7 +102,7 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
       },
     });
     if (error) {
-      setErrorMessage(authErrorMessage(error.code, "signup"));
+      setErrorMessage(authErrorMessage(error.code, "signup", error.status));
       setPending(false);
       return;
     }
@@ -124,25 +131,30 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
     }
     router.replace(`/auth/verify?email=${encodeURIComponent(email)}`);
     router.refresh();
+    } catch {
+      setErrorMessage("Bağlantı kurulamadı. Lütfen yeniden dene.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
+    <form onSubmit={handleSubmit} aria-busy={!hydrated || pending} className="mt-6 grid gap-4">
       <input type="hidden" name="role" value={role} />
       {next && <input type="hidden" name="next" value={next} />}
 
       {mode === "signup" && <>
         <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-full-name`}>
           Ad soyad
-          <span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><UserRound className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-full-name`} name="full_name" required minLength={2} autoComplete="name" placeholder="Adın ve soyadın" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span>
+          <span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><UserRound className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-full-name`} name="full_name" readOnly={!hydrated} required minLength={2} autoComplete="name" placeholder="Adın ve soyadın" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span>
         </label>
         {role === "business" && <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-business-name`}>
           İşletme adı
-          <span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><Building2 className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-business-name`} name="business_name" required minLength={2} autoComplete="organization" placeholder="İşletmenin görünen adı" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span>
+          <span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><Building2 className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-business-name`} name="business_name" readOnly={!hydrated} required minLength={2} autoComplete="organization" placeholder="İşletmenin görünen adı" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span>
         </label>}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-phone`}>Telefon<span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><Phone className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-phone`} name="phone" type="tel" required minLength={10} autoComplete="tel" placeholder="+90 5xx..." className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span></label>
-          <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-city`}>Şehir<span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><MapPin className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-city`} name="city" required autoComplete="address-level1" placeholder="İzmir" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span></label>
+          <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-phone`}>Telefon<span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><Phone className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-phone`} name="phone" type="tel" readOnly={!hydrated} required minLength={10} autoComplete="tel" placeholder="+90 5xx..." className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span></label>
+          <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-city`}>Şehir<span className="flex h-12 items-center gap-3 rounded-xl border border-[#DFDFE6] bg-white px-3 transition focus-within:border-[#6C4BF4] focus-within:ring-4 focus-within:ring-[#6C4BF4]/10"><MapPin className="h-4 w-4 shrink-0 text-[#8A8A94]" /><input id={`${mode}-city`} name="city" readOnly={!hydrated} required autoComplete="address-level1" placeholder="İzmir" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]" /></span></label>
         </div>
       </>}
 
@@ -154,6 +166,7 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
             id={`${mode}-email`}
             name="email"
             type="email"
+            readOnly={!hydrated}
             required
             autoComplete="email"
             placeholder="ornek@email.com"
@@ -163,9 +176,9 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
       </label>
 
       {mode === "signup" && <div className="grid gap-2.5 rounded-xl bg-[#FAFAFC] p-3 text-xs leading-5 text-[#666672]">
-        <label className="flex items-start gap-2.5"><input name="terms_consent" type="checkbox" required className="mt-1 accent-[#6C4BF4]" /><span><Link href="/terms" target="_blank" className="font-semibold text-[#6C4BF4] underline">Kullanım Şartları</Link>&apos;nı okudum ve kabul ediyorum.</span></label>
-        <label className="flex items-start gap-2.5"><input name="kvkk_consent" type="checkbox" required className="mt-1 accent-[#6C4BF4]" /><span><Link href="/kvkk" target="_blank" className="font-semibold text-[#6C4BF4] underline">KVKK Aydınlatma Metni</Link>&apos;ni okudum.</span></label>
-        <label className="flex items-start gap-2.5"><input name="marketing_consent" type="checkbox" className="mt-1 accent-[#6C4BF4]" /><span>Kampanya ve ürün duyurularını almak istiyorum. <span className="text-[#92929C]">(İsteğe bağlı)</span></span></label>
+        <label className="flex items-start gap-2.5"><input name="terms_consent" type="checkbox" disabled={!hydrated} required className="mt-1 accent-[#6C4BF4]" /><span><Link href="/terms" target="_blank" className="font-semibold text-[#6C4BF4] underline">Kullanım Şartları</Link>&apos;nı okudum ve kabul ediyorum.</span></label>
+        <label className="flex items-start gap-2.5"><input name="kvkk_consent" type="checkbox" disabled={!hydrated} required className="mt-1 accent-[#6C4BF4]" /><span><Link href="/kvkk" target="_blank" className="font-semibold text-[#6C4BF4] underline">KVKK Aydınlatma Metni</Link>&apos;ni okudum.</span></label>
+        <label className="flex items-start gap-2.5"><input name="marketing_consent" type="checkbox" disabled={!hydrated} className="mt-1 accent-[#6C4BF4]" /><span>Kampanya ve ürün duyurularını almak istiyorum. <span className="text-[#92929C]">(İsteğe bağlı)</span></span></label>
       </div>}
 
       <label className="grid gap-2 text-sm font-medium" htmlFor={`${mode}-password`}>
@@ -179,14 +192,16 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
             id={`${mode}-password`}
             name="password"
             type={showPassword ? "text" : "password"}
+            readOnly={!hydrated}
             required
-            minLength={8}
+            minLength={mode === "signup" ? 8 : 1}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             placeholder="••••••••"
             className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B1B1BA]"
           />
           <button
             type="button"
+            disabled={!hydrated}
             onClick={() => setShowPassword((value) => !value)}
             aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
             className="rounded-lg p-1 text-[#8A8A94] transition hover:bg-[#F2F0FA] hover:text-[#6C4BF4]"
@@ -202,30 +217,24 @@ function AuthForm({ mode, role, next, initialError }: { mode: AuthMode; role: Ac
         </div>
       )}
 
+      {mode === "signin" && <Link href="/auth/reset-password" className="text-right text-xs font-semibold text-[#6C4BF4]">Şifremi unuttum</Link>}
+
       <button
-        disabled={pending}
+        disabled={!hydrated || pending}
         className="mt-1 flex h-12 items-center justify-center rounded-xl bg-[#6C4BF4] text-sm font-semibold text-white shadow-[0_10px_24px_rgba(108,75,244,.22)] transition hover:bg-[#5635E6] disabled:cursor-wait disabled:opacity-60"
       >
         {pending ? "Lütfen bekleyin..." : mode === "signup" ? "Ücretsiz Hesap Oluştur" : "Giriş Yap"}
       </button>
+      {!hydrated && <p role="status" className="text-xs text-[#686872]">Giriş ekranı hazırlanıyor...</p>}
     </form>
   );
 }
 
-function ComingSoonButton({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      disabled
-      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E1E1E7] bg-[#FAFAFC] px-3 text-xs font-semibold text-[#777781]"
-    >
-      {label}
-      <span className="rounded-md bg-[#EEEAFD] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#6C4BF4]">Yakında</span>
-    </button>
-  );
-}
-
 export function AuthScreen({ initialMode, initialRole = "customer", next, initialError }: { initialMode: AuthMode; initialRole?: AccountRole; next?: string; initialError?: string }) {
+  // Server HTML cannot accept input before React installs its event handlers.
+  // The client snapshot becomes ready after the hydration commit, without a
+  // timing-based delay or reset of values the customer has already entered.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [role, setRole] = useState<AccountRole>(initialRole);
   const signup = mode === "signup";
@@ -235,7 +244,7 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
       <section className="flex min-h-screen flex-col px-5 py-6 sm:px-10 lg:px-14 xl:px-20">
         <div className="flex items-center justify-between">
           <BrandLogo />
-          <Link href="/" className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-[#777781] transition hover:bg-[#F7F7FA] hover:text-[#15151A]">
+          <Link href="/" className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-[#686872] transition hover:bg-[#F7F7FA] hover:text-[#15151A]">
             <ArrowLeft className="h-4 w-4" /> Ana sayfa
           </Link>
         </div>
@@ -263,30 +272,24 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
           <h1 className="mt-5 text-3xl font-bold tracking-[-.035em] sm:text-[34px]">
             {signup ? `${BRAND.name}'ye katıl` : "Tekrar hoş geldin"}
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[#777781]">
+          <p className="mt-2 text-sm leading-6 text-[#686872]">
             {signup ? "Ücretsiz hesabını oluştur, iyi hizmete daha hızlı ulaş." : "Randevularına ve favorilerine kaldığın yerden devam et."}
           </p>
 
           <div className="mt-7 grid grid-cols-2 rounded-xl bg-[#F4F4F7] p-1" aria-label="Hesap türü">
-            <button type="button" onClick={() => setRole("customer")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "customer" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#777781]")}>Müşteriyim</button>
-            <button type="button" onClick={() => setRole("business")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "business" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#777781]")}>İşletmeyim</button>
+            <button type="button" disabled={!hydrated} onClick={() => setRole("customer")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "customer" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#686872]")}>Müşteriyim</button>
+            <button type="button" disabled={!hydrated} onClick={() => setRole("business")} className={cn("rounded-lg px-3 py-2.5 text-xs font-semibold transition", role === "business" ? "bg-white text-[#5B3BE7] shadow-sm" : "text-[#686872]")}>İşletmeyim</button>
           </div>
 
-          <AuthForm key={`${mode}-${role}`} mode={mode} role={role} next={next} initialError={initialError} />
+          <AuthForm key={`${mode}-${role}`} mode={mode} role={role} next={next} initialError={initialError} hydrated={hydrated} />
 
-          <div className="my-6 flex items-center gap-3 text-[11px] text-[#A1A1AA]"><span className="h-px flex-1 bg-[#E8E8EE]" />veya<span className="h-px flex-1 bg-[#E8E8EE]" /></div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ComingSoonButton label="Google ile devam et" />
-            <ComingSoonButton label="Apple ile devam et" />
-          </div>
-
-          <p className="mt-7 text-center text-sm text-[#777781]">
+          <p className="mt-6 text-center text-sm text-[#686872]">
             {signup ? "Zaten hesabın var mı?" : "Henüz hesabın yok mu?"}{" "}
-            <button type="button" onClick={() => setMode(signup ? "signin" : "signup")} className="font-semibold text-[#6C4BF4] hover:text-[#5635E6]">
+            <button type="button" disabled={!hydrated} onClick={() => setMode(signup ? "signin" : "signup")} className="font-semibold text-[#6C4BF4] hover:text-[#5635E6]">
               {signup ? "Giriş yap" : "Ücretsiz kayıt ol"}
             </button>
           </p>
-          <p className="mt-5 text-center text-[10px] leading-5 text-[#91919A]">
+          <p className="mt-5 text-center text-[10px] leading-5 text-[#6F6F78]">
             Devam ederek <Link href="/terms" className="underline">Kullanım Şartları</Link> ve <Link href="/kvkk" className="underline">KVKK Aydınlatma Metni</Link>&apos;ni kabul edersin.
           </p>
         </div>
@@ -315,7 +318,7 @@ export function AuthScreen({ initialMode, initialRole = "customer", next, initia
             </div>
             <div className="mt-7 flex items-center gap-3 border-t border-white/10 pt-5">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-[#6C4BF4]"><BadgeCheck className="h-5 w-5" /></span>
-              <div><strong className="block text-sm">500+ seçkin işletme</strong><span className="text-[11px] text-white/55">İzmir&apos;de keşfetmeye hazır</span></div>
+              <div><strong className="block text-sm">Gerçek işletmeler, gerçek uygunluk</strong><span className="text-[11px] text-white/55">Yayındaki profiller canlı veriden gelir</span></div>
             </div>
           </div>
         </div>

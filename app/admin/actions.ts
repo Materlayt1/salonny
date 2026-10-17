@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerClientOptional } from "@/lib/supabase/server";
+import { assertRateLimit } from "@/lib/rate-limit";
 
 const idSchema = z.string().uuid();
 const businessActionSchema = z.enum(["approve", "suspend", "return_review", "verify", "unverify"]);
@@ -25,6 +26,7 @@ async function requireAdminClient() {
   if (!user) redirect("/admin/login");
   const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
   if (data?.role !== "ADMIN") throw new Error("Bu işlem için yönetici yetkisi gerekiyor.");
+  await assertRateLimit(`admin-action:${user.id}`, 60, 60_000, { failClosed: true });
   return supabase;
 }
 

@@ -40,12 +40,12 @@ const presentation: Record<string, { icon: CategoryIcon; background: string; col
 
 export function CategoryGrid({ categories, compact = false }: { categories: Category[]; compact?: boolean }) {
   return (
-    <div className={compact ? "flex gap-2 overflow-x-auto pb-2 hide-scrollbar" : "grid grid-cols-5 gap-x-2 gap-y-3 md:grid-cols-10 md:gap-3"}>
+    <div className={compact ? "flex gap-2 overflow-x-auto pb-2 hide-scrollbar" : "grid snap-x snap-mandatory grid-flow-col auto-cols-[70px] gap-3 overflow-x-auto pb-2 pr-4 hide-scrollbar md:grid-flow-row md:auto-cols-auto md:grid-cols-10 md:overflow-visible md:pb-0 md:pr-0"}>
       {categories.map((category) => {
         const item = presentation[category.id] ?? { icon: Ellipsis, background: category.color, color: "#6C4BF4" };
         const Icon = item.icon;
         return (
-          <Link key={category.id} href={`/kesfet?category=${category.id}`} className={compact ? "flex shrink-0 items-center gap-2 rounded-xl border border-[#E8E8EE] bg-white px-4 py-2 text-xs font-medium" : "group flex min-w-0 flex-col items-center gap-1.5 text-center text-[10px] font-medium md:gap-2 md:text-xs"}>
+          <Link key={category.id} href={`/kesfet?category=${category.id}`} className={compact ? "flex shrink-0 items-center gap-2 rounded-xl border border-[#E8E8EE] bg-white px-4 py-2 text-xs font-medium" : "group flex min-w-0 snap-start flex-col items-center gap-1.5 text-center text-[10px] font-medium md:gap-2 md:text-xs"}>
             {compact && <span className="grid h-6 w-6 place-items-center rounded-lg" style={{ background: item.background, color: item.color }}><Icon className="h-3.5 w-3.5" strokeWidth={2.25} /></span>}
             {!compact && <span className="grid aspect-square w-full max-w-[58px] place-items-center rounded-[14px] transition duration-200 group-hover:-translate-y-1 group-hover:shadow-[0_8px_18px_rgba(41,30,88,.12)] md:max-w-[72px] md:rounded-2xl" style={{ background: item.background, color: item.color, boxShadow: `inset 0 0 0 1px ${item.color}12` }}><Icon className="h-6 w-6 md:h-7 md:w-7" strokeWidth={2.25} /></span>}
             <span>{category.name}</span>

@@ -146,6 +146,7 @@ end;
 $$;
 
 drop policy if exists employee_time_off_tenant on public.employee_time_off;
+drop policy if exists employee_time_off_read on public.employee_time_off;
 create policy employee_time_off_read on public.employee_time_off
   for select to authenticated
   using (
@@ -164,4 +165,3 @@ grant execute on function public.admin_upsert_business_category(uuid,text,text,t
 grant execute on function public.save_employee_weekly_schedule(uuid,uuid,jsonb) to authenticated;
 grant execute on function public.add_employee_time_off(uuid,timestamptz,timestamptz,text,text) to authenticated;
 grant execute on function public.delete_employee_time_off(uuid) to authenticated;
-
