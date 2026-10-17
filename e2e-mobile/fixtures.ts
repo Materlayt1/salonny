@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import type { ManagedCampaign } from "../lib/campaign-management-contract";
 import type { NotificationItem } from "@salonny/contracts";
+import { notificationKind } from "@salonny/contracts";
 
 export const userId = "10000000-0000-4000-8000-000000000001";
 export const appointmentId = "10000000-0000-4000-8000-000000000002";
@@ -28,7 +29,7 @@ export const appointment = {
 export async function mockApi(page: Page, options: { loginError?: boolean; offline?: boolean; completed?: boolean; businessAccount?: boolean; employee?: boolean; advancedSchedule?: boolean; teamWriteFailure?: boolean; gallery?: boolean; campaignWriteFailure?: boolean; campaignWrongScope?: boolean; profileWriteFailure?: boolean; advancedBusinessHours?: boolean; bookingError?: "retry" | "conflict"; extraBookingChoices?: boolean; emptyAvailability?: boolean; emptyDirectory?: boolean; delayedDirectory?: boolean; notifications?: NotificationItem[]; notificationReadFailure?: boolean } = {}) {
   const writes: Array<{ path: string; method: string; body: unknown; key?: string; authorization?: string; url: string }> = [];
   let cancelled = false;
-  const notifications: NotificationItem[] = options.notifications ?? [{ id: appointmentId, type: "appointment_confirmed", title: "Randevun onaylandı", body: "Test bildirimi", readAt: null, createdAt: new Date().toISOString(), appointmentId, businessId, branchId: business.branchId }];
+  const notifications: NotificationItem[] = (options.notifications ?? [{ id: appointmentId, type: "appointment_confirmed", title: "Randevun onaylandı", body: "Test bildirimi", readAt: null, createdAt: new Date().toISOString(), appointmentId, businessId, branchId: business.branchId }]).map((item) => ({ ...item }));
   let reviewed = false;
   let assigned = true;
   let bookingAttempts = 0;
@@ -65,7 +66,8 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
         if (options.notificationReadFailure) return respond({ error: "Okundu bilgisi kaydedilemedi." }, 503);
         const ids = req.postDataJSON().ids as string[] | undefined;
         const readAt = new Date().toISOString();
-        notifications.forEach((item) => { if (!item.readAt && (!ids || ids.includes(item.id))) item.readAt = readAt; });
+        const before = req.postDataJSON().before ?? readAt;
+        notifications.forEach((item) => { if (!item.readAt && (ids ? ids.includes(item.id) : Date.parse(item.createdAt) <= Date.parse(before))) item.readAt = readAt; });
         return respond({ readAt });
       }
       if (path === "/api/bookings" && bookingAttempts++ === 0 && options.bookingError) {
@@ -146,7 +148,17 @@ export async function mockApi(page: Page, options: { loginError?: boolean; offli
     if (path === "/api/appointments") return respond({ appointments: [{ ...appointment, status: options.completed ? "completed" : cancelled ? "cancelled" : "confirmed", canCancel: !options.completed && !cancelled, canReschedule: !options.completed && !cancelled, ...(reviewed ? { reviewId: "test-review", reviewRating: 5 } : {}) }] });
     if (path === `/api/appointments/${appointmentId}` || path === "/api/availability") return respond({ slots: options.emptyAvailability ? [] : [availabilitySlot] });
     if (path === "/api/favorites") return respond({ businesses: [] });
-    if (path === "/api/notifications") return respond({ notifications });
+    if (path === "/api/notifications") {
+      const params = new URL(req.url()).searchParams;
+      const unreadCount = notifications.filter((item) => !item.readAt).length;
+      if (params.get("summary") === "1") return respond({ unreadCount, checkedAt: new Date().toISOString() });
+      const cursor = params.get("cursor");
+      const previous = cursor ? JSON.parse(Buffer.from(cursor, "base64url").toString()) : null;
+      const before = previous?.before ?? new Date().toISOString();
+      const filtered = notifications.filter((item) => Date.parse(item.createdAt) <= Date.parse(before) && (params.get("unread") !== "true" || !item.readAt) && (!params.get("kind") || params.get("kind") === "all" || notificationKind(item.type) === params.get("kind"))).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)).filter((item) => !previous || item.createdAt < previous.at || (item.createdAt === previous.at && item.id < previous.id));
+      const rows = filtered.slice(0, 25), last = rows.at(-1);
+      return respond({ notifications: rows, unreadCount, before, nextCursor: filtered.length > 25 && last ? Buffer.from(JSON.stringify({ at: last.createdAt, id: last.id, before })).toString("base64url") : null });
+    }
     return respond({ error: "Unexpected test request" }, 404);
   });
   return writes;

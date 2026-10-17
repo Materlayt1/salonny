@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
-import { mapNotification, notificationColumns } from "@/lib/notifications";
+import { parseNotificationQuery, readNotificationCount, readNotificationPage } from "@/lib/notification-history";
 
-const bodySchema = z.object({ ids: z.array(z.uuid()).min(1).max(100).optional() }).strict();
+const bodySchema = z.object({ ids: z.array(z.uuid()).min(1).max(100).optional(), before: z.iso.datetime({ offset: true }).optional() }).strict().refine((value) => !(value.ids && value.before));
 const reply = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
 function privateResponse(response: Response) {
   response.headers.set("Cache-Control", "private, no-store");
@@ -15,15 +15,16 @@ export async function GET(request: Request) {
   try {
     const limited = await apiRateLimit(request, "notifications-read", 60, 60_000);
     if (limited) return privateResponse(limited);
+    let parsed;
+    try { parsed = parseNotificationQuery(request.url); } catch { return reply({ error: "Bildirim filtresi veya sayfası geçersiz." }, 422); }
     const client = await createRequestClientOptional(request);
     if (!client) return reply({ error: "Giriş yapmalısın." }, 401);
     const auth = await client.auth.getUser();
     if (auth.error && (auth.error.status === undefined || auth.error.status === 429 || auth.error.status >= 500)) throw auth.error;
     const user = auth.data.user;
     if (!user) return reply({ error: "Giriş yapmalısın." }, 401);
-    const { data, error } = await client.from("notifications").select(notificationColumns).eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
-    if (error) return reply({ error: "Bildirimler alınamadı." }, 503);
-    return reply({ notifications: (data ?? []).map(mapNotification) });
+    if (parsed.summary) return reply({ unreadCount: await readNotificationCount(client, user.id), checkedAt: new Date().toISOString() });
+    return reply(await readNotificationPage(client, user.id, parsed));
   } catch {
     return reply({ error: "Bildirimlere şu anda ulaşılamıyor. Yeniden dene." }, 503);
   }
@@ -44,8 +45,10 @@ export async function PATCH(request: Request) {
     const user = auth.data.user;
     if (!user) return reply({ error: "Oturum açmanız gerekiyor." }, 401);
     const readAt = new Date().toISOString();
+    if (parsed.data.before && Date.parse(parsed.data.before) > Date.parse(readAt)) return reply({ error: "Bildirim tarihi geçersiz." }, 422);
     let query = supabase.from("notifications").update({ read_at: readAt }).eq("user_id", user.id).is("read_at", null);
     if (parsed.data.ids?.length) query = query.in("id", parsed.data.ids);
+    else query = query.lte("created_at", parsed.data.before ?? readAt);
     const { error } = await query;
     if (error) return reply({ error: "Bildirimler güncellenemedi." }, 503);
     return reply({ readAt });

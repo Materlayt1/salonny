@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Bell,
   CalendarDays,
   CalendarPlus,
   Compass,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { NotificationBellLink } from "@/components/notification-bell-link";
 
 const items = [
   { href: "/", label: "Ana Sayfa", icon: Home },
@@ -59,5 +59,5 @@ export function MobileNav() {
 }
 
 export function NotificationLink() {
-  return <Link href="/notifications" className="relative grid h-10 w-10 place-items-center rounded-xl border border-[#E8E8EE]"><Bell className="h-5 w-5" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" /></Link>;
+  return <NotificationBellLink />;
 }

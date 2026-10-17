@@ -7,12 +7,14 @@ import { BrandLogo } from "@/components/brand-logo";
 import { ButtonLink } from "@/components/ui/button";
 import { getSessionSummary, type SessionSummary } from "@/lib/session-summary-client";
 import { useBrowseArea } from "@/components/use-browse-area";
+import { useNotificationSummary } from "@/components/use-notification-summary";
 
 export function SiteHeader({ search = false }: { search?: boolean }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [session, setSession] = useState<SessionSummary | null>(null);
   const browse = useBrowseArea();
+  const notifications = useNotificationSummary();
 
   useEffect(() => {
     if (!search) return;
@@ -28,7 +30,7 @@ export function SiteHeader({ search = false }: { search?: boolean }) {
 
   const sessionReady = session !== null;
   const authenticated = Boolean(session?.authenticated);
-  const unreadCount = session?.unreadCount ?? 0;
+  const unreadCount = notifications.data?.unreadCount ?? 0;
   const businessHref = session?.hasBusiness ? "/business/dashboard" : session?.isAdmin ? "/admin" : authenticated ? "/business/onboarding" : "/business";
   const businessLabel = session?.hasBusiness ? "İşletmem" : session?.isAdmin ? "Admin Paneli" : "İşletme Ol";
   const businessLinkReady = sessionReady;
@@ -50,7 +52,7 @@ export function SiteHeader({ search = false }: { search?: boolean }) {
           <Link href="/#categories" className="hover:text-[#6C4BF4]">Kategoriler</Link>
           {businessLinkReady ? <Link href={businessHref} className="hover:text-[#6C4BF4]">{businessLabel}</Link> : <span className="h-4 w-20 animate-pulse rounded bg-[#F1F1F5]" aria-label="İşletme hesabı kontrol ediliyor" />}
           <Link href="/appointments" className="flex items-center gap-1.5 hover:text-[#6C4BF4]"><CalendarDays className="h-4 w-4" /> Randevularım</Link>
-          <Link href="/notifications" aria-label={unreadCount ? `${unreadCount} okunmamış bildirim` : "Bildirimler"} className="relative"><Bell className="h-5 w-5" />{unreadCount > 0 && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#EF4444] ring-2 ring-white" />}</Link>
+          <Link href="/notifications" aria-label={notifications.error ? "Bildirimler — sayı güncellenemedi" : unreadCount ? `${unreadCount} okunmamış bildirim` : "Bildirimler"} className="relative"><Bell className="h-5 w-5" />{unreadCount > 0 && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#EF4444] ring-2 ring-white" />}</Link>
           {sessionReady && authenticated ? (
             <Link href="/profile" className="flex h-10 items-center gap-2 rounded-xl border border-[#E4E4EA] bg-white px-3 transition hover:border-[#C9BEFA] hover:bg-[#FAF8FF]" aria-label="Profilim">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-[#EEE9FF] text-[#6C4BF4]"><UserRound className="h-4 w-4" /></span>

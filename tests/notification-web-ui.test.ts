@@ -12,6 +12,18 @@ const notice: NotificationItem = { id, type: "appointment_confirmed", title: "Ra
 const appointment: CustomerAppointment = { id, businessId: id, businessSlug: "test-salon", businessName: "Bildirimdeki salon", businessImage: "/brand/salonny-mark.png", serviceId: id, serviceName: "Kesim", employeeId: id, employeeName: "Uzman", startsAt: "2027-10-14T10:00:00Z", endsAt: "2027-10-14T10:30:00Z", durationMinutes: 30, totalMinor: 40000, currency: "TRY", status: "confirmed", address: "Adres", district: "Fatih", city: "İstanbul", latitude: null, longitude: null, canCancel: true, canReschedule: true, cancellationNoticeMinutes: 60, minimumNoticeMinutes: 30 };
 
 describe("web notification and appointment entry UI", () => {
+  it("distinguishes guest, outage and an actual empty history", () => {
+    const guest = renderToStaticMarkup(createElement(NotificationsClient, { initialStatus: "guest" }));
+    const outage = renderToStaticMarkup(createElement(NotificationsClient, { initialStatus: "error" }));
+    const empty = renderToStaticMarkup(createElement(NotificationsClient, { initialNotifications: [] }));
+    expect(guest).toContain("Hesabına giriş yap"); expect(guest).not.toContain("Bu bölümde bildirim yok");
+    expect(outage).toContain('role="alert"'); expect(outage).toContain("Yeniden dene"); expect(outage).not.toContain("Bu bölümde bildirim yok");
+    expect(empty).toContain("Bu bölümde bildirim yok"); expect(empty).not.toContain('role="alert"');
+  });
+  it("offers server filters and older history independently of the first page", () => {
+    const html = renderToStaticMarkup(createElement(NotificationsClient, { initialPage: { notifications: [notice], unreadCount: 112, before: "2026-10-14T10:00:00Z", nextCursor: "next-page" } }));
+    for (const text of ["Yalnız okunmamış", "Değerlendirme", "Önceki bildirimleri yükle", "Tümünü okundu işaretle"]) expect(html).toContain(text);
+  });
   it.each([null, "2026-10-14T10:01:00Z"])("renders a keyboard-accessible real link for read/unread notices: %s", (readAt) => {
     const html = renderToStaticMarkup(createElement(NotificationsClient, { initialNotifications: [{ ...notice, readAt }] }));
     expect(html).toContain('href="/appointments"'); expect(html).toContain("Randevularıma git");

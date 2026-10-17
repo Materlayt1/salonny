@@ -1,11 +1,18 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, type PropsWithChildren } from "react";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useState, type PropsWithChildren } from "react";
+import { AppState, Platform } from "react-native";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ApiError } from "@/lib/api";
 import { LocationProvider } from "@/providers/location-provider";
 import { BrowseAreaProvider } from "@/providers/browse-area-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
+  useEffect(() => {
+    if (Platform.OS === "web") return; // Preserve TanStack's browser visibility listener.
+    focusManager.setFocused(AppState.currentState === "active");
+    const subscription = AppState.addEventListener("change", (state) => focusManager.setFocused(state === "active"));
+    return () => { subscription.remove(); focusManager.setFocused(undefined); };
+  }, []);
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {

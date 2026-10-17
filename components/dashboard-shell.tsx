@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Bell, CalendarDays, ChevronDown, ClipboardList, LayoutDashboard, Megaphone, Menu, Package, Scissors, Settings, Star, Store, UserRound, UsersRound, Workflow, X } from "lucide-react";
+import { BarChart3, CalendarDays, ChevronDown, ClipboardList, LayoutDashboard, Megaphone, Menu, Package, Scissors, Settings, Star, Store, UserRound, UsersRound, Workflow, X } from "lucide-react";
+import { NotificationBellLink } from "@/components/notification-bell-link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useTransition } from "react";
@@ -40,7 +41,7 @@ export function DashboardShell({ children, business }: { children: React.ReactNo
     <div className="min-h-screen bg-[#F8F8FA] md:pl-[244px]">
       <aside aria-label="İşletme menüsü" className="fixed inset-y-0 left-0 z-50 hidden w-[244px] flex-col overflow-y-auto overscroll-contain border-r border-[#E8E8EE] bg-white md:flex [&>*]:shrink-0">{sidebar}</aside>
       {open && <div className="fixed inset-0 z-[70] bg-black/35 md:hidden" onClick={() => setOpen(false)}><aside aria-label="İşletme menüsü" className="flex h-full w-[280px] max-w-full flex-col overflow-y-auto overscroll-contain bg-white [&>*]:shrink-0" onClick={(e) => e.stopPropagation()}>{sidebar}</aside></div>}
-      <header className="sticky top-0 z-40 flex h-[72px] items-center border-b border-[#E8E8EE] bg-white/95 px-4 backdrop-blur md:px-7"><button onClick={() => setOpen(true)} className="mr-3 grid h-10 w-10 place-items-center rounded-xl border border-[#E8E8EE] md:hidden"><Menu className="h-5 w-5" /></button><div><strong className="block text-sm">{business.name}</strong><span className="text-xs text-[#686872]">İyi çalışmalar, {business.person} 👋</span></div><div className="ml-auto flex items-center gap-3"><Link href="/notifications" aria-label="Bildirimler" className="relative grid h-10 w-10 place-items-center rounded-xl border border-[#E8E8EE]"><Bell className="h-4.5 w-4.5" /></Link><Link href="/business/onboarding?edit=1" className="hidden rounded-xl bg-[#6C4BF4] px-4 py-2.5 text-xs font-semibold text-white sm:block">Profili düzenle</Link></div></header>
+      <header className="sticky top-0 z-40 flex h-[72px] items-center border-b border-[#E8E8EE] bg-white/95 px-4 backdrop-blur md:px-7"><button onClick={() => setOpen(true)} className="mr-3 grid h-10 w-10 place-items-center rounded-xl border border-[#E8E8EE] md:hidden"><Menu className="h-5 w-5" /></button><div><strong className="block text-sm">{business.name}</strong><span className="text-xs text-[#686872]">İyi çalışmalar, {business.person} 👋</span></div><div className="ml-auto flex items-center gap-3"><NotificationBellLink /><Link href="/business/onboarding?edit=1" className="hidden rounded-xl bg-[#6C4BF4] px-4 py-2.5 text-xs font-semibold text-white sm:block">Profili düzenle</Link></div></header>
       <main className="p-4 md:p-7">{children}</main>
     </div>
   );

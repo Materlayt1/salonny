@@ -4,10 +4,11 @@ import type {
   CustomerAppointment,
   CustomerBookingPolicy,
   MarketplacePage,
-  NotificationItem,
+  NotificationFilters,
   SessionSummary,
 } from "@salonny/contracts";
 import { absoluteAssetUrl, config } from "@/lib/config";
+import { defaultNotificationFilters, notificationQuery, parseNotificationPage, parseNotificationSummary, validNotificationTime } from "@salonny/contracts";
 
 type ApiErrorPayload = { error?: string; code?: string };
 
@@ -177,9 +178,15 @@ export const submitReview = (appointmentId: string, rating: number, comment: str
   requestJson("/api/reviews", { method: "POST", body: JSON.stringify({ appointmentId, rating, comment }) }, token);
 
 export type { NotificationItem } from "@salonny/contracts";
-export const listNotifications = (token: string, signal?: AbortSignal) => requestJson<{ notifications: NotificationItem[] }>("/api/notifications", { signal }, token);
-export const markNotificationsRead = (token: string, ids?: string[]) =>
-  requestJson("/api/notifications", { method: "PATCH", body: JSON.stringify(ids ? { ids } : {}) }, token);
+export const listNotifications = async (token: string, signal?: AbortSignal, filters: NotificationFilters = defaultNotificationFilters, cursor?: string | null) =>
+  parseNotificationPage(await requestJson(`/api/notifications?${notificationQuery(filters, cursor)}`, { signal }, token));
+export const getNotificationSummary = async (token: string, signal?: AbortSignal) =>
+  parseNotificationSummary(await requestJson("/api/notifications?summary=1", { signal }, token));
+export const markNotificationsRead = async (token: string, ids?: string[], before?: string) => {
+  const result = await requestJson<{ readAt: string }>("/api/notifications", { method: "PATCH", body: JSON.stringify(ids ? { ids } : { before }) }, token);
+  if (!validNotificationTime(result?.readAt)) throw new Error("Okundu bilgisi doğrulanamadı.");
+  return result;
+};
 
 export type HomeHighlights = { services: { name: string; price: number }[]; reviews: { id: string; rating: number; comment: string; createdAt: string; businessName: string; businessSlug: string }[] };
 export const getHomeHighlights = () => requestJson<HomeHighlights>("/api/home-highlights");

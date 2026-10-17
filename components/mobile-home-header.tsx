@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { getSessionSummary, type SessionSummary } from "@/lib/session-summary-client";
+import { useNotificationSummary } from "@/components/use-notification-summary";
 
 function firstName(summary: SessionSummary | null) {
   return summary?.authenticated ? summary.displayName?.trim().split(/\s+/)[0] ?? "" : "";
@@ -12,6 +13,7 @@ function firstName(summary: SessionSummary | null) {
 
 export function MobileHomeHeader() {
   const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const notifications = useNotificationSummary();
 
   useEffect(() => {
     let active = true;
@@ -19,7 +21,7 @@ export function MobileHomeHeader() {
     return () => { active = false; };
   }, []);
 
-  const unread = summary?.unreadCount ?? 0;
+  const unread = notifications.data?.unreadCount ?? 0;
 
   return (
     <header className="flex items-start justify-between px-5 pb-2 pt-5">

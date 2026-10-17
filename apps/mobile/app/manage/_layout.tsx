@@ -1,7 +1,8 @@
 import { Slot, router, usePathname } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Menu, X, ChevronDown, ChevronRight, Bell, LayoutDashboard, CalendarDays, CalendarCheck, Workflow, Users, Scissors, UserRound, ChartNoAxesCombined, Package, Megaphone, Settings, ArrowLeft, Star, type LucideIcon } from "lucide-react-native";
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, CalendarDays, CalendarCheck, Workflow, Users, Scissors, UserRound, ChartNoAxesCombined, Package, Megaphone, Settings, ArrowLeft, Star, type LucideIcon } from "lucide-react-native";
+import { NotificationBell } from "@/components/notification-bell";
 import { AppButton, EmptyState, LoadingState, Screen } from "@/components/app-ui";
 import { BrandLogo } from "@/components/brand-logo";
 import { ManagementProvider, useManagement } from "@/providers/management-provider";
@@ -20,7 +21,7 @@ function Shell() {
     {ready && data ? <View style={styles.header}>
       <Pressable accessibilityRole="button" accessibilityLabel="İşletme menüsünü aç" style={styles.iconButton} onPress={() => setDrawer(true)}><Menu size={22} color={theme.colors.text} /></Pressable>
       <View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.business}>{data.business.name}</Text><Text style={styles.greeting}>Merhaba, {data.person.split(" ")[0]} 👋</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Bildirimler" style={styles.iconButton} onPress={() => router.push("/notifications")}><Bell size={20} color={theme.colors.text} /></Pressable>
+      <NotificationBell />
     </View> : null}
     {/* Keep the nested router mounted while scope resolves. Hidden content cannot
         flash the previous tenant, and resolving context cannot reset the route. */}

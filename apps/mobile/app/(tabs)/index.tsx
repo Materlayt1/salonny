@@ -16,7 +16,8 @@ import { theme } from "@/constants/theme";
 import { useAuth } from "@/providers/auth-provider";
 import { useBusinessDirectory, useBusinessRail, useCategories } from "@/hooks/use-marketplace";
 import { LinearGradient } from "expo-linear-gradient";
-import { Bell, Search, Clock3, Star, Sparkles, ChevronRight } from "lucide-react-native";
+import { Search, Clock3, Star, Sparkles, ChevronRight } from "lucide-react-native";
+import { NotificationBell } from "@/components/notification-bell";
 import { CategoryIcon, categoryPalette } from "@/components/category-icon";
 import { useQuery } from "@tanstack/react-query";
 import { getHomeHighlights, type BusinessQuery } from "@/lib/api";
@@ -105,7 +106,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={<>
         <BrandHeader right={(
-          <Pressable accessibilityRole="button" accessibilityLabel="Bildirimler" onPress={() => router.push(user ? "/notifications" : "/auth")} style={styles.accountButton}><Bell size={19} color={theme.colors.text} /></Pressable>
+          <NotificationBell />
         )} />
 
         <Text style={styles.greeting}>Merhaba{user ? `, ${String(user.user_metadata.full_name ?? "").split(" ")[0] || "hoş geldin"}` : ""} 👋</Text>

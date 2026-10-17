@@ -8,6 +8,7 @@ import { theme } from "@/constants/theme";
 import { getSessionSummary, requestAccountDeletion, type LegalDocumentKey } from "@/lib/api";
 import { LegalReader } from "@/components/legal-reader";
 import { useAuth } from "@/providers/auth-provider";
+import { useNotificationSummary } from "@/hooks/use-notification-summary";
 import { Heart, UserRound, Bell, ShieldCheck, FileText, ChevronRight, Store } from "lucide-react-native";
 
 const menu = [
@@ -18,9 +19,10 @@ const menu = [
 
 export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
+  const notificationSummary = useNotificationSummary();
   const [legalDocument, setLegalDocument] = useState<LegalDocumentKey | null>(null);
   const summary = useQuery({
-    queryKey: ["session-summary", user?.id],
+    queryKey: ["session-summary", user?.id, session?.access_token],
     queryFn: ({ signal }) => getSessionSummary(session!.access_token, signal),
     enabled: Boolean(session?.access_token),
   });
@@ -91,7 +93,7 @@ export default function ProfileScreen() {
         <View style={styles.menuCard}>
           <Pressable accessibilityRole="button" onPress={() => router.push("/favorites")} style={styles.menuRow}><View style={styles.menuIcon}><Heart size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Favorilerim</Text><Text style={styles.menuDetail}>Kaydettiğin işletmeler</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push("/profile-edit")} style={styles.menuRow}><View style={styles.menuIcon}><UserRound size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Kişisel bilgiler</Text><Text style={styles.menuDetail}>Ad soyad, telefon ve şehir bilgilerini düzenle</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.menuRow}><View style={styles.menuIcon}><Bell size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Bildirimler</Text><Text style={styles.menuDetail}>{summary.data?.authenticated && summary.data.unreadCount ? `${summary.data.unreadCount} okunmamış bildirim` : "Randevu ve işletme güncellemeleri"}</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.menuRow}><View style={styles.menuIcon}><Bell size={19} color={theme.colors.primary} /></View><View style={styles.menuText}><Text style={styles.menuLabel}>Bildirimler</Text><Text style={styles.menuDetail}>{notificationSummary.isError ? "Bildirim sayısı güncellenemedi" : notificationSummary.data?.unreadCount ? `${notificationSummary.data.unreadCount} okunmamış bildirim` : "Randevu ve işletme güncellemeleri"}</Text></View><ChevronRight size={18} color={theme.colors.muted} /></Pressable>
           {menu.map((item) => (
             <Pressable accessibilityRole="button" key={item.path} onPress={() => setLegalDocument(item.path.slice(1) as LegalDocumentKey)} style={styles.menuRow}>
               <View style={styles.menuIcon}>{item.path === "/privacy" ? <ShieldCheck size={19} color={theme.colors.primary} /> : <FileText size={19} color={theme.colors.primary} />}</View>

@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [configured, setConfigured] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const account = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
@@ -40,12 +42,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setConfigured(true);
       const { data: listener } = client.auth.onAuthStateChange((_event, nextSession) => {
         if (!active) return;
+        const nextId = nextSession?.user.id ?? null;
+        if (account.current !== undefined && account.current !== nextId) queryClient.clear();
+        account.current = nextId;
         setSession(nextSession);
         setLoading(false);
       });
       unsubscribe = () => listener.subscription.unsubscribe();
       const { data } = await client.auth.getSession();
       if (active) {
+        const nextId = data.session?.user.id ?? null;
+        if (account.current !== undefined && account.current !== nextId) queryClient.clear();
+        account.current = nextId;
         setSession(data.session);
         setLoading(false);
       }
@@ -56,7 +64,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       active = false;
       unsubscribe?.();
     };
-  }, [configured]);
+  }, [queryClient]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const client = await initializeSupabase();

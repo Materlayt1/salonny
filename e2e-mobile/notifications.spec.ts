@@ -4,6 +4,98 @@ import { appointmentId, business, businessId, mockApi, signIn } from "./fixtures
 
 const notice = (extra: Partial<NotificationItem> = {}): NotificationItem => ({ id: appointmentId, type: "appointment_confirmed", title: "Randevunuz onaylandı", body: "Saç kesimi randevunuz oluşturuldu.", readAt: null, createdAt: new Date().toISOString(), appointmentId, businessId, branchId: business.branchId, ...extra });
 
+const history = (length = 126) => Array.from({ length }, (_, i) => notice({ id: `10000000-0000-4000-8000-${String(i + 1000).padStart(12, "0")}`, createdAt: "2026-10-01T10:00:00.123456Z", title: `Geçmiş bildirim ${String(i + 1).padStart(3, "0")}`, readAt: i % 2 ? null : "2026-10-02T10:00:00Z" }));
+
+test("history beyond 100 remains reachable without writes or duplicate cards", async ({ page }) => {
+  const writes = await mockApi(page, { notifications: history() });
+  await signIn(page); await page.goto("/notifications");
+  await expect(page.getByRole("button", { name: "Geçmiş bildirim 126, okunmadı", exact: true })).toBeVisible();
+  for (let i = 0; i < 5; i++) {
+    await page.getByRole("button", { name: "Önceki bildirimleri yükle", exact: true }).click();
+  }
+  await page.getByText("Tüm bildirimler gösterildi.", { exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole("button", { name: "Geçmiş bildirim 001", exact: true })).toBeVisible();
+  await expect(page.getByText("Tüm bildirimler gösterildi.", { exact: true })).toBeVisible();
+  expect(writes).toHaveLength(0);
+});
+
+test("type and unread filters run on the server, including notices outside page one", async ({ page }) => {
+  const notices = history(50); notices[0] = { ...notices[0], title: "Eski kampanya", type: "campaign", readAt: null };
+  const urls: string[] = []; page.on("request", (request) => { if (new URL(request.url()).pathname === "/api/notifications") urls.push(request.url()); });
+  await mockApi(page, { notifications: notices }); await signIn(page); await page.goto("/notifications");
+  await page.getByRole("button", { name: "Kampanya", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Eski kampanya, okunmadı", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Yalnız okunmamış", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Eski kampanya, okunmadı", exact: true })).toBeVisible();
+  expect(urls.some((url) => new URL(url).searchParams.get("kind") === "campaign" && new URL(url).searchParams.get("unread") === "true")).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("failed next page preserves history and offers retry", async ({ page }) => {
+  await mockApi(page, { notifications: history(26) });
+  let fail = true;
+  await page.route("http://localhost:3001/api/notifications?**", async (route) => {
+    if (new URL(route.request().url()).searchParams.has("cursor") && fail) return route.fulfill({ status: 503, headers: { "Access-Control-Allow-Origin": "http://localhost:8082" }, json: { error: "Unavailable" } });
+    return route.fallback();
+  });
+  await signIn(page); await page.goto("/notifications");
+  await page.getByRole("button", { name: "Önceki bildirimleri yükle", exact: true }).click();
+  await expect(page.getByText("Önceki bildirimler alınamadı. Mevcut listen korunuyor.", { exact: true })).toBeVisible();
+  fail = false;
+  await page.getByRole("button", { name: "Önceki bildirimleri yeniden dene", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Geçmiş bildirim 001", exact: true })).toBeVisible();
+});
+
+test("read-all uses the snapshot cutoff and clears the native home badge", async ({ page }) => {
+  const writes = await mockApi(page, { notifications: [notice()] }); await signIn(page);
+  await expect(page.getByTestId("notification-badge")).toHaveText("1");
+  await page.getByRole("button", { name: "Bildirimler", exact: true }).click();
+  await page.getByRole("button", { name: "Tümünü okundu işaretle", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Randevunuz onaylandı", exact: true })).toBeVisible();
+  expect(writes[0].body).toEqual({ before: expect.any(String) });
+  await page.goBack(); await expect(page.getByTestId("notification-badge")).toHaveCount(0);
+});
+
+test("a notification count outage is not displayed as zero unread", async ({ page }) => {
+  await mockApi(page);
+  await page.route("http://localhost:3001/api/notifications?summary=1", (route) => route.fulfill({ status: 503, headers: { "Access-Control-Allow-Origin": "http://localhost:8082" }, json: { error: "Unavailable" } }));
+  await signIn(page);
+  await expect(page.getByLabel("Bildirim sayısı güncellenemedi", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("notification-badge")).toHaveCount(0);
+});
+
+test("returning to native home and history fetches new notices instead of retaining the old snapshot", async ({ page }) => {
+  await mockApi(page);
+  let notices = [notice()];
+  await page.route("http://localhost:3001/api/notifications?**", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const checkedAt = new Date().toISOString();
+    const headers = { "Access-Control-Allow-Origin": "http://localhost:8082" };
+    return route.fulfill({ headers, json: new URL(route.request().url()).searchParams.has("summary") ? { unreadCount: notices.length, checkedAt } : { notifications: notices, before: checkedAt, unreadCount: notices.length, nextCursor: null } });
+  });
+  await signIn(page); await expect(page.getByTestId("notification-badge")).toHaveText("1");
+  await page.getByRole("button", { name: "Bildirimler", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı", exact: true })).toBeVisible();
+  notices = [notice({ id: businessId, title: "Yeni gelen bildirim" }), ...notices];
+  await page.goBack(); await expect(page.getByTestId("notification-badge")).toHaveText("2");
+  await page.getByRole("button", { name: "Bildirimler", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Yeni gelen bildirim, okunmadı", exact: true })).toBeVisible();
+});
+
+test("rapid native filter changes cannot render an old slow response", async ({ page }) => {
+  await mockApi(page, { notifications: [notice(), notice({ id: businessId, title: "Kampanya haberi", type: "campaign" })] });
+  await page.route("http://localhost:3001/api/notifications?**", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("kind") === "appointment") await new Promise((resolve) => setTimeout(resolve, 400));
+    return route.fallback();
+  });
+  await signIn(page); await page.goto("/notifications");
+  await page.getByRole("button", { name: "Randevu", exact: true }).click();
+  await page.getByRole("button", { name: "Kampanya", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Kampanya haberi, okunmadı", exact: true })).toBeVisible();
+  await page.waitForTimeout(500); // Deliver the intentionally older response.
+  await expect(page.getByRole("button", { name: "Randevunuz onaylandı, okunmadı", exact: true })).toHaveCount(0);
+});
+
 for (const type of ["appointment_confirmed", "appointment_status_changed", "appointment_cancelled", "appointment_rescheduled"]) {
   test(`${type} opens the regular appointments tab, independently of the read receipt`, async ({ page }) => {
     const writes = await mockApi(page, { notifications: [notice({ type })] });

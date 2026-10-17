@@ -13,12 +13,15 @@ const branchId = "10000000-0000-4000-8000-000000000004";
 const read = () => new Request("http://localhost/api/notifications", { headers: { authorization: "Bearer fixture" } });
 const write = (body: unknown = {}) => new Request("http://localhost/api/notifications", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 let error: { message: string } | null;
-const result = () => ({ data: [{ id, type: "appointment_confirmed", title: "Randevunuz onaylandı", body: "Bilgi", read_at: null, created_at: "2026-10-14T09:00:00Z", appointment_id: id, business_id: businessId, appointments: { branch_id: branchId }, businesses: { slug: "gogo" } }], error });
-const builder = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), limit: vi.fn(), update: vi.fn(), is: vi.fn(), in: vi.fn(), then: (resolve: (value: ReturnType<typeof result>) => unknown) => Promise.resolve(result()).then(resolve) };
+let count: number | null;
+const row = { id, type: "appointment_confirmed", title: "Randevunuz onaylandı", body: "Bilgi", read_at: null, created_at: "2026-10-14T09:00:00.123456+00:00", appointment_id: id, business_id: businessId, appointments: { branch_id: branchId }, businesses: { slug: "gogo" } };
+let rows = [row];
+const result = () => ({ data: rows, count, error });
+const builder = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), limit: vi.fn(), update: vi.fn(), is: vi.fn(), in: vi.fn(), lte: vi.fn(), or: vi.fn(), like: vi.fn(), not: vi.fn(), then: (resolve: (value: ReturnType<typeof result>) => unknown) => Promise.resolve(result()).then(resolve) };
 const client = { from: vi.fn(() => builder), auth: { getUser: vi.fn() } };
 beforeEach(() => {
-  vi.clearAllMocks(); error = null;
-  for (const method of [builder.select, builder.eq, builder.order, builder.limit, builder.update, builder.is, builder.in]) method.mockReturnValue(builder);
+  vi.clearAllMocks(); error = null; count = 1; rows = [row];
+  for (const method of [builder.select, builder.eq, builder.order, builder.limit, builder.update, builder.is, builder.in, builder.lte, builder.or, builder.like, builder.not]) method.mockReturnValue(builder);
   client.auth.getUser.mockResolvedValue({ data: { user: { id: userId } } });
   vi.mocked(createRequestClientOptional).mockResolvedValue(client as unknown as NonNullable<Awaited<ReturnType<typeof createRequestClientOptional>>>);
   vi.mocked(apiRateLimit).mockResolvedValue(null);
@@ -31,7 +34,8 @@ describe("notifications authenticated API", () => {
     const payload = await response.json(); expect(payload.notifications[0]).toMatchObject({ appointmentId: id, businessId, branchId, businessSlug: "gogo", type: "appointment_confirmed" });
     expect(payload.notifications[0]).not.toHaveProperty("data"); expect(payload.notifications[0]).not.toHaveProperty("user_id");
     expect(createRequestClientOptional).toHaveBeenCalledWith(request);
-    expect(builder.select).toHaveBeenCalledWith(notificationColumns); expect(builder.eq).toHaveBeenCalledWith("user_id", userId); expect(builder.limit).toHaveBeenCalledWith(100);
+    expect(builder.select).toHaveBeenCalledWith(notificationColumns); expect(builder.eq).toHaveBeenCalledWith("user_id", userId); expect(builder.limit).toHaveBeenCalledWith(26);
+    expect(builder.order).toHaveBeenCalledWith("id", { ascending: false }); expect(payload.nextCursor).toBeNull(); expect(payload.unreadCount).toBe(1);
   });
   it("rejects anonymous read and write without querying notices", async () => {
     client.auth.getUser.mockResolvedValue({ data: { user: null } });
@@ -44,6 +48,41 @@ describe("notifications authenticated API", () => {
   });
   it("marks all only for an explicit request without ids", async () => {
     expect((await PATCH(write())).status).toBe(200); expect(builder.in).not.toHaveBeenCalled();
+    expect(builder.lte).toHaveBeenCalledWith("created_at", expect.any(String));
+  });
+  it("keeps the page cutoff for mark-all, rather than consuming newly arrived notices", async () => {
+    const before = "2026-10-14T09:00:00.123456+00:00";
+    expect((await PATCH(write({ before }))).status).toBe(200);
+    expect(builder.lte).toHaveBeenCalledWith("created_at", before);
+  });
+  it.each([{ ids: [id], before: "2026-10-14T09:00:00Z" }, { before: "bad" }, { before: "2099-01-01T00:00:00Z" }])("rejects unsafe mark-all scope %j", async (body) => {
+    expect((await PATCH(write(body))).status).toBe(422); expect(builder.update).not.toHaveBeenCalled();
+  });
+  it("pages by timestamp and UUID without losing PostgreSQL microseconds", async () => {
+    rows = Array.from({ length: 26 }, (_, i) => ({ ...row, id: `10000000-0000-4000-8000-${String(100 - i).padStart(12, "0")}` }));
+    const first = await (await GET(read())).json();
+    expect(first.notifications).toHaveLength(25); expect(first.nextCursor).toEqual(expect.any(String));
+    const next = new Request("http://localhost/api/notifications?cursor=" + first.nextCursor);
+    expect((await GET(next)).status).toBe(200);
+    expect(builder.or).toHaveBeenCalledWith(`created_at.lt.${row.created_at},and(created_at.eq.${row.created_at},id.lt.${rows[24].id})`);
+    expect(builder.lte).toHaveBeenLastCalledWith("created_at", first.before);
+    expect((await GET(new Request(next.url + "&unread=true"))).status).toBe(422);
+  });
+  it.each(["kind=evil", "unread=1", "kind=all&kind=review", "userId=other", "summary=1&unread=true", "cursor=bad", "cursor=" + "x".repeat(1025)])("rejects malformed query before database access: %s", async (query) => {
+    expect((await GET(new Request("http://localhost/api/notifications?" + query))).status).toBe(422); expect(client.from).not.toHaveBeenCalled();
+  });
+  it.each(["appointment", "campaign", "review"])("filters %s in the database before limiting", async (kind) => {
+    expect((await GET(new Request(`http://localhost/api/notifications?kind=${kind}&unread=true`))).status).toBe(200);
+    expect(builder.is).toHaveBeenCalledWith("read_at", null); expect(builder.like.mock.calls.length + builder.or.mock.calls.length).toBeGreaterThan(0);
+  });
+  it("count-only reads are owner-scoped and do not retrieve notification bodies", async () => {
+    const response = await GET(new Request("http://localhost/api/notifications?summary=1"));
+    expect(await response.json()).toEqual({ unreadCount: 1, checkedAt: expect.any(String) });
+    expect(builder.select).not.toHaveBeenCalledWith(notificationColumns); expect(builder.eq).toHaveBeenCalledWith("user_id", userId);
+  });
+  it("a missing count is a service error, never a fabricated zero", async () => {
+    count = null;
+    for (const query of ["", "?summary=1"]) expect((await GET(new Request("http://localhost/api/notifications" + query))).status).toBe(503);
   });
   it.each([{ ids: [] }, { ids: ["bad"] }, { ids: Array(101).fill(id) }, { ids: [id], userId: businessId }, { ids: [id], readAt: "fake" }])("refuses empty/invalid/over-scoped read receipts: %j", async (body) => {
     expect((await PATCH(write(body))).status).toBe(422); expect(client.from).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
-export { notificationDestination, notificationUuid, notificationSlug } from "./notifications";
-export type { NotificationItem } from "./notifications";
+export { notificationDestination, notificationUuid, notificationSlug, notificationFilters, defaultNotificationFilters, notificationQuery, notificationKind, validNotificationTime, parseNotificationPage, parseNotificationSummary } from "./notifications";
+export type { NotificationItem, NotificationKind, NotificationFilters, NotificationPage, NotificationSummary } from "./notifications";
 export { validBookingName, validBookingPhone, bookingErrorRequiresNewSlot } from "./booking-policy";
 export type { CustomerBookingPolicy } from "./booking-policy";
 
