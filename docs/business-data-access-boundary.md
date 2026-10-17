@@ -1,6 +1,6 @@
 # İşletme verisi erişim sınırı — 040/041 adayı
 
-Bu belge tek başına genel yayın onayı değildir. 040/041 için kullanıcı onayı alındı. 040, 17 Ekim'de canlıya kuruldu: üç geçerli indeks, üç SELECT-only security-barrier görünümü, yeni aktarım RPC yetkisi ve kanonik migration geçmişi doğrulandı. İşletme/müşteri/randevu/bildirim/ödeme/booking-request sayıları 2/2/8/17/0/0 olarak değişmedi. 041, yeni uygulama dağıtımı doğrulanana kadar uygulanmaz. Uygulama bu yeni katmanı kullanmaya başladıktan sonra eski, geniş okuma yolu yedek olarak açılmaz.
+Bu belge tek başına genel yayın onayı değildir. 040/041, kullanıcı onayıyla 17 Ekim'de iki aşamada canlıya kuruldu. Önce 040, sonra `035d978` web/native API Netlify yayını doğrulandı; ardından 041 kuruldu. 14 katalog/ACL kontrolü, altı kanonik işlev gövdesi ve iki migration geçmişi eşleşti. İşletme/müşteri/randevu/bildirim/ödeme/booking-request sayıları 2/2/8/17/0/0 olarak değişmedi. Uygulama bu yeni katmanı kullanmaya başladıktan sonra eski, geniş okuma yolu yedek olarak açılmaz.
 
 ## Dağıtım sırası zorunludur
 
@@ -45,6 +45,6 @@ Yeni native kabul senaryosu ilk çalışmada gerçek bir UX hatası yakaladı: h
 
 Native web form odağının kaybolması da gerçek DOM kaydırma olayıyla yeniden üretildi: React Native Web `on-drag` ayarında programatik kaydırmada bile girdiyi blur ediyordu. Altı formda yalnız web için `keyboardDismissMode="none"` kullanılır; iOS/Android sürükleyerek kapatma davranışı korunur. Yeni regresyon eski bundle'da başarısız, yeni bundle'da başarılıdır. İlk tam koşudaki ana sayfa arama alanının boşalması için kök neden henüz kesinleşmedi; izole tekrarların geçmesi tek başına o sorunu kapatmaz.
 
-Son yerel kanıt: 1.005 birim/API testi; dokuz SQL motorunda 657 kontrol (170 erişim sınırı, 60 gerçek booking-policy entegrasyonu dahil); native temiz tam koşu 214 başarılı/2 isteğe bağlı canlı görsel atlaması. Bunlar farklı kapılardır, benzersiz senaryo sayısı gibi toplanmaz. Temiz GitHub CI ve canlı uygulama dağıtımı ayrıca doğrulanır.
+Son yerel kanıt: bildirim cache/servis-hatası ek kontrolleriyle 1.012 birim/API testi; dokuz SQL motorunda 657 kontrol (170 erişim sınırı, 60 gerçek booking-policy entegrasyonu dahil); native temiz tam koşu 214 başarılı/2 isteğe bağlı canlı görsel atlaması. Bunlar farklı kapılardır, benzersiz senaryo sayısı gibi toplanmaz. Mevcut gerçek sahip cookie oturumuyla yeni web dashboard, 5 kayıtlı randevu listesi, 1 ürünlü stok ve randevulu günün takvimi 040 sonrasında okundu; takvim 041 sonrasında da geçti. Yerel native ve canlı native önizleme oturumsuzdu; token/hesap üretilmedi. Ayrı gerçek yönetici/kısıtlı çalışan/müşteri JWT kabulü hâlâ açıktır.
 
 Temel tasarım dayanakları: [PostgreSQL RLS](https://www.postgresql.org/docs/current/ddl-rowsecurity.html), [PostgreSQL görünüm güvenliği](https://www.postgresql.org/docs/current/sql-createview.html), [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security). Bu belge tek başına güvenlik sertifikası veya kapasite kanıtı değildir.

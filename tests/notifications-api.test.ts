@@ -54,6 +54,28 @@ describe("notifications authenticated API", () => {
   });
   it("does not leak database errors", async () => {
     error = { message: "sensitive SQL/user payload" }; const response = await GET(read()); expect(response.status).toBe(503); expect(JSON.stringify(await response.json())).not.toContain("sensitive");
-    expect((await PATCH(write({ ids: [id] }))).status).toBe(400);
+    expect((await PATCH(write({ ids: [id] }))).status).toBe(503);
+  });
+  it("keeps anonymous, validation, database, limiter and successful receipt responses private", async () => {
+    const responses = [await GET(read()), await PATCH(write({ ids: [id] })), await PATCH(write({ ids: [] }))];
+    error = { message: "PRIVATE SQL" }; responses.push(await GET(read()), await PATCH(write())); error = null;
+    client.auth.getUser.mockResolvedValue({ data: { user: null } }); responses.push(await GET(read()), await PATCH(write()));
+    vi.mocked(apiRateLimit).mockImplementation(async () => new Response(null, { status: 429 }) as Awaited<ReturnType<typeof apiRateLimit>>);
+    responses.push(await GET(read()), await PATCH(write()));
+    for (const response of responses) expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+  it.each([429, 500, 503, undefined])("Auth transport/service error %s is retryable, not a false sign-out", async (status) => {
+    client.auth.getUser.mockResolvedValue({ data: { user: null }, error: { status, message: "PRIVATE AUTH" } });
+    for (const response of [await GET(read()), await PATCH(write())]) { expect(response.status).toBe(503); expect(response.headers.get("cache-control")).toBe("private, no-store"); expect(JSON.stringify(await response.json())).not.toContain("PRIVATE"); }
+    expect(client.from).not.toHaveBeenCalled();
+  });
+  it("unexpected Auth failure stays JSON, private and retryable without a write", async () => {
+    client.auth.getUser.mockRejectedValue(new Error("PRIVATE TRANSPORT"));
+    for (const response of [await GET(read()), await PATCH(write())]) { expect(response.status).toBe(503); expect(response.headers.get("cache-control")).toBe("private, no-store"); expect(JSON.stringify(await response.json())).not.toContain("PRIVATE"); }
+    expect(client.from).not.toHaveBeenCalled();
+  });
+  it("body rejection is also private and cannot reach the database", async () => {
+    const request = new Request("http://localhost/api/notifications", { method: "PATCH", headers: { origin: "https://untrusted.invalid", "content-type": "application/json" }, body: "{}" });
+    const response = await PATCH(request); expect(response.status).toBe(403); expect(response.headers.get("cache-control")).toBe("private, no-store"); expect(client.from).not.toHaveBeenCalled();
   });
 });
