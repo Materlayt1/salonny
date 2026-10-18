@@ -92,7 +92,7 @@ test("home keeps curated rails above a filtered paged directory", async ({ page,
   const directory = page.getByTestId("home-business-directory");
   await expect(directory.getByPlaceholder("İşletme ara")).toBeVisible();
   await expect(directory.getByLabel("Kategori filtresi")).toBeVisible();
-  await expect(directory.getByLabel("Şehir seçimi")).toBeVisible();
+  await expect(directory.getByRole("button", { name: /^Şehir seçimi:/ })).toBeVisible();
   await expect(directory.getByLabel("Sıralama")).toBeVisible();
   await expect(directory.getByRole("button", { name: "Şu an açık" })).toBeVisible();
 });
