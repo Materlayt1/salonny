@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CalendarDays, ChevronDown, MapPin, Menu, Search, UserRound, X } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, Menu, Search, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ButtonLink } from "@/components/ui/button";
 import { getSessionSummary, type SessionSummary } from "@/lib/session-summary-client";
-import { useBrowseArea } from "@/components/use-browse-area";
+import { HeaderAreaSelector } from "@/components/header-area-selector";
 import { useNotificationSummary } from "@/components/use-notification-summary";
 
 export function SiteHeader({ search = false }: { search?: boolean }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [session, setSession] = useState<SessionSummary | null>(null);
-  const browse = useBrowseArea();
   const notifications = useNotificationSummary();
 
   useEffect(() => {
@@ -43,7 +42,7 @@ export function SiteHeader({ search = false }: { search?: boolean }) {
           <form action="/kesfet" role="search" className="hidden h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#E8E8EE] bg-[#FAFAFC] pl-3 text-sm text-[#73737D] transition focus-within:border-[#BDB0F5] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#6C4BF4]/10 md:flex lg:max-w-[520px]">
             <Search className="h-4 w-4 shrink-0 text-[#6C4BF4]" />
             <input type="search" name="q" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} aria-label="Hizmet veya işletme ara" placeholder="Hizmet veya işletme ara..." className="min-w-0 flex-1 bg-transparent text-sm text-[#27272A] outline-none placeholder:text-[#8B8B95] [&::-webkit-search-cancel-button]:cursor-pointer" />
-            <span aria-label="Arama bölgesi" className="ml-auto flex max-w-36 items-center gap-1 border-l border-[#E4E4EA] pl-3 text-xs text-[#3F3F46]"><MapPin className="h-3.5 w-3.5 shrink-0 text-[#6C4BF4]" /><span className="truncate">{browse.label}</span></span>
+            <HeaderAreaSelector />
             <button type="submit" aria-label="Aramayı başlat" className="grid h-full w-10 shrink-0 place-items-center rounded-r-xl bg-[#6C4BF4] text-white transition hover:bg-[#5635E6]"><Search className="h-4 w-4" /></button>
           </form>
         )}

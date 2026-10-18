@@ -49,3 +49,23 @@ test("area request failure does not leave stale other-city cards", async ({ page
   await expect(page.getByRole("alert").filter({ hasText: "Bölgedeki işletmeler alınamadı" })).toBeVisible();
   await expect(page.getByTestId("home-business-directory").getByRole("article")).toHaveCount(0);
 });
+
+test("desktop header city opens region summary before choosing and restores focus on Escape", async ({ page }) => {
+  test.skip(test.info().project.name === "mobile", "Desktop search header is hidden at the phone breakpoint; native flow is tested separately.");
+  await mockDirectory(page); await page.goto("/kesfet");
+  const trigger = page.getByRole("button", { name: /^Arama bölgesi:/ });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Arama bölgen", exact: true });
+  await expect(dialog).toBeVisible(); await expect(dialog.getByLabel("Şehir ara")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Şehri değiştir", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Şehri değiştir", exact: true });
+  await expect(picker.getByLabel("Şehir ara")).toBeFocused();
+  await picker.getByLabel("Şehir ara").fill("izmir");
+  await picker.getByRole("button", { name: "İzmir", exact: true }).click();
+  await expect(trigger).toHaveAccessibleName("Arama bölgesi: İzmir");
+  await expect(trigger).toBeFocused();
+  await expect(page.getByLabel("Şehir seçimi").filter({ visible: true }).first()).toHaveValue("İzmir");
+  await trigger.click(); await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0); await expect(trigger).toBeFocused();
+  await expect(page).toHaveURL(/\/kesfet$/);
+});
