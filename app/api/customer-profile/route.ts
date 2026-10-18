@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
-
-const profileSchema = z.object({
-  fullName: z.string().trim().min(2).max(120),
-  phone: z.string().trim().max(24).refine((value) => !value || value.replace(/\D/g, "").length >= 10),
-  city: z.string().trim().max(80),
-}).strict();
+import { customerProfileSchema } from "@/lib/customer-profile-contract";
 
 export async function GET(request: Request) {
   const limited = await apiRateLimit(request, "customer-profile-read", 60, 60_000);
@@ -23,8 +18,8 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const body = await readBoundedJson(request, 4096);
   if (!body.ok) return body.response;
-  const parsed = profileSchema.safeParse(body.value);
-  if (!parsed.success) return NextResponse.json({ error: "Ad soyad, telefon ve şehir bilgilerini kontrol et." }, { status: 422 });
+  const parsed = customerProfileSchema.safeParse(body.value);
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Ad soyad, telefon ve şehir bilgilerini kontrol et." }, { status: 422, headers: { "Cache-Control": "private, no-store" } });
   const limited = await apiRateLimit(request, "customer-profile-write", 12, 60_000, { critical: true });
   if (limited) return limited;
   const client = await createRequestClientOptional(request);

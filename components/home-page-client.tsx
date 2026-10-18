@@ -255,7 +255,7 @@ export default function HomePageClient({ initialBusinesses, categories }: { init
           <SectionHeading
             title="Kategoriler"
             description="İhtiyacına uygun alanı seç"
-            href="/kesfet"
+            href="/kategoriler"
           />
           <CategoryGrid categories={categories} />
         </section>

@@ -131,8 +131,9 @@ export default function HomeScreen() {
             contentContainerStyle={styles.categoryRail}
             renderItem={({ item }) => (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name} kategorisini keşfet`}
                 onPress={() => {
-                  setCategory(item.id);
                   router.push({ pathname: "/discover", params: { category: item.id } });
                 }}
                 style={styles.categoryCard}

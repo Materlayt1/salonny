@@ -48,7 +48,7 @@ export function SiteHeader({ search = false }: { search?: boolean }) {
         )}
         <nav className="ml-auto hidden items-center gap-7 text-sm font-medium md:flex">
           <Link href="/kesfet" className="hover:text-[#6C4BF4]">Keşfet</Link>
-          <Link href="/#categories" className="hover:text-[#6C4BF4]">Kategoriler</Link>
+          <Link href="/kategoriler" className="hover:text-[#6C4BF4]">Kategoriler</Link>
           {businessLinkReady ? <Link href={businessHref} className="hover:text-[#6C4BF4]">{businessLabel}</Link> : <span className="h-4 w-20 animate-pulse rounded bg-[#F1F1F5]" aria-label="İşletme hesabı kontrol ediliyor" />}
           <Link href="/appointments" className="flex items-center gap-1.5 hover:text-[#6C4BF4]"><CalendarDays className="h-4 w-4" /> Randevularım</Link>
           <Link href="/notifications" aria-label={notifications.error ? "Bildirimler — sayı güncellenemedi" : unreadCount ? `${unreadCount} okunmamış bildirim` : "Bildirimler"} className="relative"><Bell className="h-5 w-5" />{unreadCount > 0 && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[#EF4444] ring-2 ring-white" />}</Link>
@@ -74,6 +74,7 @@ export function SiteHeader({ search = false }: { search?: boolean }) {
       {open && (
         <nav className="container-shell grid gap-1 border-t border-[#ECECF1] py-3 text-sm font-medium md:hidden">
           <Link href="/kesfet" className="rounded-xl px-3 py-3">Keşfet</Link>
+          <Link href="/kategoriler" onClick={() => setOpen(false)} className="rounded-xl px-3 py-3">Kategoriler</Link>
           {businessLinkReady && <Link href={businessHref} className="rounded-xl px-3 py-3">{businessLabel}</Link>}
           <Link href="/appointments" className="rounded-xl px-3 py-3">Randevularım</Link>
           {sessionReady && authenticated ? (

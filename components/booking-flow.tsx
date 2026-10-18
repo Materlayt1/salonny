@@ -1,4 +1,5 @@
 "use client";
+import { phoneInput, personNameInput } from "@salonny/contracts/input-validation";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -692,7 +693,7 @@ export function BookingFlow({
                         onChange={(event) =>
                           setCustomer((value) => ({
                             ...value,
-                            name: event.target.value,
+                            name: personNameInput(event.target.value),
                           }))
                         }
                         placeholder="Ad soyad"
@@ -700,11 +701,15 @@ export function BookingFlow({
                       />
                       <input
                         aria-label="Telefon"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        maxLength={24}
                         value={customer.phone}
                         onChange={(event) =>
                           setCustomer((value) => ({
                             ...value,
-                            phone: event.target.value,
+                            phone: phoneInput(event.target.value),
                           }))
                         }
                         placeholder="Telefon"

@@ -1,6 +1,7 @@
 import { forwardRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type TextStyle } from "react-native";
 import { theme } from "@/constants/theme";
+import { phoneInput } from "@salonny/contracts/input-validation";
 
 export type FormFieldProps = TextInputProps & {
   label: string;
@@ -12,7 +13,7 @@ export type FormFieldProps = TextInputProps & {
 /** Persistent labels and visible focus work on both native and web inputs. */
 export const FormField = forwardRef<TextInput, FormFieldProps>(function FormField({
   label, error, hint, inputStyle, style, accessibilityLabel, accessibilityHint,
-  onFocus, onBlur, placeholderTextColor, ...inputProps
+  onFocus, onBlur, onChangeText, placeholderTextColor, ...inputProps
 }, ref) {
   const [focused, setFocused] = useState(false);
 
@@ -21,6 +22,7 @@ export const FormField = forwardRef<TextInput, FormFieldProps>(function FormFiel
       <Text style={styles.label}>{label}</Text>
       <TextInput
         {...inputProps}
+        onChangeText={(value) => onChangeText?.(inputProps.keyboardType === "phone-pad" || inputProps.autoComplete === "tel" ? phoneInput(value) : value)}
         ref={ref}
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityHint={error || accessibilityHint || hint}

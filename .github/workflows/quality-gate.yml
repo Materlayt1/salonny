@@ -49,7 +49,7 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm mobile:export:preview
       - run: pnpm mobile:test:e2e
-      - run: pnpm exec playwright test e2e/browse-area.spec.ts --output test-results/web-city --trace retain-on-failure --retries=0
+      - run: pnpm exec playwright test e2e/browse-area.spec.ts e2e/categories.spec.ts --output test-results/web-city --trace retain-on-failure --retries=0
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

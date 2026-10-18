@@ -46,6 +46,10 @@ describe("customer profile authorization", () => {
     expect(response.status).toBe(422);
     expect(query.update).not.toHaveBeenCalled();
   });
+  it.each([{ phone: "abc05555555555" }, { phone: "1".repeat(16) }, { fullName: "123456" }, { city: "not-a-city" }])("rejects invalid profile fields before DB access: %j", async (fields) => {
+    const response = await PATCH(request("PATCH", { fullName: "Yeni İsim", phone: "05555555555", city: "İzmir", ...fields }));
+    expect(response.status).toBe(422); expect(response.headers.get("cache-control")).toContain("no-store"); expect(query.update).not.toHaveBeenCalled();
+  });
   it("requires explicit confirmation for deletion requests", async () => {
     expect((await DELETE(request("DELETE", { confirmed: false }))).status).toBe(422);
     expect(query.insert).not.toHaveBeenCalled();
