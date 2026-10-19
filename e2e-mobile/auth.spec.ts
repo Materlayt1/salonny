@@ -6,9 +6,17 @@ test("mobile login bootstraps public configuration, persists a session and signs
   page.on("pageerror", (error) => errors.push(error.message));
   await mockApi(page);
   await signIn(page);
+  await expect(page.getByTestId("notification-badge")).toHaveText("1");
+  const profileReads = () => ["/api/session-summary", "/api/notifications"].map((path) => page.waitForResponse((response) => new URL(response.url()).pathname === path && response.request().method() === "GET" && response.status() === 200));
+  const opened = profileReads();
   await page.goto("/profile");
+  for (const response of opened) expect(await (await response).finished()).toBeNull();
   await expect(page.getByText("Test Müşteri", { exact: true })).toBeVisible();
+  await expect(page.getByText("İzmir", { exact: true })).toBeVisible();
+  // Persistence is tested after the profile is ready, not while aborting its initial reads.
+  const reloaded = profileReads();
   await page.reload();
+  for (const response of reloaded) expect(await (await response).finished()).toBeNull();
   await expect(page.getByText("Test Müşteri", { exact: true })).toBeVisible();
   await expect(page.getByText("İzmir", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Oturumu kapat" }).click();

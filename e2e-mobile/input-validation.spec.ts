@@ -27,7 +27,12 @@ test("profile rejects invalid numeric contact fields locally and keeps the draft
   await expect(page.getByRole("alert").filter({ hasText: "81 şehirden" })).toBeVisible();
   expect(writes.filter((row) => row.path === "/api/customer-profile")).toHaveLength(0);
   await page.getByLabel("Şehir", { exact: true }).fill("izmir");
-  page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "Bilgileri kaydet", exact: true }).click();
+  const saved = page.waitForEvent("dialog");
+  const click = page.getByRole("button", { name: "Bilgileri kaydet", exact: true }).click();
+  const dialog = await saved;
+  expect(dialog.type()).toBe("alert"); expect(dialog.message()).toContain("Kaydedildi");
+  await dialog.accept(); await click;
+  await expect(page.getByRole("button", { name: "Bilgileri kaydet", exact: true })).toBeEnabled();
   await expect.poll(() => writes.filter((row) => row.path === "/api/customer-profile").length).toBe(1);
   expect(writes.find((row) => row.path === "/api/customer-profile")?.body).toEqual({ fullName: "Çağrı Şen", phone: "+90 (555) 555-55-55", city: "İzmir" });
 });
