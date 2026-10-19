@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL?.replace(/\/$/, "");
+const production = process.env.PLAYWRIGHT_PRODUCTION === "1";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -9,7 +10,7 @@ export default defineConfig({
   use: { baseURL: externalBaseUrl ?? "http://localhost:3000", trace: "on-first-retry" },
   webServer: externalBaseUrl
     ? undefined
-    : { command: "pnpm dev", url: "http://localhost:3000", reuseExistingServer: true },
+    : { command: production ? "pnpm start" : "pnpm dev", url: "http://localhost:3000", reuseExistingServer: !production },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["iPhone 13"] } },

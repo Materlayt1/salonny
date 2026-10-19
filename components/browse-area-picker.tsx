@@ -43,7 +43,12 @@ export function BrowseAreaPicker({ variant = "header" }: { variant?: "header" | 
     ? "ml-auto flex h-10 min-w-0 max-w-36 shrink-0 items-center gap-1 border-l border-[#E4E4EA] px-2 text-xs text-[#3F3F46] outline-none hover:text-[#6C4BF4] focus-visible:ring-2 focus-visible:ring-[#6C4BF4]"
     : `flex min-h-14 w-full min-w-0 items-center gap-3 rounded-2xl border border-[#E6E0F5] bg-[#FAF9FE] px-3 py-2 text-left text-[#3F3F46] outline-none hover:border-[#C9BEFA] focus-visible:ring-2 focus-visible:ring-[#6C4BF4] ${variant === "compact" ? "text-xs" : "text-sm"}`;
   return <>
-    <button ref={trigger} type="button" disabled={!ready} aria-label={`${header ? "Arama bölgesi" : "Şehir seçimi"}: ${browse.label}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => { action.current++; setRequested(false); setStage("summary"); }} className={triggerClass}>
+    <button ref={trigger} type="button" disabled={!ready} aria-label={`${header ? "Arama bölgesi" : "Şehir seçimi"}: ${browse.label}`} aria-haspopup="dialog" aria-expanded={open} onMouseDown={(event) => {
+      if (event.button !== 0) return;
+      // WebKit otherwise focuses the skip-link ancestor and scrolls the opener away before mouseup.
+      event.preventDefault();
+      event.currentTarget.focus({ preventScroll: true });
+    }} onClick={() => { action.current++; setRequested(false); setStage("summary"); }} className={triggerClass}>
       <MapPin aria-hidden="true" className={`${header ? "h-3.5 w-3.5" : "h-4 w-4"} shrink-0 text-[#6C4BF4]`} />
       <span className="min-w-0 flex-1"><span className="block truncate font-medium">{browse.label}</span>{!header && <span className="mt-0.5 block text-[11px] font-normal text-[#70677C]">Şehri değiştirmek için dokun</span>}</span><ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
     </button>

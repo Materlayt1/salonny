@@ -1,6 +1,7 @@
 @import "maplibre-gl/dist/maplibre-gl.css";
 @import "tailwindcss";
 @source not "../public/recovered";
+@source not "../artifacts";
 
 :root {
   --primary: #6c4bf4;
@@ -13,7 +14,8 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* Keep focus and pointer targets stable; deliberate component scrolls opt into animation. */
+html { scroll-behavior: auto; }
 body {
   margin: 0;
   color: var(--dark);

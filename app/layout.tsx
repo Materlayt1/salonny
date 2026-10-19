@@ -31,7 +31,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const structuredData = [{ "@context": "https://schema.org", "@type": "Organization", "@id": `${BRAND.siteUrl}/#organization`, name: BRAND.name, legalName: BRAND.legalName, url: BRAND.siteUrl, logo: `${BRAND.siteUrl}/brand/salonny-mark.png` }, { "@context": "https://schema.org", "@type": "WebSite", "@id": `${BRAND.siteUrl}/#website`, url: BRAND.siteUrl, name: BRAND.name, publisher: { "@id": `${BRAND.siteUrl}/#organization` }, inLanguage: "tr-TR", potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: `${BRAND.siteUrl}/kesfet?q={search_term_string}` }, "query-input": "required name=search_term_string" } }];
   return (
-    <html lang="tr" data-scroll-behavior="smooth">
+    <html lang="tr">
       <body>
         <a href="#main-content" className="skip-link">Ana içeriğe geç</a>
         <div id="main-content" tabIndex={-1}>{children}</div>

@@ -124,11 +124,20 @@ test("all cities is an explicit persistent choice even with a granted synthetic 
 
 test("short landscape city summary keeps actions reachable without page overflow", async ({ page }) => {
   await page.setViewportSize({ width: 568, height: 320 }); await mockDirectory(page); await page.goto("/");
+  const main = page.locator("#main-content");
+  await main.evaluate((element) => { element.addEventListener("focus", () => element.setAttribute("data-city-pointer-focus", "unexpected"), { once: true }); });
   await cityTrigger(page).click();
+  await expect(main).not.toHaveAttribute("data-city-pointer-focus", "unexpected");
   const dialog = page.getByRole("dialog", { name: "Arama bölgen", exact: true });
+  await expect(dialog).toBeVisible();
   const all = dialog.getByRole("button", { name: "Tüm şehirleri göster", exact: true });
   await all.scrollIntoViewIfNeeded(); await expect(all).toBeInViewport({ ratio: 1 });
   const box = await all.boundingBox(); expect(box?.height).toBeGreaterThanOrEqual(44);
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0); await expect(cityTrigger(page)).toBeFocused();
+  if (test.info().project.name === "mobile") {
+    await cityTrigger(page).tap(); await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Şehir seçimini kapat", exact: true }).tap();
+    await expect(dialog).toHaveCount(0); await expect(cityTrigger(page)).toBeFocused();
+  }
 });
