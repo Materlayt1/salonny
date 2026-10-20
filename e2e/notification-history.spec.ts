@@ -23,7 +23,7 @@ test("notification history remains protected before any private list is rendered
     // Clean CI intentionally has no Supabase credentials. The existing offline
     // SSR contract is an explicit outage, never an authenticated/empty list.
     await expect(page).toHaveURL(/\/notifications$/);
-    await expect(page.getByRole("alert")).toHaveText(/Bildirimlere şu anda ulaşılamıyor\. Bu, boş bir liste değil\./);
+    await expect(page.getByRole("main").getByRole("alert")).toHaveText(/Bildirimlere şu anda ulaşılamıyor\. Bu, boş bir liste değil\./);
     await expect(page.getByRole("button", { name: "Tümünü okundu işaretle", exact: true })).toBeDisabled();
     await expect(page.getByRole("heading", { name: "Bu bölümde bildirim yok", exact: true })).toHaveCount(0);
     await expect(page.locator("main a[href='/appointments']")).toHaveCount(0);
