@@ -17,7 +17,7 @@ beforeEach(()=>{
   appointments=[{id,employee_id:employeeId,starts_at:"2026-10-20T13:00:00Z",ends_at:"2026-10-20T13:30:00Z",status:"confirmed",customer_name:"PRIVATE CUSTOMER",customer_phone:"PRIVATE PHONE",employee_name:"Historical expert",service_label:"Kesim · Bakım",service_names:["Kesim","Bakım"],total_minor:9876543,currency:"TRY",business_note:"PRIVATE NOTE"}];
   const from=(table:string)=>{
     const call:Call={table,methods:[]};calls.push(call);const query:Record<string,unknown>={};
-    for(const method of ["select","eq","order","limit","range","gte","lt","abortSignal","overrideTypes"])query[method]=(...args:unknown[])=>{call.methods.push([method,...args]);return query;};
+    for(const method of ["select","eq","or","order","limit","range","gte","lt","abortSignal","overrideTypes"])query[method]=(...args:unknown[])=>{call.methods.push([method,...args]);return query;};
     query.then=(resolve:(value:unknown)=>unknown)=>Promise.resolve({data:table==="employees"?(call.methods.some(m=>m[0]==="eq"&&m[1]==="user_id")?[{id:employeeId}]:people):table==="business_calendar_appointments"?appointments:[{id,name:"Shampoo",sku:"P1",stock_quantity:10,minimum_stock:2,active:true,purchase_price_minor:12345,sale_price_minor:54321}],count:missingCount?null:130,error:table===failedTable?{message:"PRIVATE SQL DIAGNOSTIC"}:null}).then(resolve);
     return query;
   };
@@ -25,7 +25,7 @@ beforeEach(()=>{
   vi.mocked(requireBusinessContext).mockResolvedValue(context);vi.mocked(requireBusinessPermission).mockResolvedValue(context);vi.mocked(getBusinessRequestContext).mockResolvedValue(context);
 });
 const calendar=async(params:Record<string,string|string[]|undefined>={date:"2026-10-20"})=>renderToStaticMarkup(await CalendarPage({searchParams:Promise.resolve(params)}));
-const inventory=async()=>renderToStaticMarkup(await InventoryPage());
+const inventory=async(params:Record<string,string|string[]|undefined>={})=>renderToStaticMarkup(await InventoryPage({searchParams:Promise.resolve(params)}));
 describe("web calendar uses the shared native security boundary",()=>{
   it("scopes the selected branch, public employee roster, local day and bounded calendar query",async()=>{
     const html=await calendar();expect(html).toContain("Selected branch");expect(html).toContain("America/New_York");expect(html).toContain("09:00");expect(html).toContain("Kesim · Bakım");
@@ -73,4 +73,18 @@ describe("web inventory protects the server-to-client boundary",()=>{
   it("an explicit staff finance grant still does not grant product editing",async()=>{context.role="EMPLOYEE";const html=await inventory();expect(html).toContain("Alış");expect(html).not.toContain("initialProducts");});
   it("does not hide query failures behind an empty stock list",async()=>{failedTable="business_inventory_access";expect(await inventory()).toContain("Stok listesi alınamadı");});
   it("does not fabricate zero products if aggregate metadata is absent",async()=>{missingCount=true;expect(await inventory()).toContain("Stok listesi alınamadı");});
+  it("paginates beyond the former 1,000 row cutoff, retaining verified scope and search",async()=>{
+    const html=await inventory({offset:"1000",q:"P1",businessId:id,branchId});
+    expect(getBusinessRequestContext).toHaveBeenCalled();
+    expect(calls[0].methods).toContainEqual(["range",1000,1049]);
+    expect(calls[0].methods).toContainEqual(["or",'name.imatch."P1",sku.imatch."P1"']);
+    expect(calls[0].methods).toContainEqual(["order","id"]);
+    expect(html).toContain('name="businessId"'); expect(html).toContain('name="branchId"');
+    expect(html).toContain(`&quot;businessId&quot;:&quot;${id}&quot;`);
+    expect(html).toContain("offset=950"); expect(html).toContain("q=P1");
+  });
+  it.each([{offset:"1"},{offset:"100050"},{offset:["0","50"]},{q:["one","two"]},{q:"x".repeat(81)},{q:"\n"},{businessId:"bad"},{extra:"bad"}])("rejects invalid inventory query %j before private queries",async(params)=>{
+    expect(await inventory(params)).toContain("kontrol et"); expect(calls).toEqual([]);
+  });
+  it("denies inventory before queries when its permission is absent",async()=>{context.permissions.inventory=false; expect(await inventory()).toContain("yetkin yok");expect(calls).toEqual([]);});
 });

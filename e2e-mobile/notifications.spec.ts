@@ -11,9 +11,30 @@ test("history beyond 100 remains reachable without writes or duplicate cards", a
   await signIn(page); await page.goto("/notifications");
   await expect(page.getByRole("button", { name: "Geçmiş bildirim 126, okunmadı", exact: true })).toBeVisible();
   for (let i = 0; i < 5; i++) {
-    await page.getByRole("button", { name: "Önceki bildirimleri yükle", exact: true }).click();
+    const button = page.getByRole("button", { name: "Önceki bildirimleri yükle", exact: true });
+    const lowest = 127 - 25 * (i + 1);
+    const currentLast = page.getByRole("button", { name: `Geçmiş bildirim ${String(lowest).padStart(3, "0")}${lowest % 2 === 0 ? ", okunmadı" : ""}`, exact: true });
+    // FlatList updates estimated off-screen heights while materializing rows.
+    // Settle the real last row before ONE click; do not race repeated clicks
+    // against the pending request or let the footer move under the pointer.
+    await expect(async () => {
+      await button.scrollIntoViewIfNeeded();
+      await expect(currentLast).toBeVisible({ timeout: 500 });
+    }).toPass({ timeout: 5000 });
+    const nextPage = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/notifications" && url.searchParams.has("cursor") && response.status() === 200;
+    });
+    await button.click();
+    const response = await nextPage; await response.finished();
+    const result = await response.json();
+    expect(result.notifications).toHaveLength(i === 4 ? 1 : 25);
+    expect(result.notifications.at(-1).title).toBe(`Geçmiş bildirim ${String(Math.max(1, 127 - 25 * (i + 2))).padStart(3, "0")}`);
   }
-  await page.getByText("Tüm bildirimler gösterildi.", { exact: true }).scrollIntoViewIfNeeded();
+  await expect(async () => {
+    await page.getByText("Tüm bildirimler gösterildi.", { exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole("button", { name: "Geçmiş bildirim 001", exact: true })).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 5000 });
   await expect(page.getByRole("button", { name: "Geçmiş bildirim 001", exact: true })).toBeVisible();
   await expect(page.getByText("Tüm bildirimler gösterildi.", { exact: true })).toBeVisible();
   expect(writes).toHaveLength(0);

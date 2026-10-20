@@ -19,7 +19,7 @@ import { EmployeeScheduleManager } from "@/components/employee-schedule-manager"
 import { BusinessReport } from "@/components/business-report";
 import { BusinessReviews } from "@/components/business-reviews";
 import { CustomerCareManager } from "@/components/customer-care-manager";
-import { notificationUuid } from "@salonny/contracts";
+import { inventoryFieldLimits, notificationUuid, panelDirectoryPageSize, panelDirectoryMaxOffset } from "@salonny/contracts";
 
 const statuses: Record<string, string> = { pending: "Onay bekliyor", confirmed: "Onaylandı", completed: "Tamamlandı", cancelled: "İptal edildi", no_show: "Gelmedi", draft: "Taslak", active: "Aktif", waiting: "Bekliyor", offered: "Teklif hazırlandı" };
 const metricIcons: Record<string, LucideIcon> = { calendar: CalendarDays, scissors: Scissors, users: Users, customer: Users };
@@ -58,7 +58,7 @@ function RecordForm({ section, row, settings, onClose, onSave, busy, error }: { 
     <KeyboardAvoidingView style={styles.formScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.formHeader}><Text style={styles.heading}>{section === "settings" ? "Randevu ayarları" : row ? "Kaydı düzenle" : "Yeni kayıt"}</Text><Pressable disabled={busy} accessibilityLabel="Formu kapat" onPress={onClose}><X size={24} color={theme.colors.text} /></Pressable></View>
       <ScrollView contentContainerStyle={styles.formBody} keyboardShouldPersistTaps="handled">
-        {(fields[section] ?? []).map((field) => <View key={field.key} style={{ gap: 8 }}><Text style={styles.label}>{field.label}</Text><TextInput accessibilityLabel={field.label} style={[styles.input, field.multiline && { minHeight: 90, textAlignVertical: "top" }]} value={String(values[field.key] ?? "")} onChangeText={(value) => setValues((prev) => ({ ...prev, [field.key]: value }))} keyboardType={field.numeric ? "decimal-pad" : field.key === "email" ? "email-address" : field.key === "phone" ? "phone-pad" : "default"} autoCapitalize={field.key === "email" ? "none" : "sentences"} multiline={field.multiline} maxLength={field.multiline ? 2000 : 120} /></View>)}
+        {(fields[section] ?? []).map((field) => <View key={field.key} style={{ gap: 8 }}><Text style={styles.label}>{field.label}</Text><TextInput accessibilityLabel={field.label} style={[styles.input, field.multiline && { minHeight: 90, textAlignVertical: "top" }]} value={String(values[field.key] ?? "")} onChangeText={(value) => setValues((prev) => ({ ...prev, [field.key]: value }))} keyboardType={field.numeric ? "decimal-pad" : field.key === "email" ? "email-address" : field.key === "phone" ? "phone-pad" : "default"} autoCapitalize={field.key === "email" ? "none" : "sentences"} multiline={field.multiline} maxLength={section === "inventory" && (field.key === "name" || field.key === "sku") ? inventoryFieldLimits[field.key] : field.multiline ? 2000 : 120} /></View>)}
         {Object.keys(values).filter((key) => typeof values[key] === "boolean").map((key) => <View key={key} style={styles.switchRow}><Text style={styles.label}>{key === "active" ? "Aktif" : key === "autoConfirm" ? "Randevuları otomatik onayla" : "Bekleme listesini aç"}</Text><Switch accessibilityLabel={key === "active" ? "Aktif" : key === "autoConfirm" ? "Otomatik onay" : "Bekleme listesi"} value={Boolean(values[key])} onValueChange={(value) => setValues((prev) => ({ ...prev, [key]: value }))} trackColor={{ true: theme.colors.primary }} /></View>)}
         {error || validation ? <Text accessibilityRole="alert" style={styles.error}>{validation || error}</Text> : null}
         <AppButton label="Kaydet" busy={busy} onPress={submit} />
@@ -97,11 +97,15 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   useEffect(() => { const timer = setTimeout(() => setSettledSearch(search), 300); return () => clearTimeout(timer); }, [search]);
   const allowed = Boolean(context.data && canViewSection(context.data, section));
   const canWrite = context.data?.role === "OWNER" || context.data?.role === "MANAGER";
+  const directory = ["services", "employees", "inventory"].includes(section);
   const page = useInfiniteQuery({
     queryKey: ["business-panel", section, user?.id, session?.access_token, scope, settledSearch, status, section === "calendar" ? date : "", appointmentId],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => getPanelPage(section, session!.access_token, scope, { offset: pageParam, q: settledSearch, status, date: section === "calendar" ? date : undefined, appointmentId }, signal),
-    getNextPageParam: (last, pages) => last.hasMore ? pages.length * (section === "customers" ? 25 : 50) : undefined,
+    getNextPageParam: (last, pages) => {
+      const next = pages.length * (section === "customers" ? 25 : panelDirectoryPageSize);
+      return last.hasMore && (!directory || next <= panelDirectoryMaxOffset) ? next : undefined;
+    },
     enabled: Boolean(session && scope.businessId && allowed && definition && !["reports", "reviews", "campaigns"].includes(section)), retry: false,
   });
   const mutation = useMutation({
@@ -119,7 +123,7 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
   if (careCustomerId && section === "customers") return <CustomerCareManager customerId={careCustomerId} onBack={() => setCareCustomerId(null)} />;
   const shiftDay = (delta: number) => { const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + delta); setDate(next.toISOString().slice(0, 10)); };
   return <View style={{ flex: 1 }}>
-    <FlatList data={rows} keyExtractor={(row) => row.id} contentContainerStyle={styles.content} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={7} keyboardShouldPersistTaps="handled" refreshing={page.isRefetching} onRefresh={() => void page.refetch()}
+    <FlatList data={rows} keyExtractor={(row) => row.id} contentContainerStyle={styles.content} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={7} keyboardShouldPersistTaps="handled" refreshing={page.isRefetching && !page.isFetchingNextPage} onRefresh={() => { if (!page.isFetching) void page.refetch(); }}
       ListHeaderComponent={<>
         <View style={styles.titleRow}><View style={{ flex: 1 }}><Text style={styles.heading}>{definition.label}</Text><Text style={styles.description}>{definition.description}</Text></View>{editable.includes(section) && canWrite ? <Pressable accessibilityRole="button" accessibilityLabel="Yeni kayıt ekle" style={styles.addButton} onPress={() => { mutation.reset(); setEditor({}); }}><Plus size={22} color="#fff" /></Pressable> : null}</View>
         {appointmentId ? <View style={styles.card}><Text style={styles.label}>Bildirimdeki randevu</Text><AppButton label="Tüm işletme randevularını göster" variant="ghost" onPress={() => router.replace({ pathname: "/manage/[section]", params: { section: "appointments", ...scope } })} /></View> : null}
@@ -131,13 +135,14 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {section === "operations" && canWrite && context.data?.permissions.operations ? <AppButton label="Kaynak yönetimi" variant="secondary" onPress={() => setResourceManager(true)} /> : null}
         {section === "dashboard" && first?.metrics ? <View style={styles.metrics}>{first.metrics.map((metric) => { const Icon = metricIcons[metric.icon] ?? CalendarDays; return <View key={metric.label} style={styles.metric}><View style={styles.metricIcon}><Icon size={22} color={theme.colors.primary} /></View><Text style={styles.metricValue}>{metric.value}</Text><Text style={styles.description}>{metric.label}</Text></View>; })}</View> : null}
         {section === "calendar" ? <View style={styles.dateRow}><Pressable accessibilityRole="button" accessibilityLabel="Önceki gün" onPress={() => shiftDay(-1)} style={styles.dateButton}><ChevronLeft color={theme.colors.primary} size={22} /></Pressable><Text style={styles.label}>{new Date(`${date}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "short", timeZone: "UTC" })}</Text><Pressable accessibilityRole="button" accessibilityLabel="Sonraki gün" onPress={() => shiftDay(1)} style={styles.dateButton}><ChevronRight color={theme.colors.primary} size={22} /></Pressable><Chip label="Bugün" onPress={() => setDate(today(panelTimezone))} /></View> : null}
-        {editable.includes(section) ? <View style={styles.search}><Search size={18} color={theme.colors.muted} /><TextInput accessibilityLabel="Panelde ara" placeholder="İsim veya ad ile ara..." value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.colors.text, paddingVertical: 12 }} /></View> : null}
+        {editable.includes(section) ? <View style={styles.search}><Search size={18} color={theme.colors.muted} /><TextInput accessibilityLabel="Panelde ara" placeholder={section === "inventory" ? "Ürün adı veya stok kodu" : "İsim veya ad ile ara..."} maxLength={80} value={search} onChangeText={setSearch} style={{ flex: 1, color: theme.colors.text, paddingVertical: 12 }} /></View> : null}
+        {directory && first?.total !== undefined ? <Text style={styles.description}>{first.total} eşleşen kayıt · {rows.length} kayıt yüklendi. Liste işletme geneline aittir.</Text> : null}
         {section === "appointments" ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}><Chip label="Tümü" selected={!status} onPress={() => setStatus("")} />{["pending", "confirmed", "completed", "cancelled", "no_show"].map((value) => <Chip key={value} label={statuses[value]} selected={status === value} onPress={() => setStatus(value)} />)}</ScrollView> : null}
         {section === "dashboard" && first?.timezone ? <Text style={styles.description}>{context.data?.branch.name} · {first.date} · {first.timezone}{context.data?.role === "EMPLOYEE" ? " · yalnız kendi randevuların" : ""}. Hizmet/çalışan sayıları seçili şubeye, işletme müşteri sayısı işletme geneline aittir.</Text> : null}
         {section === "dashboard" && context.data?.permissions.calendar ? <><Text style={styles.subheading}>Bugünkü randevular</Text>{first && (first.total ?? 0) > rows.length ? <AppButton label="Bugünün tüm randevularını göster" variant="ghost" onPress={() => router.push({ pathname: "/manage/[section]", params: { section: "calendar", ...scope } })} /> : null}</> : null}
         {section === "settings" && first?.settings ? <View style={styles.card}><View style={styles.cardTitle}><CheckCircle2 color={theme.colors.primary} size={22} /><Text style={styles.subheading}>Randevu kuralları</Text></View><Text style={styles.description}>Randevu penceresi: {first.settings.booking_window_days} gün</Text><Text style={styles.description}>En erken randevu: {first.settings.minimum_notice_minutes} dakika</Text><Text style={styles.description}>İptal sınırı: {first.settings.cancellation_notice_minutes} dakika</Text><Text style={styles.description}>Otomatik onay: {first.settings.auto_confirm ? "Açık" : "Kapalı"}</Text><Text style={styles.description}>Bekleme listesi: {first.settings.allow_waitlist ? "Açık" : "Kapalı"}</Text><AppButton label="Ayarları düzenle" onPress={() => { mutation.reset(); setEditor({}); }} /></View> : null}
         {page.isPending ? <LoadingState label="Veriler yükleniyor..." /> : null}
-        {page.isError ? <EmptyState title="Veriler alınamadı" detail={page.error.message} action={<AppButton label="Yeniden dene" onPress={() => void page.refetch()} />} /> : null}
+        {page.isError && !page.isFetchNextPageError ? <EmptyState title="Veriler alınamadı" detail={page.error.message} action={<AppButton label="Yeniden dene" busy={page.isFetching} onPress={() => void page.refetch()} />} /> : null}
       </>}
       renderItem={({ item: row }) => <View style={styles.card}>
         <View style={styles.cardTitle}><View style={{ flex: 1 }}><Text style={styles.rowTitle}>{row.title}</Text><Text style={styles.description}>{row.subtitle}</Text></View>{row.status ? <View style={[styles.badge, row.status === "cancelled" && { backgroundColor: "#FEF3F2" }]}><Text style={styles.badgeText}>{statuses[row.status] ?? row.status}</Text></View> : row.active !== undefined ? <Text style={styles.description}>{row.active ? "Aktif" : "Pasif"}</Text> : null}</View>
@@ -152,7 +157,11 @@ function ManagementSectionContent({ rawSection }: { rawSection: string }) {
         {editable.includes(section) && canWrite ? <View style={styles.actions}><Chip label="Düzenle" onPress={() => { mutation.reset(); setEditor({ row }); }} />{section === "inventory" ? <><Chip label="Stok +1" onPress={() => { if (!mutation.isPending) execute({ id: row.id, quantity: 1, note: "Mobil stok girişi" }); }} /><Chip label="Stok −1" onPress={() => { if (!mutation.isPending) execute({ id: row.id, quantity: -1, note: "Mobil stok çıkışı" }); }} /></> : null}</View> : null}
       </View>}
       ListEmptyComponent={!page.isPending && !page.isError && section !== "settings" ? <EmptyState title="Henüz kayıt yok" detail={section === "calendar" || section === "dashboard" ? "Bu gün için randevu bulunmuyor." : "Filtrelerinle eşleşen kayıt bulunamadı."} /> : null}
-      ListFooterComponent={page.hasNextPage ? <AppButton label="Daha fazla kayıt" variant="secondary" busy={page.isFetchingNextPage} onPress={() => void page.fetchNextPage()} /> : null}
+      ListFooterComponent={<>
+        {page.isFetchNextPageError ? <Text accessibilityRole="alert" style={styles.error}>Sonraki sayfa alınamadı. Yüklenen kayıtlar korundu. {page.error.message}</Text> : null}
+        {page.hasNextPage ? <AppButton label={page.isFetchNextPageError ? "Sonraki sayfayı yeniden dene" : "Daha fazla kayıt"} variant="secondary" busy={page.isFetchingNextPage} disabled={page.isFetching && !page.isFetchingNextPage} onPress={() => { if (!page.isFetching) void page.fetchNextPage(); }} /> : null}
+        {directory && !page.hasNextPage && page.data?.pages.at(-1)?.hasMore ? <Text accessibilityRole="alert" style={styles.error}>Daha fazla kayda ulaşmak için aramayı daralt. Bu liste tamamlanmış değildir.</Text> : null}
+      </>}
     />
     {editor ? <RecordForm key={`${section}-${editor.row?.id ?? "new"}`} section={section} row={editor.row} settings={first?.settings} busy={mutation.isPending} error={mutation.error?.message} onClose={() => setEditor(null)} onSave={(values) => mutation.mutate(values)} /> : null}
     {teamEmployee ? <TeamManager key={teamEmployee.id} employee={teamEmployee} onClose={() => setTeamEmployee(null)} /> : null}

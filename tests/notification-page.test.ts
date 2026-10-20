@@ -15,6 +15,14 @@ async function html(auth: unknown) {
   return renderToStaticMarkup(await NotificationsPage());
 }
 describe("notification SSR error boundary", () => {
+  it("shows an explicit outage without private reads when Supabase is not configured", async () => {
+    vi.clearAllMocks();
+    vi.mocked(createServerClientOptional).mockResolvedValueOnce(null);
+    const rendered = renderToStaticMarkup(await NotificationsPage());
+    expect(rendered).toContain("Bildirimlere şu anda ulaşılamıyor. Bu, boş bir liste değil.");
+    expect(rendered).not.toContain("Bu bölümde bildirim yok");
+    expect(readNotificationPage).not.toHaveBeenCalled();
+  });
   it("renders a guest prompt without querying private history", async () => {
     vi.clearAllMocks(); expect(await html({ data: { user: null } })).toContain("Hesabına giriş yap"); expect(readNotificationPage).not.toHaveBeenCalled();
   });

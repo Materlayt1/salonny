@@ -5,6 +5,7 @@ import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { BusinessAccessError, getBusinessRequestContext, requirePanelPermission } from "@/lib/business-request-context";
 import { appointmentRows, appointmentsQuery, ownEmployee, readBusinessDashboard, type AppointmentRow } from "@/lib/business-panel-read";
 import { customerCareDirectoryQuery, customerCareDirectorySchema } from "@/lib/customer-care-contract";
+import { inventoryFieldLimits, panelDirectoryFilter, panelDirectoryPageSize, parsePanelDirectoryQuery, type PanelDirectorySection } from "@salonny/contracts";
 
 const sections = new Set(["context", "dashboard", "appointments", "calendar", "customers", "services", "employees", "reports", "inventory", "campaigns", "operations", "settings"]);
 const reply = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -89,11 +90,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
       campaigns: ["campaigns", "id,name,status,created_at,discounts(code,kind,value)"],
     } as const;
     const selection = selections[section as keyof typeof selections];
+    const directory = ["services", "employees", "inventory"].includes(section);
+    let directoryQuery;
+    if (directory) {
+      try { directoryQuery = parsePanelDirectoryQuery(search); }
+      catch { throw new BusinessAccessError("Liste filtresi veya sayfası geçersiz.", 422); }
+    }
+    const pageOffset = directoryQuery?.offset ?? offset;
+    const pageSize = directory ? panelDirectoryPageSize : limit;
     let query = client.from(selection[0]).select(selection[1], { count: "exact" }).eq("business_id", business.id);
-    if (q) query = query.ilike(section === "customers" ? "full_name" : section === "employees" ? "display_name" : "name", `%${q}%`);
-    const result = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+    if (directoryQuery?.q) query = query.or(panelDirectoryFilter(section as PanelDirectorySection, directoryQuery.q));
+    else if (!directory && q) query = query.ilike("name", `%${q}%`);
+    const result = await query.order("created_at", { ascending: false }).order("id").range(pageOffset, pageOffset + pageSize - 1)
+      .abortSignal(AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]));
     if (result.error) throw result.error;
+    if (!Array.isArray(result.data) || !Number.isSafeInteger(result.count) || result.count === null || result.count < 0) throw new BusinessAccessError("Liste ve toplam kayıt sayısı doğrulanamadı. Yeniden dene.", 503);
     const rows = (result.data ?? []) as unknown as Record<string, unknown>[];
+    if (section === "inventory" && context.financialVisibility && rows.some((row) => !Number.isSafeInteger(row.purchase_price_minor) || !Number.isSafeInteger(row.sale_price_minor))) throw new BusinessAccessError("Stok fiyatları doğrulanamadı. Listeyi yenile.", 503);
     return reply({ rows: rows.map((row) => {
       const visible = { ...row };
       if (section === "inventory" && !context.financialVisibility) {
@@ -101,7 +114,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sect
         delete visible.sale_price_minor;
       }
       return { ...visible, roleTitle: row.title, title: row.full_name ?? row.display_name ?? row.name, subtitle: section === "customers" ? row.phone : section === "employees" ? row.title : section === "inventory" ? row.sku : section === "services" ? `${row.duration_minutes} dk` : "Kampanya" };
-    }), total: result.count ?? 0, hasMore: offset + limit < (result.count ?? 0) });
+    }), total: result.count, hasMore: pageOffset + pageSize < result.count });
   } catch (error) { return failed(error); }
 }
 
@@ -111,7 +124,7 @@ const schemas = {
   services: z.object({ id, name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).default(""), durationMinutes: z.number().int().min(5).max(1440), price: z.number().min(0).max(10_000_000), active: z.boolean() }).strict(),
   employees: z.object({ id, displayName: z.string().trim().min(2).max(120), title: z.string().trim().max(120).default(""), bio: z.string().trim().max(1000).default(""), active: z.boolean() }).strict(),
   customers: z.object({ id, fullName: z.string().trim().min(2).max(120), phone: z.string().trim().min(10).max(24), email: z.union([z.email(), z.literal("")]).default(""), notes: z.string().trim().max(2000).default("") }).strict(),
-  inventory: z.object({ id, name: z.string().trim().min(2).max(120), sku: z.string().trim().min(1).max(80), minimumStock: z.number().int().min(0).max(1_000_000), purchasePrice: z.number().min(0).max(10_000_000), salePrice: z.number().min(0).max(10_000_000), active: z.boolean() }).strict(),
+  inventory: z.object({ id, name: z.string().trim().min(2).max(inventoryFieldLimits.name), sku: z.string().trim().min(1).max(inventoryFieldLimits.sku), minimumStock: z.number().int().min(0).max(1_000_000), purchasePrice: z.number().min(0).max(10_000_000), salePrice: z.number().min(0).max(10_000_000), active: z.boolean() }).strict(),
   stock: z.object({ id: z.string().uuid(), quantity: z.number().int().min(-1_000_000).max(1_000_000).refine((n) => n !== 0), note: z.string().trim().max(500).default("") }).strict(),
   campaigns: z.object({ id: z.string().uuid(), status: z.enum(["draft", "active", "cancelled"]) }).strict(),
   settings: z.object({ bookingWindowDays: z.number().int().min(1).max(365), minimumNoticeMinutes: z.number().int().min(0).max(43200), cancellationNoticeMinutes: z.number().int().min(0).max(43200), autoConfirm: z.boolean(), allowWaitlist: z.boolean() }).strict(),
@@ -142,8 +155,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ sec
       if (result.error?.code === "22023") throw new BusinessAccessError("Randevu durumu değişmiş. Listeyi yenileyip yeniden dene.", 409);
       if (result.error) throw result.error;
     } else if (isStock && "quantity" in values) {
-      const existing = await client.from("inventory_products").select("id").eq("id", values.id).eq("business_id", business.id).maybeSingle(); if (!existing.data) throw new BusinessAccessError("Ürün bulunamadı.", 404);
-      const result = await client.rpc("adjust_inventory_stock", { p_product_id: values.id, p_quantity_delta: values.quantity, p_note: values.note || null }); if (result.error) throw result.error;
+      const existing = await client.from("inventory_products").select("id").eq("id", values.id).eq("business_id", business.id).maybeSingle();
+      if (existing.error) throw existing.error;
+      if (!existing.data) throw new BusinessAccessError("Ürün bulunamadı.", 404);
+      const result = await client.rpc("adjust_inventory_stock", { p_product_id: values.id, p_quantity_delta: values.quantity, p_note: values.note || null });
+      if (result.error?.code === "42501") throw new BusinessAccessError("Bu ürünün stok miktarını değiştirme yetkin yok.", 403);
+      if (["22023", "23514"].includes(result.error?.code ?? "")) throw new BusinessAccessError("Stok hareketi uygulanamadı. Güncel miktarı yenileyip giriş/çıkış miktarını kontrol et.", 409);
+      if (result.error) throw result.error;
     } else if (section === "campaigns" && "status" in values) {
       const existing = await client.from("campaigns").select("id").eq("id", values.id!).eq("business_id", business.id).maybeSingle(); if (!existing.data) throw new BusinessAccessError("Kampanya bulunamadı.", 404);
       const result = await client.rpc("set_business_campaign_status", { p_campaign_id: values.id, p_status: values.status }); if (result.error) throw result.error;
@@ -158,6 +176,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sec
       else return reply({ error: "Geçersiz işlem." }, 422);
       const entityId = "id" in values ? values.id : undefined;
       const result = entityId ? await client.from(table).update(payload).eq("id", entityId).eq("business_id", business.id).select("id").maybeSingle() : await client.from(table).insert({ ...payload, business_id: business.id, ...(table === "inventory_products" ? { stock_quantity: 0 } : {}) }).select("id").single();
+      if (section === "inventory" && result.error?.code === "23505") throw new BusinessAccessError("Bu stok kodu işletmende zaten kullanılıyor. Farklı bir kod gir.", 409);
       if (result.error) throw result.error;
       if (!result.data) throw new BusinessAccessError("Kayıt bulunamadı.", 404);
       if (table === "services") { const linked = await client.from("branch_services").upsert({ branch_id: branch.id, service_id: result.data.id, active: "active" in values ? values.active : true }, { onConflict: "branch_id,service_id" }); if (linked.error) throw linked.error; }

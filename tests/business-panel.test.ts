@@ -10,7 +10,7 @@ vi.mock("@/lib/api-security", async (original) => ({ ...await original<typeof im
 const id = "10000000-0000-4000-8000-000000000001";
 const branchId = "10000000-0000-4000-8000-000000000002";
 const entityId = "10000000-0000-4000-8000-000000000003";
-const query = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), range: vi.fn(), limit: vi.fn(), gte: vi.fn(), lt: vi.fn(), ilike: vi.fn(), in: vi.fn(), update: vi.fn(), insert: vi.fn(), upsert: vi.fn(), maybeSingle: vi.fn(), single: vi.fn(), then: vi.fn(), abortSignal: vi.fn() };
+const query = { select: vi.fn(), eq: vi.fn(), or: vi.fn(), order: vi.fn(), range: vi.fn(), limit: vi.fn(), gte: vi.fn(), lt: vi.fn(), ilike: vi.fn(), in: vi.fn(), update: vi.fn(), insert: vi.fn(), upsert: vi.fn(), maybeSingle: vi.fn(), single: vi.fn(), then: vi.fn(), abortSignal: vi.fn() };
 const from = vi.fn(); const rpc = vi.fn();
 let context: BusinessContext;
 let rows: Record<string, unknown>[];
@@ -19,7 +19,7 @@ const params = (section: string) => ({ params: Promise.resolve({ section }) });
 beforeEach(() => {
   vi.clearAllMocks();
   rows = [{ id: entityId, status: "confirmed", starts_at: "2026-10-05T09:00:00Z", ends_at: "2026-10-05T09:30:00Z", customer_id: id, employee_id: entityId, total_minor: 50000, currency: "TRY", customers: { full_name: "Müşteri", phone: "05555555555" }, employees: { display_name: "Uzman" }, appointment_items: [{ name_snapshot: "Saç kesimi" }] }];
-  for (const method of ["select", "eq", "order", "range", "limit", "gte", "lt", "ilike", "in", "update", "insert", "upsert", "abortSignal"] as const) query[method].mockReturnValue(query);
+  for (const method of ["select", "eq", "or", "order", "range", "limit", "gte", "lt", "ilike", "in", "update", "insert", "upsert", "abortSignal"] as const) query[method].mockReturnValue(query);
   query.then.mockImplementation((resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, count: rows.length, error: null }).then(resolve));
   query.maybeSingle.mockResolvedValue({ data: { id: entityId, status: "confirmed" }, error: null });
   query.single.mockResolvedValue({ data: { id: entityId }, error: null });
@@ -69,6 +69,39 @@ describe("native business panel API", () => {
     expect((await response.json()).rows[0]).not.toHaveProperty("purchase_price_minor");
     expect(from).toHaveBeenCalledWith("business_inventory_access");
     expect(query.select.mock.calls[0][0]).not.toContain("purchase_price_minor");
+  });
+  it.each(["services","employees","inventory"])("strictly pages %s with deterministic ties and a timeout",async(section)=>{
+    if (section === "inventory") rows=[{id:entityId,name:"Ürün",sku:"P1",purchase_price_minor:12345,sale_price_minor:54321}];
+    expect((await GET(request(section,undefined,"?offset=1000&q=P1"),params(section))).status).toBe(200);
+    expect(query.eq).toHaveBeenCalledWith("business_id",id);expect(query.range).toHaveBeenCalledWith(1000,1049);expect(query.order).toHaveBeenCalledWith("id");expect(query.abortSignal).toHaveBeenCalledWith(expect.any(AbortSignal));expect(query.ilike).not.toHaveBeenCalled();
+    expect(query.or).toHaveBeenCalledWith(section==="inventory"?'name.imatch."P1",sku.imatch."P1"':section==="employees"?'display_name.imatch."P1"':'name.imatch."P1"');
+  });
+  it.each([undefined,null,NaN,1.5])("does not let native inventory editing turn an unverified price %s into zero",async(price)=>{
+    rows=[{id:entityId,name:"Ürün",sku:"P1",purchase_price_minor:price,sale_price_minor:54321}];
+    const response=await GET(request("inventory"),params("inventory"));expect(response.status).toBe(503);expect(await response.text()).toContain("fiyatları doğrulanamadı");
+  });
+  it.each(["?offset=1","?offset=-1","?offset=1.5","?offset=100050","?offset=0&offset=50","?q=a&q=b","?businessId=bad","?q=%00","?status=active",`?q=${"x".repeat(81)}`])("rejects invalid generic directory query %s before entity reads",async(search)=>{
+    const response=await GET(request("inventory",undefined,search),params("inventory"));expect(response.status).toBe(422);expect(from).not.toHaveBeenCalled();
+  });
+  it.each([null,-1,NaN,1.5])("does not fabricate a complete stock directory when count=%s",async(count)=>{
+    query.then.mockImplementation((resolve:(value:unknown)=>unknown)=>Promise.resolve({data:rows,count,error:null}).then(resolve));
+    const response=await GET(request("inventory"),params("inventory"));expect(response.status).toBe(503);expect(await response.text()).not.toContain("PRIVATE");
+  });
+  it("reports a duplicate SKU as an actionable conflict, not a transient server failure",async()=>{
+    query.single.mockResolvedValue({data:null,error:{code:"23505",message:"PRIVATE SQL"}});
+    const response=await POST(request("inventory",{name:"Ürün",sku:"P1",minimumStock:0,purchasePrice:1.23,salePrice:2.34,active:true}),params("inventory"));
+    expect(response.status).toBe(409);expect(await response.text()).toContain("stok kodu");
+  });
+  it.each([[160,80,200],[161,80,422],[160,81,422]])("shares the web/native stock name/SKU limit %s/%s",async(name,sku,status)=>{
+    const response=await POST(request("inventory",{name:"x".repeat(name),sku:"y".repeat(sku),minimumStock:0,purchasePrice:1.23,salePrice:2.34,active:true}),params("inventory"));expect(response.status).toBe(status);
+  });
+  it("does not misreport a failed stock ownership read as not found or proceed to RPC",async()=>{
+    query.maybeSingle.mockResolvedValue({data:null,error:{message:"PRIVATE SQL"}});
+    const response=await POST(request("inventory",{id:entityId,quantity:1}),params("inventory"));expect(response.status).toBe(503);expect(rpc).not.toHaveBeenCalled();
+  });
+  it.each([["42501",403],["23514",409],["22023",409]])("keeps stock RPC rejection %s actionable and tenant scoped",async(code,status)=>{
+    rpc.mockResolvedValue({error:{code,message:"PRIVATE SQL"}});
+    const response=await POST(request("inventory",{id:entityId,quantity:-1}),params("inventory"));expect(response.status).toBe(status);expect(await response.text()).not.toContain("PRIVATE");expect(query.eq).toHaveBeenCalledWith("business_id",id);
   });
   it.each(["?offset=-1","?offset=1.5","?offset=Infinity","?offset=100001","?offset=0&offset=50","?date=","?date=2026-10-05&date=2026-10-06","?status=bad","?status=confirmed&status=completed"])("rejects ambiguous or malformed appointment paging/filter %s", async (queryString) => {
     const response = await GET(request("appointments", undefined, queryString), params("appointments")); expect(response.status).toBe(422); expect(query.range).not.toHaveBeenCalled();
