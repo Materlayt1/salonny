@@ -12,8 +12,8 @@ export default async function AdminLoginPage() {
   if (supabase) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-      if (data?.role === "ADMIN") redirect("/admin");
+      const { data } = await supabase.from("users").select("role,deleted_at").eq("id", user.id).maybeSingle();
+      if (data?.role === "ADMIN" && !data.deleted_at) redirect("/admin");
     }
   }
   return (

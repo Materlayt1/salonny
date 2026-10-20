@@ -15,4 +15,12 @@ describe("SSR report request timeout", () => {
       await customFetch("https://fixture.supabase.co"+path); expect(timeout).toHaveBeenLastCalledWith(expected);
     }
   });
+  it("supports the private admin read budget without changing the default metadata budget", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://fixture.supabase.co"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "fixture-key"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_OFFLINE", "false");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => new AbortController().signal);
+    await createServerClientOptional({ dataTimeoutMs: 10000, retry: false });
+    await makeClient.mock.calls.at(-1)![2].global.fetch("https://fixture.supabase.co/rest/v1/users");
+    expect(timeout).toHaveBeenLastCalledWith(10000);
+  });
 });
