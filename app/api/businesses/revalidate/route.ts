@@ -1,4 +1,4 @@
-import { revalidatePath, revalidateTag } from "next/cache";
+import { invalidateMarketplace } from "@/lib/marketplace-invalidation";
 import { NextResponse } from "next/server";
 import { apiRateLimit } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
@@ -14,8 +14,6 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Oturum açmanız gerekiyor." }, { status: 401 });
   const { count } = await supabase.from("business_members").select("business_id", { count: "exact", head: true }).eq("user_id", user.id).eq("active", true);
   if (!count) return NextResponse.json({ error: "İşletme yetkisi gerekiyor." }, { status: 403 });
-  revalidateTag("marketplace", "max");
-  revalidatePath("/");
-  revalidatePath("/kesfet");
+  invalidateMarketplace();
   return NextResponse.json({ revalidated: true });
 }

@@ -167,8 +167,11 @@ export type CustomerProfile = { fullName: string; phone: string; city: string; e
 export const getCustomerProfile = (token: string) => requestJson<CustomerProfile>("/api/customer-profile", {}, token);
 export const saveCustomerProfile = (profile: Omit<CustomerProfile, "email">, token: string) =>
   requestJson("/api/customer-profile", { method: "PATCH", body: JSON.stringify(profile) }, token);
-export const requestAccountDeletion = (token: string) =>
-  requestJson("/api/customer-profile", { method: "DELETE", body: JSON.stringify({ confirmed: true }) }, token);
+export const requestAccountDeletion = async (token: string) => {
+  const result = await requestJson<{ requested?: boolean; withdrawnBusinessCount?: number }>("/api/customer-profile", { method: "DELETE", body: JSON.stringify({ confirmed: true }) }, token);
+  if (result.requested !== true) throw new Error("Talebin sonucu doğrulanamadı. Profilini yenile.");
+  return result;
+};
 
 export const getRescheduleSlots = (id: string, date: string, token: string) =>
   requestJson<{ slots: string[] }>(`/api/appointments/${id}?date=${encodeURIComponent(date)}`, {}, token);

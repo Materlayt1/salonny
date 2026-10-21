@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/admin-access";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { invalidateMarketplace } from "@/lib/marketplace-invalidation";
 
 const idSchema = z.string().uuid();
 const businessActionSchema = z.enum(["approve", "suspend", "return_review", "verify", "unverify"]);
@@ -29,11 +30,10 @@ export async function reviewBusiness(formData: FormData) {
   const action = businessActionSchema.parse(formData.get("action"));
   const supabase = await requireAdminClient();
   const { error } = await supabase.rpc("admin_review_business", { p_business_id: businessId, p_action: action });
+  if (error?.message?.includes("business_owner_unavailable")) throw new Error("Sahibinin silme talebi veya kapalı hesabı nedeniyle bu işletme yayımlanamaz.");
   if (error) throw new Error("İşletme durumu güncellenemedi.");
   revalidatePath("/admin");
-  revalidatePath("/");
-  revalidatePath("/kesfet");
-  revalidateTag("marketplace", "max");
+  invalidateMarketplace();
 }
 
 export async function moderateReview(formData: FormData) {

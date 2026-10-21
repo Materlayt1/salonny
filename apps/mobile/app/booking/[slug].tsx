@@ -16,6 +16,7 @@ import { dateKey, formatDate, formatTime, upcomingDates } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
 import { validBookingName, validBookingPhone, bookingErrorRequiresNewSlot, type CustomerBookingPolicy } from "@salonny/contracts";
 import { getCustomerBookingPolicy } from "@/lib/api";
+import { BusinessUnavailable } from "@/components/business-unavailable";
 
 const steps = ["Hizmet", "Uzman", "Tarih", "Onay"] as const;
 const titles = ["Hizmetini seç", "Uzmanını seç", "Sana uygun saati seç", "Bilgilerini kontrol et"];
@@ -152,6 +153,7 @@ function BookingContent({ slug, initialService }: { slug: string; initialService
   };
 
   if (authLoading || business.isLoading) return <Screen><LoadingState label="Randevu ekranı hazırlanıyor..." /></Screen>;
+  if (business.isSuccess && business.data === null) return <BusinessUnavailable />;
   if (!session || !user) return <Screen><EmptyState icon="◷" title="Randevu için giriş yap" detail="Bilgilerini güvenle kaydetmek ve randevunu yönetmek için hesabına giriş yap." action={<AppButton label="Giriş yap" onPress={() => router.push("/auth")} />} /></Screen>;
   if (business.isError || !business.data) return <Screen><ErrorState onRetry={() => void business.refetch()} /></Screen>;
   if (policy.isPending || policy.isFetching) return <Screen><LoadingState label="Randevu yetkin kontrol ediliyor..." /></Screen>;

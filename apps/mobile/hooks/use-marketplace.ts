@@ -1,6 +1,6 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getBusiness, listBusinesses, listCategories, type BusinessQuery } from "@/lib/api";
+import { ApiError, getBusiness, listBusinesses, listCategories, type BusinessQuery } from "@/lib/api";
 import { useBrowseArea } from "@/providers/browse-area-provider";
 import { businessInArea, type BrowseArea } from "@salonny/contracts/browse-area";
 
@@ -60,9 +60,21 @@ export function useCategories() {
 }
 
 export function useBusiness(slug: string) {
-  return useQuery({
+  const client = useQueryClient();
+  const query = useQuery({
     queryKey: ["business", slug],
-    queryFn: () => getBusiness(slug),
+    queryFn: async () => {
+      try { return await getBusiness(slug); }
+      catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
+    },
     enabled: Boolean(slug),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+  useEffect(() => {
+    if (query.data !== null) return;
+    // Only a confirmed 404 invalidates cards. Never interpret a timeout as erasure.
+    for (const queryKey of [["businesses"], ["business-rail"], ["business-directory"], ["favorites"], ["home-highlights"]]) void client.invalidateQueries({ queryKey });
+  }, [client, query.data]);
+  return query;
 }

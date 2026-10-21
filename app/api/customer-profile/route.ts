@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiRateLimit, readBoundedJson } from "@/lib/api-security";
 import { createRequestClientOptional } from "@/lib/supabase/request";
 import { customerProfileSchema } from "@/lib/customer-profile-contract";
+import { AccountDeletionError, requestAccountDeletion } from "@/lib/account-deletion";
 
 export async function GET(request: Request) {
   const limited = await apiRateLimit(request, "customer-profile-read", 60, 60_000);
@@ -33,7 +34,8 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const body = await readBoundedJson(request, 4096);
   if (!body.ok) return body.response;
-  if (!z.object({ confirmed: z.literal(true) }).strict().safeParse(body.value).success) {
+  const parsed = z.object({ confirmed: z.literal(true), reason: z.string().trim().max(1000).optional() }).strict().safeParse(body.value);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Silme talebini onaylamalısın." }, { status: 422 });
   }
   const limited = await apiRateLimit(request, "account-deletion-request", 3, 600_000, { critical: true });
@@ -41,7 +43,9 @@ export async function DELETE(request: Request) {
   const client = await createRequestClientOptional(request);
   const user = client ? (await client.auth.getUser()).data.user : null;
   if (!client || !user) return NextResponse.json({ error: "Giriş yapmalısın." }, { status: 401 });
-  const { error } = await client.from("account_deletion_requests").insert({ user_id: user.id, reason: "Mobil uygulamadan talep edildi.", status: "requested" });
-  if (error && error.code !== "23505") return NextResponse.json({ error: "Talep kaydedilemedi." }, { status: 400 });
-  return NextResponse.json({ requested: true }, { headers: { "Cache-Control": "private, no-store" } });
+  try {
+    return NextResponse.json(await requestAccountDeletion(client, parsed.data.reason), { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof AccountDeletionError ? error.message : "Talep sonucu doğrulanamadı. Yeniden denemeden önce profilini yenile." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
 }

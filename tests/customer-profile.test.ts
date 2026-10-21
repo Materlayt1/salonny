@@ -4,12 +4,20 @@ import { createRequestClientOptional } from "@/lib/supabase/request";
 import { GET, PATCH, DELETE } from "@/app/api/customer-profile/route";
 
 vi.mock("@/lib/supabase/request", () => ({ createRequestClientOptional: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+// Authorization/RPC tests use isolated quota outcomes. The real limiter has its
+// own fail-closed/distributed tests; cases here must not share an in-memory IP.
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/rate-limit")>(),
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 2, resetAt: Date.now() + 600_000 })),
+}));
 const ownerId = "10000000-0000-4000-8000-000000000001";
 const db = { full_name: "Müşteri", phone: "05555555555", city: "İzmir", id: ownerId, role: "CUSTOMER" };
 const query = {
   select: vi.fn(), eq: vi.fn(), update: vi.fn(), insert: vi.fn(), maybeSingle: vi.fn(),
 };
 const from = vi.fn();
+const rpc = vi.fn();
 const request = (method: string, body?: unknown) => new Request("http://localhost:3001/api/customer-profile", { method, headers: { "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 
 beforeEach(() => {
@@ -17,9 +25,10 @@ beforeEach(() => {
   vi.stubEnv("MOBILE_ALLOWED_ORIGINS", "http://localhost:8082");
   for (const method of ["select", "eq", "update"] as const) query[method].mockReturnValue(query);
   query.insert.mockResolvedValue({ error: null });
+  rpc.mockResolvedValue({ error: null, data: { requested: true, requestId: ownerId, status: "requested", withdrawnBusinessCount: 1 } });
   query.maybeSingle.mockResolvedValue({ data: db, error: null });
   from.mockReturnValue(query);
-  vi.mocked(createRequestClientOptional).mockResolvedValue({ auth: { getUser: async () => ({ data: { user: { id: ownerId, email: "customer@example.com", user_metadata: {} } } }) }, from } as unknown as SupabaseClient);
+  vi.mocked(createRequestClientOptional).mockResolvedValue({ auth: { getUser: async () => ({ data: { user: { id: ownerId, email: "customer@example.com", user_metadata: {} } } }) }, from, rpc } as unknown as SupabaseClient);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -54,9 +63,27 @@ describe("customer profile authorization", () => {
     expect((await DELETE(request("DELETE", { confirmed: false }))).status).toBe(422);
     expect(query.insert).not.toHaveBeenCalled();
   });
+  it("never requests deletion without a verified authenticated user", async () => {
+    vi.mocked(createRequestClientOptional).mockResolvedValue(null);
+    expect((await DELETE(request("DELETE", { confirmed: true }))).status).toBe(401);
+    expect(rpc).not.toHaveBeenCalled(); expect(from).not.toHaveBeenCalled();
+  });
   it("creates a deletion request only for the verified owner", async () => {
     const response = await DELETE(request("DELETE", { confirmed: true }));
     expect(response.status).toBe(200);
-    expect(query.insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: ownerId, status: "requested" }));
+    expect(rpc).toHaveBeenCalledWith("request_account_deletion", { p_reason: null });
+    expect(query.insert).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({ requested: true, withdrawnBusinessCount: 1 });
+  });
+  it("never accepts a caller-supplied owner or incomplete acknowledgement", async () => {
+    expect((await DELETE(request("DELETE", { confirmed: true, userId: "another" }))).status).toBe(422);
+    expect(rpc).not.toHaveBeenCalled();
+    rpc.mockResolvedValue({ error: null, data: { requested: true } });
+    expect((await DELETE(request("DELETE", { confirmed: true }))).status).toBe(503);
+  });
+  it("returns a safe no-store uncertainty on RPC error, without automatic write retry", async () => {
+    rpc.mockResolvedValue({ error: { message: "PRIVATE SQL" }, data: null });
+    const response = await DELETE(request("DELETE", { confirmed: true }));
+    expect(response.status).toBe(503); expect(response.headers.get("cache-control")).toContain("no-store"); expect(await response.text()).not.toContain("PRIVATE SQL"); expect(rpc).toHaveBeenCalledTimes(1);
   });
 });

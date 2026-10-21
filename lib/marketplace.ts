@@ -2,9 +2,9 @@ import "server-only";
 import { businessInArea } from "@salonny/contracts/browse-area";
 
 import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidCoordinate } from "@/lib/geo";
-import { lastKnownMarketplaceBusiness, lastKnownMarketplaceBusinesses } from "@/lib/last-known-marketplace";
 import { awaitPublicRequest, createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 import type { Business } from "@/lib/types";
 
@@ -56,7 +56,7 @@ type MarketplaceDetailResult = { available: boolean; business: Business | null }
 
 const listCached = unstable_cache(async (limit: number): Promise<MarketplaceListResult> => {
   const supabase = createPublicSupabaseClientOptional();
-  if (!supabase) return { available: false, businesses: [] };
+  if (!supabase) throw new MarketplaceSearchUnavailableError();
   const result = await awaitPublicRequest(supabase
     .from("businesses")
     .select(summarySelect)
@@ -74,19 +74,19 @@ const listCached = unstable_cache(async (limit: number): Promise<MarketplaceList
     .limit(limit));
   if (!result) {
     console.error(JSON.stringify({ event: "marketplace_list_failed", code: "timeout" }));
-    return { available: false, businesses: [] };
+    throw new MarketplaceSearchUnavailableError();
   }
   const { data, error } = result;
   if (error) {
     console.error(JSON.stringify({ event: "marketplace_list_failed", code: error.code }));
-    return { available: false, businesses: [] };
+    throw new MarketplaceSearchUnavailableError();
   }
   return { available: true, businesses: ((data ?? []) as unknown as DbBusiness[]).map(toBusiness).filter((item): item is Business => Boolean(item)) };
-}, ["marketplace-businesses-v4"], { revalidate: 60, tags: ["marketplace"] });
+}, ["marketplace-businesses-v5"], { revalidate: 60, tags: ["marketplace"] });
 
-const getCached = unstable_cache(async (slug: string): Promise<MarketplaceDetailResult> => {
+const getCached = cache(async (slug: string): Promise<MarketplaceDetailResult> => {
   const supabase = createPublicSupabaseClientOptional();
-  if (!supabase) return { available: false, business: null };
+  if (!supabase) throw new MarketplaceSearchUnavailableError();
   const result = await awaitPublicRequest(supabase
     .from("businesses")
     .select(detailSelect)
@@ -97,36 +97,21 @@ const getCached = unstable_cache(async (slug: string): Promise<MarketplaceDetail
     .maybeSingle());
   if (!result) {
     console.error(JSON.stringify({ event: "marketplace_detail_failed", code: "timeout", slug }));
-    return { available: false, business: null };
+    throw new MarketplaceSearchUnavailableError();
   }
   const { data, error } = result;
   if (error) {
     console.error(JSON.stringify({ event: "marketplace_detail_failed", code: error.code, slug }));
-    return { available: false, business: null };
+    throw new MarketplaceSearchUnavailableError();
   }
   return { available: true, business: data ? toBusiness(data as unknown as DbBusiness) : null };
-}, ["marketplace-business-v4"], { revalidate: 60, tags: ["marketplace"] });
-
-type LocalListEntry = { expiresAt: number; value?: Business[]; pending?: Promise<Business[]> };
-const localLists = new Map<number, LocalListEntry>();
+});
 
 export async function listMarketplaceBusinesses(limit = 50) {
   const safeLimit = Math.min(Math.max(limit, 1), 200);
-  const now = Date.now();
-  const current = localLists.get(safeLimit);
-  if (current?.value && current.expiresAt > now) return current.value;
-  if (current?.pending) return current.pending;
-
-  const pending = listCached(safeLimit).then((result) => {
-    const value = result.available ? result.businesses : lastKnownMarketplaceBusinesses(safeLimit);
-    localLists.set(safeLimit, { value, expiresAt: Date.now() + 60_000 });
-    return value;
-  }).catch((error) => {
-    localLists.delete(safeLimit);
-    throw error;
-  });
-  localLists.set(safeLimit, { pending, expiresAt: now + 60_000 });
-  return pending;
+  const result = await listCached(safeLimit);
+  if (!result.available) throw new MarketplaceSearchUnavailableError();
+  return result.businesses;
 }
 
 export type MarketplacePageSort = "recommended" | "rating" | "newest" | "name" | "price" | "nearest";
@@ -154,47 +139,13 @@ export type MarketplaceBusinessPage = {
   hasMore: boolean;
 };
 
-function fallbackMarketplaceBusinessPage(
-  options: MarketplacePageOptions,
-): MarketplaceBusinessPage {
-  const offset = Math.max(0, Math.floor(options.offset ?? 0));
-  const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 12)));
-  const query = options.query?.trim().toLocaleLowerCase("tr-TR");
-  const category = options.category?.trim().toLocaleLowerCase("tr-TR");
-  const city = options.city?.trim().toLocaleLowerCase("tr-TR");
-  let items = lastKnownMarketplaceBusinesses(200).filter((business) => {
-    const searchable = `${business.name} ${business.category} ${business.services.map((service) => service.name).join(" ")}`.toLocaleLowerCase("tr-TR");
-    const categorySlug = business.category.toLocaleLowerCase("tr-TR")
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return (!query || searchable.includes(query))
-      && (!category || categorySlug === category)
-      && (!city || business.city.toLocaleLowerCase("tr-TR") === city)
-      && (!options.openNow || business.open);
-  });
-  const sort = options.sort ?? "recommended";
-  items = [...items].sort((a, b) => {
-    if (sort === "newest") return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
-    if (sort === "name") return a.name.localeCompare(b.name, "tr-TR");
-    return b.rating - a.rating || b.reviews - a.reviews;
-  });
-  const total = items.length;
-  return {
-    businesses: items.slice(offset, offset + limit),
-    total,
-    hasMore: offset + limit < total,
-  };
-}
-
 async function queryMarketplaceBusinessPage(
   options: MarketplacePageOptions = {},
 ): Promise<MarketplaceBusinessPage> {
   const supabase = createPublicSupabaseClientOptional();
   const areaSearch = options.radiusKm !== undefined || Boolean(options.city?.trim()) || options.maxPrice !== undefined || options.minRating !== undefined;
   const advanced = areaSearch || options.sort === "price" || options.sort === "nearest" || Boolean(options.query?.trim());
-  if (!supabase) {
-    if (advanced) throw new MarketplaceSearchUnavailableError();
-    return fallbackMarketplaceBusinessPage(options);
-  }
+  if (!supabase) throw new MarketplaceSearchUnavailableError();
 
   if (advanced) {
     const result = await awaitPublicRequest(supabase.rpc(areaSearch ? "marketplace_search_area_page" : "marketplace_search_page", {
@@ -275,13 +226,14 @@ async function queryMarketplaceBusinessPage(
         }),
       );
     }
-    return fallbackMarketplaceBusinessPage(options);
+    throw new MarketplaceSearchUnavailableError();
   }
 
   const businesses = ((result.data ?? []) as unknown as DbBusiness[])
     .map(toBusiness)
     .filter((item): item is Business => Boolean(item));
-  const total = result.count ?? offset + businesses.length;
+  if (result.count === null) throw new MarketplaceSearchUnavailableError();
+  const total = result.count;
 
   return {
     businesses,
@@ -290,12 +242,7 @@ async function queryMarketplaceBusinessPage(
   };
 }
 
-type PageCacheEntry = {
-  expiresAt: number;
-  value?: MarketplaceBusinessPage;
-  pending?: Promise<MarketplaceBusinessPage>;
-};
-const localPages = new Map<string, PageCacheEntry>();
+const pageCached = unstable_cache(queryMarketplaceBusinessPage, ["marketplace-pages-v5"], { revalidate: 60, tags: ["marketplace"] });
 
 export async function listMarketplaceBusinessPage(
   options: MarketplacePageOptions = {},
@@ -314,31 +261,12 @@ export async function listMarketplaceBusinessPage(
     maxPrice: options.maxPrice,
     minRating: options.minRating,
   };
-  const key = JSON.stringify(normalized);
-  const now = Date.now();
-  const current = localPages.get(key);
-  if (current?.value && current.expiresAt > now) return current.value;
-  if (current?.pending) return current.pending;
-
-  const pending = queryMarketplaceBusinessPage(normalized).then((value) => {
-    localPages.set(key, { value, expiresAt: Date.now() + 60_000 });
-    if (localPages.size > 250) {
-      for (const [cacheKey, entry] of localPages) {
-        if (entry.expiresAt <= Date.now() || localPages.size > 200) localPages.delete(cacheKey);
-        if (localPages.size <= 200) break;
-      }
-    }
-    return value;
-  }).catch((error) => {
-    localPages.delete(key);
-    throw error;
-  });
-  localPages.set(key, { pending, expiresAt: now + 60_000 });
-  return pending;
+  return pageCached(normalized);
 }
 
 export async function getMarketplaceBusiness(slug: string) {
   if (!/^[a-z0-9-]{2,160}$/.test(slug)) return null;
   const result = await getCached(slug);
-  return result.available ? result.business : lastKnownMarketplaceBusiness(slug);
+  if (!result.available) throw new MarketplaceSearchUnavailableError();
+  return result.business;
 }

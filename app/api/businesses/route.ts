@@ -45,7 +45,8 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(page, {
       headers: {
-        "Cache-Control": latitude !== undefined ? "private, no-store" : "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+        // Tagged server data is shared; the CDN must not revive a withdrawn card.
+        "Cache-Control": latitude !== undefined ? "private, no-store" : "no-store",
         // Netlify's Next adapter otherwise varies only on its internal RSC query
         // params, sharing the first city/page response with every other query.
         // All responses from this URL must declare the same variation policy.

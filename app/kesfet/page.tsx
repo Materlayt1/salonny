@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function DiscoverRoute() {
   const [businesses, categories] = await Promise.all([
-    listMarketplaceBusinesses(100),
+    listMarketplaceBusinesses(100).catch(() => []),
     listPublicCategories(),
   ]);
   return <DiscoverPage initialBusinesses={businesses} initialCategories={categories} />;

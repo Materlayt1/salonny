@@ -6,13 +6,15 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  const business = await getMarketplaceBusiness(slug);
+  let business;
+  try { business = await getMarketplaceBusiness(slug); }
+  catch { return NextResponse.json({ error: "İşletme bilgilerine şu anda ulaşılamıyor. Yeniden dene.", code: "marketplace_unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } }); }
   if (!business) {
-    return NextResponse.json({ error: "İşletme bulunamadı." }, { status: 404 });
+    return NextResponse.json({ error: "İşletme şu anda yayında değil veya artık mevcut değil.", code: "business_unavailable" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
   return NextResponse.json({ business }, {
     headers: {
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      "Cache-Control": "no-store",
     },
   });
 }

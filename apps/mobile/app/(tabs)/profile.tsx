@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, type Href } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert } from "@/lib/alert";
 import { AppButton, BrandHeader, EmptyState, LoadingState, Screen } from "@/components/app-ui";
 import { theme } from "@/constants/theme";
@@ -21,6 +21,9 @@ export default function ProfileScreen() {
   const { session, user, loading, signOut } = useAuth();
   const notificationSummary = useNotificationSummary();
   const [legalDocument, setLegalDocument] = useState<LegalDocumentKey | null>(null);
+  const queryClient = useQueryClient();
+  const deletionBusy = useRef(false);
+  const [deletionPending, setDeletionPending] = useState(false);
   const summary = useQuery({
     queryKey: ["session-summary", user?.id, session?.access_token],
     queryFn: ({ signal }) => getSessionSummary(session!.access_token, signal),
@@ -50,19 +53,22 @@ export default function ProfileScreen() {
   const requestDeletion = () => {
     Alert.alert(
       "Hesap silme talebi",
-      "Hesabının ve ilişkili kişisel verilerinin silinmesi için talep oluşturulacak. Bu işlem destek ekibi tarafından sonuçlandırılır.",
+      "Silme talebi oluşturulacak. Sahibi olduğun işletmeler yayından çekilecek ve açık talep varken yeniden yayımlanamayacak. Hesabın ve mevcut randevuların hemen silinmez veya iptal edilmez; talep ayrıca incelenir.",
       [
         { text: "Vazgeç", style: "cancel" },
         {
           text: "Talep oluştur",
           style: "destructive",
           onPress: async () => {
+            if (deletionBusy.current) return;
+            deletionBusy.current = true; setDeletionPending(true);
             try {
               await requestAccountDeletion(session.access_token);
-              Alert.alert("Talebin alındı", "İşlem sonucu e-posta adresine bildirilecek.");
+              for (const queryKey of [["businesses"], ["business-rail"], ["business-directory"], ["home-highlights"], ["favorites"], ["business"]]) void queryClient.invalidateQueries({ queryKey });
+              Alert.alert("Talebin alındı", "Sahibi olduğun işletmeler yayından çekildi. Hesabın ve randevu geçmişin henüz silinmedi; talebin incelenecek.");
             } catch (error) {
               Alert.alert("Talep oluşturulamadı", error instanceof Error ? error.message : "Lütfen yeniden dene.");
-            }
+            } finally { deletionBusy.current = false; setDeletionPending(false); }
           },
         },
       ],
@@ -107,7 +113,7 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.actions}>
           <AppButton label="Oturumu kapat" variant="ghost" onPress={() => void signOut().catch((error) => Alert.alert("İşlem tamamlanamadı", error.message))} />
-          <AppButton label="Hesap silme talebi oluştur" variant="danger" onPress={requestDeletion} />
+          <AppButton disabled={deletionPending} label={deletionPending ? "Talep gönderiliyor…" : "Hesap silme talebi oluştur"} variant="danger" onPress={requestDeletion} />
         </View>
       </ScrollView>
       <LegalReader document={legalDocument} onClose={() => setLegalDocument(null)} />

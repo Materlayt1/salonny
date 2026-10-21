@@ -69,4 +69,8 @@ describe("platform admin mutations", () => {
     rpc.mockResolvedValue({ data: null, error: { message: "PRIVATE SQL" } });
     const result = await run(business); expect(result.message).toContain("tekrarlamadan önce"); expect(result.message).not.toContain("PRIVATE SQL"); expect(rpc).toHaveBeenCalledTimes(1);
   });
+  it("explains the database lifecycle guard without reporting a successful approval", async () => {
+    rpc.mockResolvedValue({data:null,error:{code:"P0001",message:"business_owner_unavailable"}});
+    const result=await run(business); expect(result.ok).toBe(false);expect(result.message).toContain("silme talebi");expect(revalidatePath).not.toHaveBeenCalled();expect(rpc).toHaveBeenCalledTimes(1);
+  });
 });

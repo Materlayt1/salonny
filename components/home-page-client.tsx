@@ -106,8 +106,8 @@ function BusinessRail({ businesses }: { businesses: Business[] }) {
   );
 }
 
-export default function HomePageClient({ initialBusinesses, categories }: { initialBusinesses: Business[]; categories: Category[] }) {
-  const { businesses, label, loading, error, key: areaKey } = useAreaBusinesses(initialBusinesses);
+export default function HomePageClient({ initialBusinesses, categories, initialUnavailable = false }: { initialBusinesses: Business[]; categories: Category[]; initialUnavailable?: boolean }) {
+  const { businesses, label, loading, error, key: areaKey } = useAreaBusinesses(initialBusinesses, initialUnavailable);
   const popular = [...businesses]
     .sort(
       (a, b) =>

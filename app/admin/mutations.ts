@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdminSession } from "@/lib/admin-access";
 import { assertRateLimit } from "@/lib/rate-limit";
 import type { AdminMutationState } from "@/lib/admin-mutation-types";
+import { invalidateMarketplace } from "@/lib/marketplace-invalidation";
 
 const id = z.uuid();
 const mutations = z.discriminatedUnion("kind", [
@@ -48,6 +49,8 @@ export async function performAdminMutation(_previous: AdminMutationState, form: 
           : await client.rpc("admin_upsert_business_category", { p_category_id: input.id || null, p_name_tr: input.name, p_slug: input.slug, p_icon: input.icon, p_sort_order: input.sort_order, p_active: input.active });
     if (result.error?.code === "23505") return { ok: false, message: "Bu kategori adı veya kısa adres zaten kullanılıyor." };
     if (result.error?.code === "42501") return { ok: false, message: "Bu işlem için yönetici yetkin doğrulanamadı." };
+    if (result.error?.message?.includes("business_owner_unavailable")) return { ok: false, message: "İşletme sahibinin silme talebi var veya hesabı artık etkin değil. Bu işletme yayımlanamaz/doğrulanamaz; işletme kaydı ve geçmişi korunur." };
+    if (result.error?.code === "40001") return { ok: false, message: "Hesap/işletme üzerinde başka bir işlem sürüyor. Sonuç kaydedilmedi; listeyi yenileyip yeniden incele." };
     if (result.error) throw result.error;
     const acknowledgement = input.kind === "category"
       ? id.safeParse(result.data).success && (!input.id || result.data === input.id)
@@ -59,7 +62,7 @@ export async function performAdminMutation(_previous: AdminMutationState, form: 
     if (!acknowledgement) throw new Error("Unverified mutation acknowledgement");
     revalidatePath("/admin");
     if (input.kind !== "user") {
-      revalidatePath("/"); revalidatePath("/kesfet"); revalidateTag("marketplace", "max");
+      invalidateMarketplace();
       if (input.kind === "category") revalidateTag("categories", "max");
     }
     return { ok: true, message: input.kind === "category" ? "Kategori kaydedildi. Listeyi yenileyerek güncel kaydı inceleyebilirsin." : "Değişiklik kaydedildi. İşlem geçmişini ilgili kayıt üzerinden açabilirsin." };

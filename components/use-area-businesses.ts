@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { businessInArea } from "@salonny/contracts/browse-area";
 import { useBrowseArea } from "@/components/use-browse-area";
 import type { Business } from "@/lib/types";
-export function useAreaBusinesses(initial: Business[]) {
+export function useAreaBusinesses(initial: Business[], initialUnavailable = false) {
   const browse = useBrowseArea();
-  const [result, setResult] = useState<{ key: string; items: Business[]; error: boolean }>({ key: "", items: initial, error: false });
+  const [result, setResult] = useState<{ key: string; items: Business[]; error: boolean }>({ key: "", items: initial, error: initialUnavailable });
   useEffect(() => {
     if (!browse.key) return;
     const controller = new AbortController();

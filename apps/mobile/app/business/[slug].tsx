@@ -24,6 +24,7 @@ import { useBusiness } from "@/hooks/use-marketplace";
 import { getSessionSummary, setFavorite } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { Alert } from "@/lib/alert";
+import { BusinessUnavailable } from "@/components/business-unavailable";
 
 export default function BusinessDetailScreen() {
   const { slug = "" } = useLocalSearchParams<{ slug: string }>();
@@ -103,6 +104,7 @@ function BusinessDetailContent({ slug }: { slug: string }) {
   });
 
   if (business.isLoading) return <Screen><LoadingState label="İşletme hazırlanıyor..." /></Screen>;
+  if (business.isSuccess && business.data === null) return <BusinessUnavailable />;
   if (business.isError || !business.data) return <Screen><ErrorState onRetry={() => void business.refetch()} /></Screen>;
   const item = business.data;
   const galleryImages = Array.from(new Set([item.image, ...item.gallery].filter(Boolean)));
