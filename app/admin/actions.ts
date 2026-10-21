@@ -1,14 +1,15 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createServerClientOptional } from "@/lib/supabase/server";
+import { requireAdminSession } from "@/lib/admin-access";
+import { assertRateLimit } from "@/lib/rate-limit";
+import { invalidateMarketplace } from "@/lib/marketplace-invalidation";
 
 const idSchema = z.string().uuid();
 const businessActionSchema = z.enum(["approve", "suspend", "return_review", "verify", "unverify"]);
 const reviewStatusSchema = z.enum(["approved", "rejected", "flagged"]);
-const roleSchema = z.enum(["CUSTOMER", "BUSINESS_OWNER", "BUSINESS_MANAGER", "EMPLOYEE", "ADMIN"]);
+const roleSchema = z.enum(["CUSTOMER", "BUSINESS_OWNER", "BUSINESS_MANAGER", "EMPLOYEE"]);
 const categorySchema = z.object({
   id: z.union([z.string().uuid(), z.literal("")]).optional(),
   name: z.string().trim().min(2).max(80),
@@ -19,12 +20,8 @@ const categorySchema = z.object({
 });
 
 async function requireAdminClient() {
-  const supabase = await createServerClientOptional();
-  if (!supabase) throw new Error("Supabase yapılandırması bulunamadı.");
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
-  const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-  if (data?.role !== "ADMIN") throw new Error("Bu işlem için yönetici yetkisi gerekiyor.");
+  const { client: supabase, user } = await requireAdminSession();
+  await assertRateLimit(`admin-action:${user.id}`, 60, 60_000, { failClosed: true });
   return supabase;
 }
 
@@ -33,11 +30,10 @@ export async function reviewBusiness(formData: FormData) {
   const action = businessActionSchema.parse(formData.get("action"));
   const supabase = await requireAdminClient();
   const { error } = await supabase.rpc("admin_review_business", { p_business_id: businessId, p_action: action });
+  if (error?.message?.includes("business_owner_unavailable")) throw new Error("Sahibinin silme talebi veya kapalı hesabı nedeniyle bu işletme yayımlanamaz.");
   if (error) throw new Error("İşletme durumu güncellenemedi.");
   revalidatePath("/admin");
-  revalidatePath("/");
-  revalidatePath("/kesfet");
-  revalidateTag("marketplace", "max");
+  invalidateMarketplace();
 }
 
 export async function moderateReview(formData: FormData) {
@@ -94,6 +90,8 @@ export async function setUserRole(formData: FormData) {
   const userId = idSchema.parse(formData.get("user_id"));
   const role = roleSchema.parse(formData.get("role"));
   const supabase = await requireAdminClient();
+  const current = await supabase.from("users").select("role,deleted_at").eq("id", userId).maybeSingle();
+  if (current.error || !current.data || current.data.role === "ADMIN" || current.data.deleted_at) throw new Error("Bu hesabın rolü bu ekrandan değiştirilemez.");
   const { error } = await supabase.rpc("admin_set_user_role", { p_user_id: userId, p_role: role });
   if (error) throw new Error("Kullanıcı rolü güncellenemedi.");
   revalidatePath("/admin");

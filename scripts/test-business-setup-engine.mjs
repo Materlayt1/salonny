@@ -1,0 +1,195 @@
+// Synthetic PostgreSQL/WASM acceptance. No network, real login, Storage upload,
+// customer, appointment, payment, communication or production data writes.
+import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+const modulePath = process.env.SALONNY_PGLITE_MODULE_PATH;
+const { PGlite } = await import(modulePath ? pathToFileURL(modulePath).href : "@electric-sql/pglite");
+const migration = await readFile(new URL("../supabase/migrations/202610120037_native_business_setup.sql", import.meta.url), "utf8");
+const verificationSql = await readFile(new URL("../supabase/tests/native_business_setup_deployment_verify.sql", import.meta.url), "utf8");
+const onboarding = await readFile(new URL("../supabase/migrations/202608180005_business_onboarding.sql", import.meta.url), "utf8");
+const start = onboarding.match(/create or replace function public\.start_business_onboarding\([\s\S]*?\$\$;/)?.[0];
+const submit = onboarding.match(/create or replace function public\.submit_business_for_review\([\s\S]*?\$\$;/)?.[0];
+if (!start || !submit) throw new Error("Real onboarding functions were not extracted");
+const checks = [];
+const assert = (name, passed) => { if (!passed) throw new Error(`FAIL ${name}`); checks.push({ check_name: name, result: "PASS" }); };
+const failure = async (name, action, marker) => { try { await action(); } catch (error) { assert(name, String(error.message).includes(marker)); return; } throw new Error(`Expected ${marker}: ${name}`); };
+const id = (n) => `8700aa00-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const [owner, manager, staff, outsider, business, foreignBusiness, branch, foreignBranch, category, inactiveCategory, newActor] = Array.from({ length: 11 }, (_, n) => id(n + 1));
+const sha = "a".repeat(64);
+const foundation = `
+ create role anon; create role authenticated; create schema auth; create schema storage;
+ create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.actor',true),'')::uuid $$;
+ create type public.app_role as enum('CUSTOMER','BUSINESS_OWNER','BUSINESS_MANAGER','EMPLOYEE','ADMIN');
+ create type public.business_member_role as enum('OWNER','MANAGER','EMPLOYEE');
+ create table public.users(id uuid primary key,role public.app_role not null default 'CUSTOMER');
+ create table public.business_categories(id uuid primary key,name_tr text not null,active boolean not null default true);
+ create table public.businesses(id uuid primary key default gen_random_uuid(),category_id uuid references business_categories(id),owner_user_id uuid not null references users(id),name text not null,slug text not null unique,description text,phone text,email text,whatsapp_phone text,website_url text,timezone text not null default 'Europe/Istanbul',status text not null default 'draft' check(status in('draft','pending_review','published','suspended')),onboarding_completed_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+ create table public.business_members(business_id uuid references businesses(id),user_id uuid references users(id),role public.business_member_role not null,active boolean not null default true,created_at timestamptz not null default now(),primary key(business_id,user_id));
+ create function public.has_business_role(p_business_id uuid,p_roles public.business_member_role[]) returns boolean language sql stable security definer set search_path='' as $$ select exists(select 1 from public.business_members where business_id=p_business_id and user_id=auth.uid() and active and role=any(p_roles)) $$;
+ create table public.branches(id uuid primary key default gen_random_uuid(),business_id uuid not null references businesses(id),name text not null,slug text not null,active boolean not null default true,is_primary boolean not null default false,created_at timestamptz not null default now(),unique(business_id,id),unique(business_id,slug));
+ create table public.business_locations(id uuid primary key default gen_random_uuid(),business_id uuid not null references businesses(id),branch_id uuid references branches(id),address_line text not null,district text not null,city text not null,postal_code text,country_code char(2) default 'TR',latitude numeric(9,6) not null,longitude numeric(9,6) not null,geohash text,created_at timestamptz default now());
+ create table public.business_images(id uuid primary key default gen_random_uuid(),business_id uuid not null references businesses(id),branch_id uuid references branches(id),storage_path text not null,alt_text text,kind text not null default 'gallery' check(kind in('logo','cover','gallery')),sort_order integer not null default 0,created_at timestamptz default now());
+ create table public.business_hours(business_id uuid,branch_id uuid,weekday integer,is_closed boolean not null default false);
+ create table public.services(id uuid primary key default gen_random_uuid(),business_id uuid,active boolean not null default true);
+ create table public.employees(id uuid primary key default gen_random_uuid(),business_id uuid,active boolean not null default true);
+ create table public.business_settings(business_id uuid primary key);
+ create table public.audit_logs(business_id uuid,actor_user_id uuid,action text,entity_type text,entity_id text,after_data jsonb);
+ create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text not null,name text not null,unique(bucket_id,name));
+ alter table storage.objects enable row level security;
+ grant usage on schema storage,auth to anon,authenticated;
+ grant all on storage.objects to anon,authenticated;
+ create policy business_assets_public_read on storage.objects for select using(bucket_id='business-assets');
+ create policy business_assets_member_insert on storage.objects for insert to authenticated with check(true);
+ create policy business_assets_member_update on storage.objects for update to authenticated using(true);
+ create policy business_assets_member_delete on storage.objects for delete to authenticated using(true);
+ -- Real010 removed anonymous/public bucket listing. Known public object URLs
+ -- are served by Storage's public endpoint, not this authenticated SELECT RLS.
+ drop policy business_assets_public_read on storage.objects;
+ -- Separate private-bucket policies must coexist with public-photo policy
+ -- verification without broadening business-assets mutation access.
+ create policy customer_care_assets_manager_insert on storage.objects for insert to authenticated with check(bucket_id='customer-care-assets' and auth.uid()='${owner}');
+ create policy customer_care_assets_manager_delete on storage.objects for delete to authenticated using(bucket_id='customer-care-assets' and auth.uid()='${owner}');
+ insert into public.users(id,role) values('${owner}','BUSINESS_OWNER'),('${manager}','BUSINESS_MANAGER'),('${staff}','EMPLOYEE'),('${outsider}','CUSTOMER'),('${newActor}','CUSTOMER');
+ insert into public.business_categories values('${category}','Kuaför',true),('${inactiveCategory}','Kapalı kategori',false);
+ insert into public.businesses(id,owner_user_id,name,slug) values('${business}','${owner}','Salon','salon'),('${foreignBusiness}','${outsider}','Başka','baska');
+ insert into public.business_members values('${business}','${owner}','OWNER',true,now()),('${business}','${manager}','MANAGER',true,now()),('${business}','${staff}','EMPLOYEE',true,now()),('${foreignBusiness}','${outsider}','OWNER',true,now());
+ insert into public.branches(id,business_id,name,slug,is_primary) values('${branch}','${business}','Merkez','merkez',true),('${foreignBranch}','${foreignBusiness}','Diğer','diger',true);
+ -- Existing global/null-branch content is valid and must not be rewritten.
+ insert into public.business_locations(id,business_id,branch_id,address_line,district,city,latitude,longitude) values('${id(50)}','${business}',null,'Eski adres','Fatih','İstanbul',41,29);
+ insert into public.business_images(id,business_id,branch_id,storage_path,alt_text,kind) values('${id(51)}','${business}',null,'business/${business}/legacy.jpg','Eski fotoğraf','gallery');
+`;
+const db = new PGlite();
+const actor = (who) => db.query("select set_config('test.actor',$1,false)", [who ?? ""]);
+const save = async (action, data, expected = null, scope = business, selectedBranch = branch) => (await db.query("select public.native_save_business_setup($1,$2,$3,$4,$5) result", [scope, selectedBranch, action, data, expected])).rows[0].result;
+const profile = async () => {
+ const row = (await db.query("select * from businesses where id=$1", [business])).rows[0];
+ return { name: row.name, description: row.description ?? "", phone: row.phone ?? "", whatsappPhone: row.whatsapp_phone ?? "", email: row.email ?? "", websiteUrl: row.website_url ?? "", categoryId: row.category_id, revision: row.updated_at.toISOString() };
+};
+const address = (value = {}) => ({ id: id(100), addressLine: "Kayıtlı yeni adres", district: "Fatih", city: "İstanbul", postalCode: "34000", latitude: 41.01, longitude: 28.98, ...value });
+const image = (n, hash = sha) => ({ id: id(n), altText: "İşletme fotoğrafı", contentHash: hash });
+const object = (n, scope = business) => db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${scope}/native-${id(n)}.jpg`]);
+try {
+ for (const [name, corruption] of [
+   ["cross-tenant legacy photo", `update business_images set branch_id='${foreignBranch}' where id='${id(51)}'`],
+   ["cross-tenant legacy location", `update business_locations set branch_id='${foreignBranch}' where id='${id(50)}'`],
+ ]) {
+  const preflight = new PGlite();
+  try {
+   await preflight.exec(foundation); await preflight.exec(start + "\n" + submit); await preflight.exec(corruption);
+   const before = await preflight.query("select (select count(*) from business_images) images,(select count(*) from business_locations) locations");
+   await failure(`migration rejects ${name}`, () => preflight.exec(migration), "violates foreign key constraint");
+   await preflight.exec("rollback");
+   const after = await preflight.query("select (select count(*) from business_images) images,(select count(*) from business_locations) locations");
+   assert(`invalid legacy migration rolls back schema and rows: ${name}`, JSON.stringify(before.rows) === JSON.stringify(after.rows) && (await preflight.query("select to_regprocedure('public.native_start_business_setup(text,text)') installed")).rows[0].installed === null);
+  } finally { await preflight.close(); }
+ }
+ await db.exec(foundation); await db.exec(start + "\n" + submit);
+ const before = await db.query("select (select count(*) from business_images) images,(select count(*) from business_locations) locations,(select count(*) from businesses) businesses,(select count(*) from audit_logs) audit");
+ await db.exec(migration);
+ const after = await db.query("select (select count(*) from business_images) images,(select count(*) from business_locations) locations,(select count(*) from businesses) businesses,(select count(*) from audit_logs) audit");
+ assert("migration keeps existing counts and valid null-branch content", JSON.stringify(before.rows) === JSON.stringify(after.rows) && (await db.query("select branch_id from business_images where id=$1", [id(51)])).rows[0].branch_id === null);
+ const verification = await db.query(verificationSql);
+ for (const row of verification.rows) assert(`catalog: ${row.check_name}`, row.result === "PASS");
+ await db.exec("create policy unexpected_public_mutation on storage.objects for insert to authenticated with check(true)");
+ assert("catalog rejects an unexpected global permissive Storage mutation policy", (await db.query(verificationSql)).rows.find((row) => row.check_name === "no_unscoped_public_storage_mutation_policy")?.result === "FAIL");
+ await db.exec("drop policy unexpected_public_mutation on storage.objects");
+ await failure("anonymous start denied", () => db.query("select native_start_business_setup('Yeni',null)"), "SETUP_FORBIDDEN");
+ await failure("anonymous save denied", () => save("location", address()), "SETUP_FORBIDDEN");
+ assert("anonymous installation probe is false", (await db.query("select native_business_setup_ready() ready")).rows[0].ready === false);
+ assert("anonymous and null storage paths are never accepted", (await db.query("select native_business_asset_manager(null) ready")).rows[0].ready === false);
+ await actor(staff); await failure("employee save denied", () => save("location", address()), "SETUP_FORBIDDEN");
+ assert("employee readiness is false for existing business", (await db.query("select native_business_setup_ready($1) ready", [business])).rows[0].ready === false);
+ await actor(outsider); await failure("foreign owner cannot edit other business", () => save("location", address()), "SETUP_FORBIDDEN");
+ await actor(owner); await failure("foreign branch cannot attach to business", () => save("location", address(), null, business, foreignBranch), "SETUP_FORBIDDEN");
+ await failure("null business cannot use installation probe as write authority", () => save("location", address(), null, null, branch), "SETUP_FORBIDDEN");
+ await failure("null branch is denied", () => save("location", address(), null, business, null), "SETUP_FORBIDDEN");
+ await db.query("update branches set active=false where id=$1", [branch]);
+ await failure("inactive branch cannot receive a setup mutation", () => save("location", address()), "SETUP_FORBIDDEN");
+ await db.query("update branches set active=true where id=$1", [branch]);
+ await failure("unknown setup action is denied", () => save("publish", { status: "published" }), "SETUP_INPUT_INVALID");
+ await failure("null setup data is denied", () => save("profile", null), "SETUP_INPUT_INVALID");
+ const original = await profile(); const next = { ...original, name: "Yeni salon adı", categoryId: category, phone: "+90 555 123 4567", email: "salon@example.invalid", websiteUrl: "https://example.invalid" };
+ assert("owner profile edit uses current revision", (await save("profile", next)).saved);
+ assert("same profile replay succeeds despite obsolete initial revision", (await save("profile", next)).saved);
+ await failure("changed profile with stale revision fails", () => save("profile", { ...next, name: "Başka değişiklik" }), "SETUP_STALE");
+ await failure("inactive category is rejected", async () => save("profile", { ...await profile(), categoryId: inactiveCategory }), "SETUP_CATEGORY_INVALID");
+ await failure("unknown profile input cannot modify status", async () => save("profile", { ...await profile(), status: "published" }), "SETUP_INPUT_INVALID");
+ await failure("unsafe website protocol rejected by raw RPC", async () => save("profile", { ...await profile(), websiteUrl: "javascript:alert(1)" }), "SETUP_INPUT_INVALID");
+ await actor(manager); assert("active manager can save selected branch location", (await save("location", address())).saved);
+ assert("same location replay works after response loss", (await save("location", address())).saved);
+ await failure("changed location requires exact expected previous location", () => save("location", address({ city: "Ankara" })), "SETUP_STALE");
+ const changedAddress = address({ addressLine: "Değiştirilmiş yeni adres" });
+ assert("location CAS updates only expected owned row", (await save("location", changedAddress, address())).saved);
+ await failure("new location id cannot replace existing owned row", () => save("location", address({ id: id(101) }), changedAddress), "SETUP_STALE");
+ await failure("out-of-Turkey coordinates rejected", () => save("location", address({ latitude: 49 }), changedAddress), "SETUP_INPUT_INVALID");
+ await db.query("insert into business_locations(id,business_id,branch_id,address_line,district,city,latitude,longitude) values($1,$2,$3,'İkinci konum','Fatih','İstanbul',41,29)", [id(102), business, branch]);
+ await failure("ambiguous same-branch legacy locations are never silently overwritten", () => save("location", changedAddress, changedAddress), "SETUP_LOCATION_AMBIGUOUS");
+ await db.query("delete from business_locations where id=$1", [id(102)]);
+ await failure("metadata cannot link image missing owned Storage object", () => save("image", image(200)), "SETUP_IMAGE_NOT_UPLOADED");
+ await object(200); assert("owned uploaded image is linked", (await save("image", image(200))).saved);
+ assert("identical image hash/path/alt replay succeeds", (await save("image", image(200))).saved);
+ assert("uppercase UUID image replay uses the canonical owned path", (await save("image", { ...image(200), id: id(200).toUpperCase() })).saved);
+ await failure("same image UUID with another content hash conflicts", () => save("image", image(200, "b".repeat(64))), "SETUP_IMAGE_CONFLICT");
+ await failure("same image UUID with changed alt conflicts", () => save("image", { ...image(200), altText: "Başka açıklama" }), "SETUP_IMAGE_CONFLICT");
+ await failure("malformed content hash rejected", () => save("image", image(201, "bad")), "SETUP_INPUT_INVALID");
+ await db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${foreignBusiness}/native-${id(201)}.jpg`]);
+ await failure("another business Storage object cannot satisfy owned upload", () => save("image", image(201)), "SETUP_IMAGE_NOT_UPLOADED");
+ await object(202); await save("image", image(202));
+ assert("first new photo becomes cover without rewriting legacy gallery", (await db.query("select kind from business_images where id=$1", [id(200)])).rows[0].kind === "cover" && (await db.query("select kind from business_images where id=$1", [id(51)])).rows[0].kind === "gallery");
+ await failure("cover selection rejects null CAS state", () => save("cover", { id: id(202) }), "SETUP_INPUT_INVALID");
+ await failure("cover selection rejects stale cover set", () => save("cover", { id: id(202) }, []), "SETUP_STALE");
+ assert("cover selection compares complete previous cover set", (await save("cover", { id: id(202) }, [id(200)])).saved);
+ assert("cover replay safely recognizes already selected cover", (await save("cover", { id: id(202) }, [id(200)])).saved);
+ await failure("cover from another business denied", () => save("cover", { id: id(999) }, [id(202)]), "SETUP_FORBIDDEN");
+ await db.query("update business_members set active=false where user_id=$1 and business_id=$2", [manager, business]);
+ await failure("inactive manager cannot save", () => save("location", changedAddress, changedAddress), "SETUP_FORBIDDEN");
+ await db.query("update business_members set active=true where user_id=$1 and business_id=$2", [manager, business]);
+ await failure("manager cannot submit for review", () => db.query("select native_submit_business_setup($1)", [business]), "SETUP_FORBIDDEN");
+ await actor(owner);
+ const incomplete = (await db.query("select native_submit_business_setup($1) result", [business])).rows[0].result;
+ assert("incomplete setup remains draft with concrete missing requirements", incomplete.submitted === false && incomplete.status === "draft" && incomplete.missing.includes("Çalışma saatleri") && incomplete.missing.includes("Hizmetler") && incomplete.missing.includes("Ekip"));
+ await db.query("insert into business_settings values($1)", [business]);
+ await db.query("insert into business_hours values($1,$2,0,false)", [business, branch]);
+ await db.query("insert into services(business_id) values($1)", [business]);
+ await db.query("insert into employees(business_id) values($1)", [business]);
+ const submitted = (await db.query("select native_submit_business_setup($1) result", [business])).rows[0].result;
+ assert("complete setup enters pending_review, never automatically publishes", submitted.submitted && submitted.status === "pending_review" && (await db.query("select status from businesses where id=$1", [business])).rows[0].status === "pending_review");
+ await db.query("update businesses set status='suspended' where id=$1", [business]);
+ await failure("suspended business cannot self-submit or self-publish", () => db.query("select native_submit_business_setup($1)", [business]), "SETUP_SUSPENDED");
+ await db.query("update businesses set status='draft' where id=$1", [business]);
+ await actor(newActor);
+ await failure("oversized start name is rejected by raw RPC", () => db.query("select native_start_business_setup($1,null)", ["x".repeat(121)]), "SETUP_INPUT_INVALID");
+ await failure("oversized start description is rejected by raw RPC", () => db.query("select native_start_business_setup('Yeni',$1)", ["x".repeat(4001)]), "SETUP_INPUT_INVALID");
+ const fresh = (await db.query("select native_start_business_setup('Yeni işletme','Açıklama') result")).rows[0].result;
+ const replay = (await db.query("select native_start_business_setup('Yeni işletme','Açıklama') result")).rows[0].result;
+ assert("serial native starts resume one owner draft and one primary branch", fresh.businessId === replay.businessId && fresh.branchId === replay.branchId && (await db.query("select count(*) count from businesses where owner_user_id=$1", [newActor])).rows[0].count === 1 && (await db.query("select status from businesses where id=$1", [fresh.businessId])).rows[0].status === "draft");
+ assert("existing real005 onboarding performs role and audit projection", (await db.query("select role from users where id=$1", [newActor])).rows[0].role === "BUSINESS_OWNER" && (await db.query("select count(*) count from audit_logs where business_id=$1 and action='business_onboarding_started'", [fresh.businessId])).rows[0].count === 1);
+ await actor(owner);
+ await db.query("insert into business_images(id,business_id,branch_id,storage_path,alt_text,kind) select gen_random_uuid(),$1::uuid,$2::uuid,'business/'||($1::uuid)::text||'/existing-'||n||'.jpg','Önceki görsel','gallery' from generate_series(1,47) n", [business, branch]);
+ await object(203); await failure("fifty existing photos enforce limit with no replacement/deletion", () => save("image", image(203)), "SETUP_IMAGE_LIMIT");
+ assert("photo count stays fifty after rejected addition", (await db.query("select count(*) count from business_images where business_id=$1", [business])).rows[0].count === 50);
+ await db.exec("set role authenticated");
+ await actor(null);
+ assert("NULL public-photo path cannot become broad Storage authority", (await db.query("select native_business_asset_manager(null) ready")).rows[0].ready === false);
+ await actor(staff);
+ assert("employee cannot list or authenticated-download business photo objects", (await db.query("select name from storage.objects where bucket_id='business-assets'")).rows.length === 0);
+ await failure("employee raw Storage INSERT denied despite old broad policy", () => db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${business}/staff.jpg`]), "row-level security");
+ assert("employee raw Storage UPDATE and DELETE see no writable objects", (await db.query("update storage.objects set name=name where name=$1", [`business/${business}/native-${id(200)}.jpg`])).affectedRows === 0 && (await db.query("delete from storage.objects where name=$1", [`business/${business}/native-${id(200)}.jpg`])).affectedRows === 0);
+ await actor(owner);
+ await failure("owner cannot upload into another tenant folder", () => db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${foreignBusiness}/new.jpg`]), "row-level security");
+ await failure("traversal folder denied", () => db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${business}/../escape.jpg`]), "row-level security");
+ await failure("wrong bucket denied", () => db.query("insert into storage.objects(bucket_id,name) values('other-bucket',$1)", [`business/${business}/new.jpg`]), "row-level security");
+ assert("owner raw Storage own-folder insert works", (await db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${business}/owner.jpg`])).affectedRows === 1);
+ assert("owner scoped Storage read can recover its exact unlinked upload", (await db.query("select name from storage.objects where bucket_id='business-assets' and name=$1", [`business/${business}/owner.jpg`])).rows.length === 1);
+ assert("owner scoped Storage read cannot list another tenant folder", (await db.query("select name from storage.objects where bucket_id='business-assets' and name like $1", [`business/${foreignBusiness}/%`])).rows.length === 0);
+ await failure("owner cannot move a writable image to another tenant folder", () => db.query("update storage.objects set name=$1 where name=$2", [`business/${foreignBusiness}/moved.jpg`, `business/${business}/owner.jpg`]), "row-level security");
+ await actor(manager);
+ assert("manager raw Storage own-folder upload is permitted", (await db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${business}/manager.jpg`])).affectedRows === 1);
+ assert("manager raw Storage owned photo deletion is permitted", (await db.query("delete from storage.objects where name=$1", [`business/${business}/manager.jpg`])).affectedRows === 1);
+ await db.exec("reset role");
+ await actor(null); await db.exec("set role anon");
+ assert("anonymous Storage listing stays closed after scoped manager read is added", (await db.query("select name from storage.objects where bucket_id='business-assets'")).rows.length === 0);
+ await failure("anonymous raw Storage upload stays closed", () => db.query("insert into storage.objects(bucket_id,name) values('business-assets',$1)", [`business/${business}/anonymous.jpg`]), "row-level security");
+ await db.exec("reset role");
+ console.log(JSON.stringify({ checks, total: checks.length }, null, 2));
+} finally { await db.close(); }

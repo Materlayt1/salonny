@@ -1,0 +1,140 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GET, POST } from "@/app/api/business-management/[section]/route";
+import { BusinessAccessError, getBusinessRequestContext, requirePanelPermission } from "@/lib/business-request-context";
+import { apiRateLimit } from "@/lib/api-security";
+import type { BusinessContext } from "@/lib/business-context";
+
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+vi.mock("@/lib/business-request-context", async (original) => ({ ...await original<typeof import("@/lib/business-request-context")>(), getBusinessRequestContext: vi.fn() }));
+vi.mock("@/lib/api-security", async (original) => ({ ...await original<typeof import("@/lib/api-security")>(), apiRateLimit: vi.fn() }));
+const id = "10000000-0000-4000-8000-000000000001";
+const branchId = "10000000-0000-4000-8000-000000000002";
+const entityId = "10000000-0000-4000-8000-000000000003";
+const query = { select: vi.fn(), eq: vi.fn(), or: vi.fn(), order: vi.fn(), range: vi.fn(), limit: vi.fn(), gte: vi.fn(), lt: vi.fn(), ilike: vi.fn(), in: vi.fn(), update: vi.fn(), insert: vi.fn(), upsert: vi.fn(), maybeSingle: vi.fn(), single: vi.fn(), then: vi.fn(), abortSignal: vi.fn() };
+const from = vi.fn(); const rpc = vi.fn();
+let context: BusinessContext;
+let rows: Record<string, unknown>[];
+const request = (section: string, body?: unknown, queryString = "") => new Request(`http://localhost:3001/api/business-management/${section}${queryString}`, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const params = (section: string) => ({ params: Promise.resolve({ section }) });
+beforeEach(() => {
+  vi.clearAllMocks();
+  rows = [{ id: entityId, status: "confirmed", starts_at: "2026-10-05T09:00:00Z", ends_at: "2026-10-05T09:30:00Z", customer_id: id, employee_id: entityId, total_minor: 50000, currency: "TRY", customers: { full_name: "Müşteri", phone: "05555555555" }, employees: { display_name: "Uzman" }, appointment_items: [{ name_snapshot: "Saç kesimi" }] }];
+  for (const method of ["select", "eq", "or", "order", "range", "limit", "gte", "lt", "ilike", "in", "update", "insert", "upsert", "abortSignal"] as const) query[method].mockReturnValue(query);
+  query.then.mockImplementation((resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, count: rows.length, error: null }).then(resolve));
+  query.maybeSingle.mockResolvedValue({ data: { id: entityId, status: "confirmed" }, error: null });
+  query.single.mockResolvedValue({ data: { id: entityId }, error: null });
+  from.mockReturnValue(query); rpc.mockResolvedValue({ error: null });
+  context = { supabase: { from, rpc } as unknown as BusinessContext["supabase"], user: { id }, role: "OWNER", permissions: { calendar: true, customers: true, campaigns: true, inventory: true, reports: true, operations: true }, customerVisibility: "all", financialVisibility: true, business: { id, name: "İşletme", slug: "isletme", status: "active", timezone: "Europe/Istanbul" }, branch: { id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }, branches: [{ id: branchId, name: "Merkez", timezone: "Europe/Istanbul" }] };
+  vi.mocked(getBusinessRequestContext).mockImplementation(async () => context);
+  vi.mocked(apiRateLimit).mockResolvedValue(null);
+});
+describe("native business panel API", () => {
+  it("requires a verified session", async () => {
+    vi.mocked(getBusinessRequestContext).mockRejectedValue(new BusinessAccessError("Giriş yapmalısın.", 401));
+    expect((await GET(request("appointments"), params("appointments"))).status).toBe(401);
+    expect(from).not.toHaveBeenCalled();
+  });
+  it("paginates the thenable query only after business and branch scoping", async () => {
+    const response = await GET(request("appointments"), params("appointments"));
+    expect(response.status).toBe(200);
+    expect(query.eq).toHaveBeenCalledWith("business_id", id);
+    expect(query.eq).toHaveBeenCalledWith("branch_id", branchId);
+    expect(query.range).toHaveBeenCalledWith(0, 49);
+    expect(from).toHaveBeenCalledWith("business_calendar_appointments");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect((await response.json()).rows[0].amountMinor).toBe(50000);
+  });
+  it("uses Istanbul calendar boundaries and rejects normalized invalid dates", async () => {
+    expect((await GET(request("calendar", undefined, "?date=2026-10-05"), params("calendar"))).status).toBe(200);
+    expect(query.gte).toHaveBeenCalledWith("starts_at", "2026-10-04T21:00:00.000Z");
+    expect((await GET(request("calendar", undefined, "?date=2026-02-31"), params("calendar"))).status).toBe(422);
+  });
+  it("scopes employees to their own appointments and hides financial and denied personal data", async () => {
+    context.role = "EMPLOYEE"; context.financialVisibility = false; context.customerVisibility = "none";
+    const response = await GET(request("appointments"), params("appointments"));
+    const row = (await response.json()).rows[0];
+    expect(query.eq).toHaveBeenCalledWith("user_id", id);
+    expect(query.eq).toHaveBeenCalledWith("employee_id", entityId);
+    expect(row).not.toHaveProperty("amountMinor"); expect(row.phone).toBe(""); expect(row.title).toBe("Müşteri");
+  });
+  it("denies forbidden reports, customers, settings and entity writes", () => {
+    context.role = "EMPLOYEE"; context.customerVisibility = "none"; context.financialVisibility = false;
+    for (const section of ["customers", "reports", "settings"]) expect(() => requirePanelPermission(context, section)).toThrow(BusinessAccessError);
+    expect(() => requirePanelPermission(context, "services", true)).toThrow(BusinessAccessError);
+  });
+  it("does not leak stock financial fields to non-financial staff", async () => {
+    context.role = "EMPLOYEE"; context.financialVisibility = false;
+    rows = [{ id: entityId, name: "Ürün", sku: "P1", purchase_price_minor: 10000, sale_price_minor: 20000 }];
+    const response = await GET(request("inventory"), params("inventory"));
+    expect((await response.json()).rows[0]).not.toHaveProperty("purchase_price_minor");
+    expect(from).toHaveBeenCalledWith("business_inventory_access");
+    expect(query.select.mock.calls[0][0]).not.toContain("purchase_price_minor");
+  });
+  it.each(["services","employees","inventory"])("strictly pages %s with deterministic ties and a timeout",async(section)=>{
+    if (section === "inventory") rows=[{id:entityId,name:"Ürün",sku:"P1",purchase_price_minor:12345,sale_price_minor:54321}];
+    expect((await GET(request(section,undefined,"?offset=1000&q=P1"),params(section))).status).toBe(200);
+    expect(query.eq).toHaveBeenCalledWith("business_id",id);expect(query.range).toHaveBeenCalledWith(1000,1049);expect(query.order).toHaveBeenCalledWith("id");expect(query.abortSignal).toHaveBeenCalledWith(expect.any(AbortSignal));expect(query.ilike).not.toHaveBeenCalled();
+    expect(query.or).toHaveBeenCalledWith(section==="inventory"?'name.imatch."P1",sku.imatch."P1"':section==="employees"?'display_name.imatch."P1"':'name.imatch."P1"');
+  });
+  it.each([undefined,null,NaN,1.5])("does not let native inventory editing turn an unverified price %s into zero",async(price)=>{
+    rows=[{id:entityId,name:"Ürün",sku:"P1",purchase_price_minor:price,sale_price_minor:54321}];
+    const response=await GET(request("inventory"),params("inventory"));expect(response.status).toBe(503);expect(await response.text()).toContain("fiyatları doğrulanamadı");
+  });
+  it.each(["?offset=1","?offset=-1","?offset=1.5","?offset=100050","?offset=0&offset=50","?q=a&q=b","?businessId=bad","?q=%00","?status=active",`?q=${"x".repeat(81)}`])("rejects invalid generic directory query %s before entity reads",async(search)=>{
+    const response=await GET(request("inventory",undefined,search),params("inventory"));expect(response.status).toBe(422);expect(from).not.toHaveBeenCalled();
+  });
+  it.each([null,-1,NaN,1.5])("does not fabricate a complete stock directory when count=%s",async(count)=>{
+    query.then.mockImplementation((resolve:(value:unknown)=>unknown)=>Promise.resolve({data:rows,count,error:null}).then(resolve));
+    const response=await GET(request("inventory"),params("inventory"));expect(response.status).toBe(503);expect(await response.text()).not.toContain("PRIVATE");
+  });
+  it("reports a duplicate SKU as an actionable conflict, not a transient server failure",async()=>{
+    query.single.mockResolvedValue({data:null,error:{code:"23505",message:"PRIVATE SQL"}});
+    const response=await POST(request("inventory",{name:"Ürün",sku:"P1",minimumStock:0,purchasePrice:1.23,salePrice:2.34,active:true}),params("inventory"));
+    expect(response.status).toBe(409);expect(await response.text()).toContain("stok kodu");
+  });
+  it.each([[160,80,200],[161,80,422],[160,81,422]])("shares the web/native stock name/SKU limit %s/%s",async(name,sku,status)=>{
+    const response=await POST(request("inventory",{name:"x".repeat(name),sku:"y".repeat(sku),minimumStock:0,purchasePrice:1.23,salePrice:2.34,active:true}),params("inventory"));expect(response.status).toBe(status);
+  });
+  it("does not misreport a failed stock ownership read as not found or proceed to RPC",async()=>{
+    query.maybeSingle.mockResolvedValue({data:null,error:{message:"PRIVATE SQL"}});
+    const response=await POST(request("inventory",{id:entityId,quantity:1}),params("inventory"));expect(response.status).toBe(503);expect(rpc).not.toHaveBeenCalled();
+  });
+  it.each([["42501",403],["23514",409],["22023",409]])("keeps stock RPC rejection %s actionable and tenant scoped",async(code,status)=>{
+    rpc.mockResolvedValue({error:{code,message:"PRIVATE SQL"}});
+    const response=await POST(request("inventory",{id:entityId,quantity:-1}),params("inventory"));expect(response.status).toBe(status);expect(await response.text()).not.toContain("PRIVATE");expect(query.eq).toHaveBeenCalledWith("business_id",id);
+  });
+  it.each(["?offset=-1","?offset=1.5","?offset=Infinity","?offset=100001","?offset=0&offset=50","?date=","?date=2026-10-05&date=2026-10-06","?status=bad","?status=confirmed&status=completed"])("rejects ambiguous or malformed appointment paging/filter %s", async (queryString) => {
+    const response = await GET(request("appointments", undefined, queryString), params("appointments")); expect(response.status).toBe(422); expect(query.range).not.toHaveBeenCalled();
+  });
+  it("rejects client-supplied ownership fields before writes", async () => {
+    const response = await POST(request("services", { name: "Kesim", durationMinutes: 30, price: 500, active: true, business_id: "attacker" }), params("services"));
+    expect(response.status).toBe(422); expect(query.insert).not.toHaveBeenCalled();
+  });
+  it("scopes entity edits and reports an unrelated record as not found", async () => {
+    query.maybeSingle.mockResolvedValue({ data: null, error: null });
+    const response = await POST(request("customers", { id: entityId, fullName: "Müşteri", phone: "05555555555" }), params("customers"));
+    expect(response.status).toBe(404);
+    expect(query.eq).toHaveBeenCalledWith("business_id", id);
+    expect(query.eq).toHaveBeenCalledWith("id", entityId);
+  });
+  it("checks appointment ownership and valid transitions before the atomic RPC", async () => {
+    expect((await POST(request("appointments", { id: entityId, status: "completed" }), params("appointments"))).status).toBe(200);
+    expect(query.eq).toHaveBeenCalledWith("branch_id", branchId);
+    expect(rpc).toHaveBeenCalledWith("business_update_appointment_status", { p_appointment_id: entityId, p_status: "completed" });
+    rpc.mockClear(); query.maybeSingle.mockResolvedValue({ data: { id: entityId, status: "completed" }, error: null });
+    expect((await POST(request("appointments", { id: entityId, status: "confirmed" }), params("appointments"))).status).toBe(409);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("does not write when the critical rate limiter is unavailable", async () => {
+    vi.mocked(apiRateLimit).mockResolvedValue(new Response(null, { status: 503 }) as Awaited<ReturnType<typeof apiRateLimit>>);
+    expect((await POST(request("appointments", { id: entityId, status: "completed" }), params("appointments"))).status).toBe(503);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("retries an already-applied status through the idempotent RPC", async () => {
+    query.maybeSingle.mockResolvedValue({data:{id:entityId,status:"completed"},error:null});
+    expect((await POST(request("appointments", {id:entityId,status:"completed"}),params("appointments"))).status).toBe(200); expect(rpc).toHaveBeenCalled();
+  });
+  it.each([["42501",403],["22023",409]])("keeps an authoritative status race %s actionable", async (code,status) => {
+    rpc.mockResolvedValue({error:{code,message:"PRIVATE SQL"}}); const response=await POST(request("appointments",{id:entityId,status:"completed"}),params("appointments")); expect(response.status).toBe(status); expect(await response.text()).not.toContain("PRIVATE");
+  });
+});

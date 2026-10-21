@@ -1,11 +1,21 @@
 import { MobileNav } from "@/components/mobile-nav";
-import { NotificationsClient, type NotificationItem } from "@/components/notifications-client";
+import { NotificationsClient } from "@/components/notifications-client";
 import { SiteHeader } from "@/components/site-header";
 import { createServerClientOptional } from "@/lib/supabase/server";
+import { readNotificationPage } from "@/lib/notification-history";
+import type { NotificationPage } from "@salonny/contracts";
 
 export default async function NotificationsPage() {
-  const supabase = await createServerClientOptional();
-  const { data } = supabase ? await supabase.from("notifications").select("id,type,title,body,read_at,created_at").order("created_at", { ascending: false }).limit(100) : { data: [] };
-  const notifications: NotificationItem[] = (data ?? []).map((item) => ({ id: item.id, type: item.type, title: item.title, body: item.body, readAt: item.read_at, createdAt: item.created_at }));
-  return <><SiteHeader search /><main className="container-shell min-h-[72vh] py-8 pb-28 md:py-12"><NotificationsClient initialNotifications={notifications} /></main><MobileNav /></>;
+  let page: NotificationPage | undefined;
+  let status: "ready" | "guest" | "error" = "error";
+  try {
+    const supabase = await createServerClientOptional();
+    if (supabase) {
+      const auth = await supabase.auth.getUser();
+      if (auth.error && (auth.error.status === undefined || auth.error.status === 429 || auth.error.status >= 500)) throw auth.error;
+      if (!auth.data.user) status = "guest";
+      else { page = await readNotificationPage(supabase, auth.data.user.id); status = "ready"; }
+    }
+  } catch { status = "error"; }
+  return <><SiteHeader search /><main className="container-shell min-h-[72vh] py-8 pb-28 md:py-12"><NotificationsClient initialPage={page} initialStatus={status} /></main><MobileNav /></>;
 }

@@ -1,0 +1,12 @@
+{
+  "name": "@salonny/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browse-area": "./src/browse-area.ts",
+    "./input-validation": "./src/input-validation.ts"
+  },
+  "types": "./src/index.ts"
+}

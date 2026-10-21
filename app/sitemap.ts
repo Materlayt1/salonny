@@ -6,7 +6,7 @@ import { createPublicSupabaseClientOptional } from "@/lib/supabase/public";
 const pageSize = 1000;
 export async function generateSitemaps() {
   const supabase = createPublicSupabaseClientOptional(); if (!supabase) return [{ id: 0 }];
-  const { count } = await supabase.from("businesses").select("id", { count: "exact", head: true }).eq("status", "published");
+  const { count } = await supabase.from("businesses").select("id", { count: "exact", head: true }).eq("status", "published").abortSignal(AbortSignal.timeout(1_500));
   return Array.from({ length: Math.max(1, Math.ceil((count ?? 0) / pageSize)) }, (_, id) => ({ id }));
 }
 
@@ -22,7 +22,7 @@ export default async function sitemap({ id }: { id: Promise<number | string> | n
     { path: "/kvkk", frequency: "yearly" as const, priority: .3 }, { path: "/delete-account", frequency: "yearly" as const, priority: .2 },
   ].map((route) => ({ url: `${BRAND.siteUrl}${route.path}`, changeFrequency: route.frequency, priority: route.priority })) : [];
   const supabase = createPublicSupabaseClientOptional(); if (!supabase) return staticRoutes;
-  const { data } = await supabase.from("businesses").select("slug,updated_at,business_categories(name_tr),business_locations(district,city)").eq("status", "published").order("updated_at", { ascending: false }).range(pageId * pageSize, pageId * pageSize + pageSize - 1);
+  const { data } = await supabase.from("businesses").select("slug,updated_at,business_categories(name_tr),business_locations(district,city)").eq("status", "published").order("updated_at", { ascending: false }).range(pageId * pageSize, pageId * pageSize + pageSize - 1).abortSignal(AbortSignal.timeout(1_500));
   const businesses = ((data ?? []) as unknown as SitemapBusiness[]).flatMap((business) => { const category = first(business.business_categories); const location = business.business_locations?.[0]; if (!category || !location) return []; const path = canonicalBusinessPath({ slug: business.slug, category: category.name_tr, district: location.district, city: location.city }); return [{ url: `${BRAND.siteUrl}${path}`, lastModified: business.updated_at, changeFrequency: "weekly" as const, priority: .8 }]; });
   return [...staticRoutes, ...businesses];
 }
