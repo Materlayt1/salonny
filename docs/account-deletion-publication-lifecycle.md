@@ -17,9 +17,11 @@ Uygulamadaki düğme hesap erasure işlemi değil, incelemeye alınacak bir **si
 
 ## Canlı kontrol — isimle keyfî silme yapılmadı
 
-Kullanıcı uygulamadaki silme işlemini, adı Can olan bir kayıtla bildirdi. 21 Ekim ön kontrolde **0 silme talebi**, **5 kullanıcı / 4 işletme / 9 randevu** vardı. Can'ın sahibi hem Auth hem public profilde etkin, soft-delete işareti yoktu; işletme public detay API'si 200 döndü. Eski olayın aynı anda yeniden üretildiği veya Can'ın hesabının kaldırıldığı iddia edilmez. İsme göre hesap/işletme askıya alınmadı.
+Kullanıcı uygulamadaki silme işlemini, adı Can olan bir kayıtla bildirdi. 21 Ekim ön kontrolde **0 silme talebi**, **5 kullanıcı / 4 işletme / 9 randevu** vardı. Can'ın Auth kaydı mevcuttu, public profilinde soft-delete işareti yoktu; işletme public detay API'si 200 döndü. Eski olayın aynı anda yeniden üretildiği veya Can'ın hesabının kaldırıldığı iddia edilmez. İsme göre hesap/işletme askıya alınmadı.
 
 Kullanıcının açık 042 onayından sonra migration mevcut `inkybypxpqqoajufhdol` projesine SQL Editor üzerinden transaction olarak uygulandı. Son salt-okunur kabulde altı kapı PASS: 9 definer işlevinin güvenli search_path'i, private helper ACL'leri, authenticated-only talep RPC'si, 5 etkin trigger, geçerli owner index'i ve bloklu sahibin public/doğrulanmış işletmesi olmaması. Sayılar **5/4/9/0** kaldı; **0 withdrawal audit**, yani eski işletme durumu değiştirilmedi. Kabul sorgusu `supabase/tests/account_deletion_lifecycle_deployment_verify.sql`; özel ekran kanıtı Git dışında `artifacts/account-lifecycle-live-042.png`.
+
+Dokuz işlev gövdesi LF/kenar whitespace normalize MD5 karşılaştırmasıyla kanonik kaynakla eşleşti. Tam kaynak tek `statements` kaydı olarak migration geçmişine eklendi, kaynak hash'i ayrıca doğrulandı; `supabase/tests/account_deletion_lifecycle_source_verify.sql` tekrar üretir. MD5 yalnız drift kontrolüdür, güvenlik/imza mekanizması değildir.
 
 ## Yerel doğrulama
 
@@ -27,6 +29,20 @@ Kullanıcının açık 042 onayından sonra migration mevcut `inkybypxpqqoajufhd
 - On SQL motoru 690 kontrol; bunun 33'ü yeni lifecycle motoru. Ayrı şehir motoru 23 kontrol. Sentetik verilerde kayıt koruma, anon/RLS/ACL, başka kullanıcı adına talep, admin approve/verify, self publish, tekrar, soft-delete, reject/undelete, rollback ve sentetik contention kapsandı.
 - Lint, web/native tip kontrolü, dependency güvenlik kapısı ve production Next build geçti. Local native web export geçti; fiziksel iOS/Android kabulü ve gerçek ayrı rol JWT yazımı değildir.
 - Native ilk hedef koşu 12/12; ek eksik makbuz senaryosu sonrası lifecycle hedefi 5/5. Web desktop + responsive son hedef koşu 6/6, taşma yok. İlk web koşu 4 başarı/2 hata: Redis yapılandırılmamış production sunucusunun auth öncesi güvenli 503 reddi yanlışlıkla 401 beklenmişti; güvenlik gevşetilmedi. Web ekran kapısı açık 403 kaynak reddini, API birim testi sağlıklı limiter altında anonim 401/no-write reddini ayrı doğrular. İlk başarısız koşular başarılı sayılmaz. Gerçek hesap silme talebi gönderilmedi.
-- GitHub/Netlify yayın kanıtları son kabulden sonra aşağıya eklenir. Kaynak commit/deploy doğrulanmadan yayımlandı sayılmaz.
+- GitHub/Netlify son kabulü aşağıdadır; kod/DB testleri gerçek erasure, ayrı rol JWT veya fiziksel cihaz kabulüyle aynı değildir.
+
+## Yayın ve canlı kabul
+
+Uygulama kaynağı **bf38a80dc829c61c0e79cad400cb38d674f05571**, [Netlify production 6ad8ebbcd5ab07705a772e4d](https://app.netlify.com/projects/salonny-preview/deploys/6ad8ebbcd5ab07705a772e4d) üzerinde **Published**. Hem Next backend/web hem hosted native export aynı yayındadır. Kaynakta `.env`/anahtar, kullanıcı verisi, özel ekran izi veya generated bundle commit edilmedi.
+
+`node scripts/verify-marketplace-lifecycle-preview.mjs`: **15/15 canlı kapı** geçti. Basic/şehir/highlight JSON cache yasağı, mevcut işletme detayı, kayıp kaydın gerçek API 404'ü, web/SEO/booking güvenli boş durumu, yeni native bundle/JS MIME/missing-JS 404, DB'ye ulaşmadan kaynak reddi ve DB + dağıtık limiter readiness kontrol edildi. İlk helper denemesi regex sözdizimi hatasıyla ağ isteği atmadan durdu; düzeltilmiş tam koşu ayrıdır ve önceki deneme başarı sayılmaz.
+
+Gerçek tarayıcıda yayımlanan web ve hosted native bulunamayan-kayıt ekranı → Keşfet geçişleri doğrulandı; mevcut İzmir tercihi korunarak her ikisi de aynı iki sonucu gösterdi. Mevcut Can detayı da web ve native önizlemede açıldı. Hiçbir talep/randevu/hesap/okundu yazımı veya GPS izni oluşturulmadı. Özel ekran kanıtları `artifacts/account-lifecycle-live-web.png` ve `artifacts/account-lifecycle-live-native.png` içinde, Git dışındadır.
+
+İlk [push CI](https://github.com/Materlayt1/salonny/actions/runs/39637355902) ve [PR CI](https://github.com/Materlayt1/salonny/actions/runs/39637364164): iki doğrulama job'unda lint, web/native tip, 1.254 birim/API (2 isteğe bağlı ağ atlaması), 690 + 23 SQL, bağımlılık güvenliği, production Next build ve iOS/Android/web export geçti. İki native tam koşuda ayrı ayrı **239 ilk-deneme başarısı / 2 isteğe bağlı canlı görsel atlaması**, retry/flaky yok. Takip eden web koşuları **47 başarı / 2 hata / 1 platform atlaması**: yeni testin anonim yönlendirmeyi yalnız HTTP 3xx sanması, kimlik servisi ayarsız CI'daki HTTP 200 içindeki Next streaming redirect'i reddetti. Bu koşuların geneli başarılı sayılmaz.
+
+Test, gerçek tarayıcının `/auth/login` adresine ulaşmasını, giriş başlığını ve silme formunun gösterilmemesini doğrulayacak şekilde düzeltildi. Kaynak reddi hâlâ kesin 403 bekler; auth/limiter/ürün kodu değişmedi. Yerel yeni desktop/responsive hedef koşu **6/6**, retry yok. İlk CI hata izleri `artifacts/lifecycle-first-ci-failure` içinde Git dışında korunur. Bu test-only düzeltmenin yeni temiz CI kabulü henüz kaydedilmedi.
+
+Web özel hesap silme formunun gerçek oturumla submit'i, gerçek kullanıcı talebi oluşturulmadan denenmedi; SSR/form güvenlik testi, yetkili API/SQL fixture'ları ve native intercepted submit birbirinin veya gerçek erasure kabulünün yerine geçmez. Canlıdaki önceden girilmiş geçersiz şehir/telefon metinleri de bu görevde sessizce düzeltilmedi; QA-26'ya aittir.
 
 Bu teslimat genel GO, mağaza kabulü, gerçek erasure iş akışı veya binlerce eşzamanlı üretim trafiği garantisi değildir.
